@@ -1,0 +1,14 @@
+# pip install -r requirements.txt
+
+# Base ---------------------------
+
+# python>=3.9.7
+torch>=1.10.1
+torchvision>=0.11.2
+numpy>=1.21.5
+opencv-python>=4.5.1.48
+matplotlib>=3.5.1
+tqdm>=4.62.3
+PyYAML>=6.0
+
+
