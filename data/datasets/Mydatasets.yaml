@@ -1,0 +1,33 @@
+# Set My datasets
+
+# how to set datasets path file
+
+# path|
+#     |---images|              or  |---images|
+#     |         |---0001.jpg       |         |train1-----|
+#     |         |---0002.jpg       |         |train2...  |---0001.jpg
+#     |         |---...            |         |...        |---0002.jpg
+#     |                            |                     |---...
+#     |---labels|                  |---labels|
+#               |---0001.txt                 |train1-----|
+#               |---0002.txt                 |train2...  |---0001.txt
+#               |---...                      |...        |---0002.txt
+#                                                        |---...
+
+# the path should better be absolute
+path: f:/datasets/Codinguse
+
+# the train image path(or train.txt which the image path is relative to 'path') in the path
+train: images
+
+# the val image path(or val.txt) in the path
+val: images
+
+# the test image path(or test.txt) in the path
+test: images
+
+# number of classes
+nc: 2
+
+# name of classes corresponding to 0, 1, 2, ...
+names: [ 'ship', 'buoy' ]

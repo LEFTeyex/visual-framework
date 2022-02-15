@@ -1,5 +1,6 @@
 r"""Set type hints in this lib"""
 
+from os import PathLike
 from typing import Union, Optional, TypeVar, Type, \
     Tuple
 
@@ -7,12 +8,16 @@ from torch.nn import Module, Parameter
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler  # ignore _LRScheduler, no problem
 
-__all__ = ['_int_or_None', '_str_or_None', '_float_or_None', '_complex_or_None',
+__all__ = ['_strpath',  # str path
+           '_int_or_None', '_str_or_None', '_float_or_None', '_complex_or_None',
            '_set_or_None', '_list_or_None', '_dict_or_None', '_tuple_or_None',
            '_module', '_optimizer', '_lr_scheduler', '_parameter',
            '_module_or_parameter', '_module_or_None',
            # special design
            '_pkt_or_None']
+
+# path type hints
+_strpath = Union[str, PathLike[str]]
 
 # Union[python built_in type, None]
 _int_or_None = Optional[int]

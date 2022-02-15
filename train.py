@@ -13,8 +13,9 @@ from torch.optim.lr_scheduler import StepLR
 # import from mylib below
 from models import ModelDetect
 from utils import \
-    load_all_yaml, save_all_yaml, init_seed, select_one_device, \
+    load_all_yaml, save_all_yaml, init_seed, select_one_device, get_path_and_check_datasets_yaml, \
     LOGGER, \
+    DatasetDetect, \
     SetSavePathMixin, LoadAllCheckPointMixin
 
 r"""Set Global Constant for file save and load"""
@@ -34,6 +35,7 @@ class TrainDetect(
         self.save_path = Path(args.save_path)
         self.weights = Path(args.weights)
         self.name = args.name
+        self.datasets = args.datasets
         self.hyp = args.hyp
         self.seed = args.seed
         self.inc = args.inc
@@ -62,6 +64,7 @@ class TrainDetect(
         # Save yaml dict
         save_all_yaml((vars(args), self.save_dict['args']),
                       (self.hyp, self.save_dict['hyp']))
+        del args
 
         # Load checkpoint(has to self.device)
         self.checkpoint = self.load_checkpoint()
@@ -89,8 +92,14 @@ class TrainDetect(
         # Initialize or load best_fitness
         self.best_fitness = self.load_best_fitness(load=False)
 
-        # load finished and delete self.checkpoint
+        # Delete self.checkpoint when load finished
         del self.checkpoint
+
+        # Get datasets path dict
+        self.datasets_path = get_path_and_check_datasets_yaml(self.datasets)
+
+        # Get train_dataset by self.datasets_path
+        self.train_dataset = DatasetDetect(self.datasets_path['train'], self.image_size)
 
         LOGGER.info('Initialize trainer successfully')
 
@@ -114,6 +123,7 @@ def parse_args(known: bool = False):
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int, default='100', help='epochs for training')
+    parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
     parser.add_argument('--name', type=str, default='exp', help='')
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
