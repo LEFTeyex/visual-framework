@@ -35,7 +35,7 @@ class TrainDetect(
         self.save_path = Path(args.save_path)
         self.weights = Path(args.weights)
         self.name = args.name
-        self.datasets = args.datasets
+        self.datasets_path = args.datasets_path
         self.hyp = args.hyp
         self.seed = args.seed
         self.inc = args.inc
@@ -96,10 +96,10 @@ class TrainDetect(
         del self.checkpoint
 
         # Get datasets path dict
-        self.datasets_path = get_path_and_check_datasets_yaml(self.datasets)
+        self.datasets = get_path_and_check_datasets_yaml(self.datasets_path)
 
-        # Get train_dataset by self.datasets_path
-        self.train_dataset = DatasetDetect(self.datasets_path['train'], self.image_size)
+        # Get train_dataset by self.datasets
+        self.train_dataset = DatasetDetect(self.datasets['train'], self.image_size, 'train')
 
         LOGGER.info('Initialize trainer successfully')
 
@@ -123,7 +123,7 @@ def parse_args(known: bool = False):
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int, default='100', help='epochs for training')
-    parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
+    parser.add_argument('--datasets_path', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
     parser.add_argument('--name', type=str, default='exp', help='')
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')

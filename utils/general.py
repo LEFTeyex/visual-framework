@@ -7,13 +7,11 @@ import yaml
 import torch
 import random
 import numpy as np
-from pathlib import Path
 
 from utils.log import LOGGER
 from utils.typeslib import _int_or_None, _strpath
 
-__all__ = ['to_tuplex', 'delete_list_indices', 'load_all_yaml', 'save_all_yaml', 'init_seed', 'select_one_device',
-           'get_path_and_check_datasets_yaml']
+__all__ = ['to_tuplex', 'delete_list_indices', 'load_all_yaml', 'save_all_yaml', 'init_seed', 'select_one_device',]
 
 
 def to_tuplex(value, n: int):
@@ -94,13 +92,13 @@ def init_seed(seed: _int_or_None = None):
         LOGGER.info('Setting seed(auto get) for all generator...')
         seed = torch.seed()
         random.seed(seed)
-        np.random.seed(_deal_seed_by_bit(seed))
+        np.random.seed(deal_seed_by_bit(seed))
     else:
         seed = abs(seed)
         LOGGER.info(f'Setting seed(manual): {seed} for all generator...')
         torch.manual_seed(seed)
         random.seed(seed)
-        np.random.seed(_deal_seed_by_bit(seed))
+        np.random.seed(deal_seed_by_bit(seed))
     LOGGER.info(f'Set seed: {seed} successfully')
 
 
@@ -134,57 +132,7 @@ def select_one_device(device_name: str):
     return device
 
 
-def get_path_and_check_datasets_yaml(path: _strpath):
-    r"""
-    Get path of datasets yaml for training and check datasets yaml.
-    Args:
-        path: _strpath = path
-
-    Return path_dict
-    """
-    LOGGER.info('Checking and loading the datasets yaml file...')
-    # check path and get them
-    datasets: dict = load_all_yaml(path)
-    parent_path = Path(datasets['path'])
-    train, val, test = datasets['train'], datasets.get('val'), datasets.get('test')
-
-    # deal str or list for train, val, test
-    tvt = []  # to save (train, val, test) dealt
-    for file in (train, val, test):
-        if file is None:
-            pass
-        elif isinstance(file, str):
-            tvt.append(parent_path / file)
-        elif isinstance(file, (list, tuple)):
-            save_tem = []
-            for element in file:
-                save_tem.append(parent_path / element)
-            tvt.append(save_tem)
-        else:
-            raise TypeError(f'The type of {file} is wrong, '
-                            f'please reset in the {path}')
-    # get the value dealt
-    train, val, test = tvt
-    del tvt
-
-    # train must exist
-    if train is None:
-        raise FileExistsError(f'The path train must not None, '
-                              f'please reset it in the {path}')
-
-    # check whether train, val, test exist
-    for path in (train, val, test):
-        for p in path if isinstance(path, list) else [path]:
-            if not p.exists():
-                raise FileExistsError(f'The path {path} do not exists, '
-                                      f'please reset in the {path}')
-
-    path_dict = {'train': train, 'val': val, 'test': test}
-    LOGGER.info('Get the path for training successfully')
-    return path_dict
-
-
-def _deal_seed_by_bit(seed: int, bit: int = 32):
+def deal_seed_by_bit(seed: int, bit: int = 32):
     r"""
     Deal seed that make it.bit_length() < bit by truncating its str.
     Args:

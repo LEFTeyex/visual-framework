@@ -10,21 +10,21 @@
 #     |                            |                     |---...
 #     |---labels|                  |---labels|
 #               |---0001.txt                 |train1-----|
-#               |---0002.txt                 |train2...  |---0001.txt
+#               |---0002.txt                 |train2...  |---0001.txt (class,x,y,w,h)
 #               |---...                      |...        |---0002.txt
 #                                                        |---...
 
 # the path should better be absolute
-path: f:/datasets/Codinguse
+path: f:/datasets/VOC
 
 # the train image path(or train.txt which the image path is relative to 'path') in the path
-train: images
+train: images/train2007
 
 # the val image path(or val.txt) in the path
-val: images
+val: images/train2007
 
 # the test image path(or test.txt) in the path
-test: images
+test: images/train2007
 
 # number of classes
 nc: 2

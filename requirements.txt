@@ -10,5 +10,3 @@ opencv-python>=4.5.1.48
 matplotlib>=3.5.1
 tqdm>=4.62.3
 PyYAML>=6.0
-
-

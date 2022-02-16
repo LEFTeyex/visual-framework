@@ -1,5 +1,5 @@
 r"""
-Download datasets from torchvision datasets
+Download datasets_path from torchvision datasets_path
 """
 
 from pathlib import Path
