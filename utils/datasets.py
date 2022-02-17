@@ -11,7 +11,7 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 from utils.log import LOGGER
-from utils.general import load_all_yaml
+from utils.general import load_all_yaml, to_tuplex
 from utils.typeslib import _strpath
 
 __all__ = ['DatasetDetect', 'get_path_and_check_datasets_yaml']
@@ -48,8 +48,11 @@ class DatasetDetect(Dataset):
         img_path = self.img_files[index]  # path str
         label = self.label_files[index]  # label ndarray [[class,x,y,w,h], ...]
 
-        image = load_image(img_path, self.img_size)  # load image and resize it
-        image = letterbox(image, self.img_size)  # pad image to shape or img_size
+        image, hw0, hw = load_image_resize(img_path, self.img_size)  # load image and resize it
+        image, dhw = letterbox(image, self.img_size)  # pad image to shape or img_size
+
+        # TODO deal label code 2022.2.18
+        # the label is normalized
 
         # TODO upgrade augment
         image = np.transpose(image, (2, 0, 1))  # (h,w,c) to (c,h,w)
@@ -86,12 +89,7 @@ class DatasetDetect(Dataset):
         return labels
 
 
-def letterbox(img, shape):
-    # TODO 2022.2.17
-    return img
-
-
-def load_image(img_path: _strpath, img_size: int):
+def load_image_resize(img_path: _strpath, img_size: int):
     r"""
     Load image and resize it which the largest edge is img_size.
     Args:
@@ -109,13 +107,42 @@ def load_image(img_path: _strpath, img_size: int):
     # TODO the process(or rect) may be faster for training in __init__ in the future
     h0, w0 = image.shape[:2]  # original hw
     r = img_size / max(h0, w0)  # ratio for resize
-    h, w = int(w0 * r), int(h0 * r)
+    h, w = round(w0 * r), round(h0 * r)
 
     if r != 1:
         # todo: args can change
         image = cv2.resize(image, dsize=(w, h),  # cv2.resize dsize need (w, h)
                            interpolation=cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR)
     return image, (h0, w0), (h, w)
+
+
+def letterbox(image: np.ndarray, shape_pad, color: tuple = (0, 0, 0)):
+    r"""
+    Pad image to specified shape.
+    Args:
+        image: np.ndarray = image(ndarray)
+        shape_pad: = (h, w) or int (int, int)
+        color: tuple = RGB
+
+    Return image(ndarray), (dh, dw)
+    """
+    if isinstance(shape_pad, int):
+        shape_pad = to_tuplex(shape_pad, 2)
+    shape = image.shape[:2]  # current shape (h,w)
+    assert shape[0] <= shape_pad[0] and shape[1] <= shape_pad[1], \
+        f'The image shape: {shape} must be less than shape_pad: {shape_pad}'
+
+    # get dh, dw for padding
+    dh, dw = shape_pad[0] - shape[0], shape_pad[1] - shape[1]
+    dh /= 2  # divide padding into 2 sides
+    dw /= 2
+
+    top, bottom = round(dh - 0.1), round(dh + 0.1)
+    left, right = round(dw - 0.1), round(dw + 0.1)
+    # add border(pad)
+    image = cv2.copyMakeBorder(image, top, bottom, left, right,
+                               cv2.BORDER_CONSTANT, value=color)
+    return image, (dh, dw)
 
 
 def get_path_and_check_datasets_yaml(path: _strpath):
