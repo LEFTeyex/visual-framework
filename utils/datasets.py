@@ -3,14 +3,15 @@ Custom Dataset module.
 Consist of Dataset that designed for different tasks.
 """
 import cv2
-from pathlib import Path
-
 import torch
 import numpy as np
+
 from tqdm import tqdm
-from torch.utils.data import Dataset, DataLoader
+from pathlib import Path
+from torch.utils.data import Dataset
 
 from utils.log import LOGGER
+from utils.bbox import xywhn2xywhn
 from utils.general import load_all_yaml, to_tuplex
 from utils.typeslib import _strpath
 
@@ -19,14 +20,12 @@ __all__ = ['DatasetDetect', 'get_path_and_check_datasets_yaml']
 IMAGE_FORMATS = ('bmp', 'jpg', 'jpeg', 'jpe', 'png', 'tif', 'tiff', 'webp')  # acceptable image suffixes
 
 
-# TODO upgrade Sampler in the future
-
 class DatasetDetect(Dataset):
-    # TODO upgrade val_from_train, test_from_train function in the future
+    # TODO upgrade val_from_train, test_from_train function in the future reference to random_split
     # TODO upgrade rectangular train shape for image model in the future reference to yolov5 rect=True
     # TODO upgrade .cache file in memory for faster training
     def __init__(self, path, img_size, prefix: str = ''):
-        LOGGER.info('Initializing dataset...')
+        LOGGER.info('Initializing Dataset...')
         self.img_size = img_size
 
         self.img_files = get_img_files(path)  # get the path list of image files
@@ -37,31 +36,57 @@ class DatasetDetect(Dataset):
 
         # get label_files that it is str and sorted with images_files
         self.label_files = img2label_files(self.img_files)
-        # check images and labels then get labels which is [np.array, ...]
-        self.label_files = self._check_img_get_label_detect(self.img_files, self.label_files, prefix)
+        # check images and labels then get labels which is [np.array shape(n,nlabel), ...]
+        self.label_files, self.nlabel = self._check_img_get_label_detect(self.img_files, self.label_files, prefix)
         LOGGER.info(f'Load {len(self.img_files)} images and {len(self.label_files)} labels')
-        LOGGER.info('Initialize dataset successfully')
+        LOGGER.info('Initialize Dataset successfully')
 
     def __getitem__(self, index):
         # TODO upgrade mosaic, cutout, cutmix, mixup etc.
-        # load image
+        # TODO upgrade a save list for first training to improve the speed up later training
+        # load image path and label
         img_path = self.img_files[index]  # path str
-        label = self.label_files[index]  # label ndarray [[class,x,y,w,h], ...]
+        label = self.label_files[index].copy()  # label ndarray [[class,x,y,w,h], ...] when nlabel=5
+        nl = len(label)  # number of label
 
-        image, hw0, hw = load_image_resize(img_path, self.img_size)  # load image and resize it
-        image, dhw = letterbox(image, self.img_size)  # pad image to shape or img_size
+        # load image and resize it
+        image, hw0, hw_nopad = load_image_resize(img_path, self.img_size)
+        image, hw_pad, pxy = letterbox(image, self.img_size)  # pad image to shape or img_size
 
-        # TODO deal label code 2022.2.18
-        # the label is normalized
+        # convert label normalized to match the image resized and padded
+        if nl:
+            label[:, 1:] = xywhn2xywhn(label[:, 1:], hw_nopad, hw_pad, pxy)
 
         # TODO upgrade augment
+        # deal image
         image = np.transpose(image, (2, 0, 1))  # (h,w,c) to (c,h,w)
         image = np.ascontiguousarray(image)  # make image contiguous in memory
         image = torch.from_numpy(image)
-        return image, label
+
+        # deal label
+        if nl:
+            index_label = torch.zeros((nl, 1))
+            label = torch.from_numpy(label)
+            label = torch.cat((index_label, label), dim=1)  # label shape is (nl, nlabel + 1)
+        else:
+            label = torch.empty((0, self.nlabel + 1))  # empty
+
+        return image, label  # only one image(h,w,c), label(nl, nlabel + 1)
 
     def __len__(self):
         return len(self.img_files)
+
+    @staticmethod
+    def collate_fn(batch):  # for dataloader in the Dataset
+        # batch is [(image, label), ...]
+        images, labels = zip(*batch)
+        # add index for label to image
+        for index, label in enumerate(labels):
+            label[:, 0] = index
+
+        labels = torch.cat(labels, dim=0)  # shape (n, nlabel + 1)
+        images = torch.stack(images, dim=0)  # shape (bs, c, h, w)
+        return images, labels
 
     @staticmethod
     def _check_img_get_label_detect(images_files, labels_files, prefix: str = '', nlabel: int = 5):
@@ -76,8 +101,7 @@ class DatasetDetect(Dataset):
                            -1] == channel, f'The channel of the image {ip} do not match with {channel}'
                 # check label and get read it to list
                 with open(lp, 'r') as f:
-                    label = [x.strip().split() for x in f.read().splitlines() if
-                             x]  # label is [[class,x,y,w,h], ...]
+                    label = [x.strip().split() for x in f.read().splitlines() if x]  # label is [[class,x,y,w,h], ...]
                     label = np.array(label, dtype=np.float32)
                     label = np.unique(label, axis=0)  # remove the same one
                     assert len(label), f'The label {lp} is empty'
@@ -86,7 +110,7 @@ class DatasetDetect(Dataset):
                     assert (label >= 0).all(), f'The value in label should not be negative {lp}'
                     assert (label[:, 1:]).all(), f'Non-normalized or out of bounds coordinates {lp}'
                     labels.append(label)
-        return labels
+        return labels, nlabel
 
 
 def load_image_resize(img_path: _strpath, img_size: int):
@@ -96,7 +120,7 @@ def load_image_resize(img_path: _strpath, img_size: int):
         img_path: _strpath = StrPath
         img_size: int = img_size for the largest edge
 
-    Return image, (h0, w0), (h, w)
+    Return image, (h0, w0), (h1, w1)
     """
     image = cv2.imread(img_path)  # (h,w,c) BGR
     image = image[..., ::-1]  # BGR to RGB
@@ -107,13 +131,13 @@ def load_image_resize(img_path: _strpath, img_size: int):
     # TODO the process(or rect) may be faster for training in __init__ in the future
     h0, w0 = image.shape[:2]  # original hw
     r = img_size / max(h0, w0)  # ratio for resize
-    h, w = round(w0 * r), round(h0 * r)
+    h1, w1 = round(w0 * r), round(h0 * r)
 
     if r != 1:
         # todo: args can change
-        image = cv2.resize(image, dsize=(w, h),  # cv2.resize dsize need (w, h)
+        image = cv2.resize(image, dsize=(w1, h1),  # cv2.resize dsize need (w, h)
                            interpolation=cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR)
-    return image, (h0, w0), (h, w)
+    return image, (h0, w0), (h1, w1)
 
 
 def letterbox(image: np.ndarray, shape_pad, color: tuple = (0, 0, 0)):
@@ -124,7 +148,7 @@ def letterbox(image: np.ndarray, shape_pad, color: tuple = (0, 0, 0)):
         shape_pad: = (h, w) or int (int, int)
         color: tuple = RGB
 
-    Return image(ndarray), (dh, dw)
+    Return image(ndarray), (h2, w2), pxy
     """
     if isinstance(shape_pad, int):
         shape_pad = to_tuplex(shape_pad, 2)
@@ -142,14 +166,53 @@ def letterbox(image: np.ndarray, shape_pad, color: tuple = (0, 0, 0)):
     # add border(pad)
     image = cv2.copyMakeBorder(image, top, bottom, left, right,
                                cv2.BORDER_CONSTANT, value=color)
-    return image, (dh, dw)
+    h2, w2 = image.shape[:2]
+    pxy = (left, top)  # for converting labels as pxy
+    return image, (h2, w2), pxy
+
+
+def get_img_files(path):  # path is list or pathlike
+    img_files = []
+    for p in path if isinstance(path, list) else [path]:
+        p = Path(p)
+        if p.is_dir():
+            img_files += [x for x in p.rglob('*.*')]
+        elif p.is_file():
+            with open(p, 'r') as f:
+                f = f.read().splitlines()
+                # local to global path
+                parent = p.parent
+                for element in f:
+                    element = Path(element.strip())
+                    if '\\' in element.parts:  # remove / in the front of it
+                        element = parent / Path(*element[1:])
+                        img_files.append(element)
+                    else:
+                        img_files.append(parent / element)
+        else:
+            raise TypeError(f'Something wrong with {p} in the type of file')
+    return img_files
+
+
+def img2label_files(img_files):
+    r"""
+    Change image path to label path from image paths.
+    The file name must be 'images' and 'labels'.
+    Args:
+        img_files: = img_files
+
+    Return label_files
+    """
+    # change 'images' to 'labels' and change suffix to '.txt'
+    label_files = ['labels'.join(p.rsplit('images', 1)).rsplit('.', 1)[0] + '.txt' for p in img_files]
+    return label_files
 
 
 def get_path_and_check_datasets_yaml(path: _strpath):
     r"""
     Get path of datasets yaml for training and check datasets yaml.
     Args:
-        path: _strpath = path
+        path: _strpath = StrPath
 
     Return path_dict
     """
@@ -199,40 +262,3 @@ def get_path_and_check_datasets_yaml(path: _strpath):
 
     LOGGER.info('Get the path for training successfully')
     return datasets
-
-
-def get_img_files(path):  # path is list or pathlike
-    img_files = []
-    for p in path if isinstance(path, list) else [path]:
-        p = Path(p)
-        if p.is_dir():
-            img_files += [x for x in p.rglob('*.*')]
-        elif p.is_file():
-            with open(p, 'r') as f:
-                f = f.read().splitlines()
-                # local to global path
-                parent = p.parent
-                for element in f:
-                    element = Path(element.strip())
-                    if '\\' in element.parts:  # remove / in the front of it
-                        element = parent / Path(*element[1:])
-                        img_files.append(element)
-                    else:
-                        img_files.append(parent / element)
-        else:
-            raise TypeError(f'Something wrong with {p} in the type of file')
-    return img_files
-
-
-def img2label_files(img_files):
-    r"""
-    Change image path to label path from image paths.
-    The file name must be 'images' and 'labels'.
-    Args:
-        img_files: = img_files
-
-    Return label_files
-    """
-    # change 'images' to 'labels' and change suffix to '.txt'
-    label_files = ['labels'.join(p.rsplit('images', 1)).rsplit('.', 1)[0] + '.txt' for p in img_files]
-    return label_files

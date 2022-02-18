@@ -7,16 +7,18 @@ import argparse
 import torch.nn as nn
 
 from pathlib import Path
+
 from torch.optim import SGD
 from torch.optim.lr_scheduler import StepLR
+from torch.cuda.amp import GradScaler, autocast
 
 # import from mylib below
 from models import ModelDetect
 from utils import \
-    load_all_yaml, save_all_yaml, init_seed, select_one_device, get_path_and_check_datasets_yaml, \
     LOGGER, \
+    load_all_yaml, save_all_yaml, init_seed, select_one_device, get_path_and_check_datasets_yaml, \
     DatasetDetect, \
-    SetSavePathMixin, LoadAllCheckPointMixin
+    SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin
 
 r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
@@ -24,7 +26,8 @@ ROOT = Path.cwd()  # **/visual-framework root directory
 
 class TrainDetect(
     SetSavePathMixin,  # set and get the paths for saving file of training
-    LoadAllCheckPointMixin  # load the config of the model trained before and others for training
+    LoadAllCheckPointMixin,  # load the config of the model trained before and others for training
+    DataLoaderMixin,  # get dataloader
 ):
     r"""Trainer for detection, built by mixins"""
 
@@ -42,11 +45,16 @@ class TrainDetect(
         self.num_class = args.num_class
         self.image_size = args.image_size
         self.epochs = args.epochs
+        self.batch_size = args.batch_size
+        self.workers = args.workers
+        self.shuffle = args.shuffle
+        self.pin_memory = args.pin_memory
         # TODO set hyp['load'] for model, optimizer, lr_scheduler etc. in the future
         # TODO design a way to get all parameters in train setting for research
 
         # Set one device
         self.device = select_one_device(self.device)
+        self.cuda = (self.device != 'cpu')
 
         # Initialize or auto seed manual
         init_seed(self.seed)
@@ -69,6 +77,8 @@ class TrainDetect(
         # Load checkpoint(has to self.device)
         self.checkpoint = self.load_checkpoint()
 
+        # TODO upgrade DP DDP
+
         # Initialize or load model(has to self.device)
         self.model = self.load_model(ModelDetect(self.inc, self.num_class), load=None)
 
@@ -86,6 +96,9 @@ class TrainDetect(
         # Initialize and load lr_scheduler
         self.scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 30), load=False)
 
+        # TODO 2022.2.19 load_gradscaler
+        self.scaler = GradScaler(enabled=self.cuda)
+
         # Initialize or load start_epoch
         self.start_epoch = self.load_start_epoch(load=None)
 
@@ -98,8 +111,11 @@ class TrainDetect(
         # Get datasets path dict
         self.datasets = get_path_and_check_datasets_yaml(self.datasets_path)
 
-        # Get train_dataset by self.datasets
-        self.train_dataset = DatasetDetect(self.datasets['train'], self.image_size, 'train')
+        # Get dataloader for training testing
+        self.train_dataloader = self.get_dataloader(DatasetDetect, 'train')
+        self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
+
+        # TODO upgrade warmup
 
         LOGGER.info('Initialize trainer successfully')
 
@@ -122,7 +138,11 @@ def parse_args(known: bool = False):
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default='100', help='epochs for training')
+    parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
+    parser.add_argument('--batch_size', type=int, default=32, help='')
+    parser.add_argument('--workers', type=int, default=0, help='')
+    parser.add_argument('--shuffle', type=bool, default=True, help='')
+    parser.add_argument('--pin_memory', type=bool, default=True, help='')
     parser.add_argument('--datasets_path', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
     parser.add_argument('--name', type=str, default='exp', help='')
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')

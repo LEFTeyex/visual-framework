@@ -16,7 +16,7 @@ __all__ = [
     # log
     'LOGGER', 'add_log_file',
     # mixins
-    'SetSavePathMixin', 'LoadAllCheckPointMixin',
+    'SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin',
     # units_utils
     'auto_pad', 'select_act',
 ]

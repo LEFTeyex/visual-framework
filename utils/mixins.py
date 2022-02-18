@@ -11,20 +11,21 @@ Please follow the rule, if you want to upgrade and maintain this module with me.
 
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
 from utils.general import delete_list_indices
-from utils.typeslib import _str_or_None, _module_or_None, _optimizer, _lr_scheduler, _pkt_or_None
+from utils.typeslib import _str_or_None, _module_or_None, _optimizer, _lr_scheduler, _pkt_or_None, _dataset_c
 
-__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin']
+__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin']
 
 
 class SetSavePathMixin(object):
     r"""
     Need self.save_path, self.name.
-        The function in the Mixin below.
-    1. Set save path (then get them in dict) and add FileHandler for LOGGER. --- self.save_path, self.name
+    The function in the Mixin below.
+    1. Set save path (then get them in dict) and add FileHandler for LOGGER. --- all self.*
     """
 
     def __init__(self):
@@ -386,9 +387,43 @@ class LoadAllCheckPointMixin(object):
             raise ValueError('The self.checkpoint is None, please load checkpoint')
 
 
-class DatasetMixin(object):
-    def get_dataset(self):
-        raise NotImplementedError
+class DataLoaderMixin(object):
+    r"""
+    Need self.datasets, self.image_size, self.batch_size, self.shuffle, self.workers, self.pin_memory
+    The function in the Mixin below.
+    1. Set dataset and get dataloader. --- all self.*
+    """
+
+    def __init__(self):
+        self.datasets = None
+        self.image_size = None
+        self.batch_size = None
+        self.shuffle = None
+        self.workers = None
+        self.pin_memory = None
+
+    def get_dataloader(self, dataset: _dataset_c, name: str):
+        r"""
+        Set dataset and get dataloader.
+        Args:
+            dataset: _dataset = dataset class
+            name: str = 'train' / 'val' / 'test'
+
+        Return dataloader
+        """
+        LOGGER.info('Initializing Dataloader...')
+        # set dataset
+        dataset = dataset(self.datasets[name], self.image_size, name)
+
+        # set dataloader
+        # TODO upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
+        batch_size = min(self.batch_size, len(dataset))
+        dataloader = DataLoader(dataset, batch_size, self.shuffle,
+                                num_workers=self.workers,
+                                pin_memory=self.pin_memory,
+                                collate_fn=dataset.collate_fn)
+        LOGGER.info('Initialize Dataloader successfully')
+        return dataloader
 
 
 class EMAModelMixin(object):
