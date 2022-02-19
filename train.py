@@ -10,15 +10,15 @@ from pathlib import Path
 
 from torch.optim import SGD
 from torch.optim.lr_scheduler import StepLR
-from torch.cuda.amp import GradScaler, autocast
+from torch.cuda.amp import GradScaler
 
 # import from mylib below
 from models import ModelDetect
 from utils import \
-    LOGGER, \
+    LOGGER, timer, \
     load_all_yaml, save_all_yaml, init_seed, select_one_device, get_path_and_check_datasets_yaml, \
     DatasetDetect, \
-    SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin
+    SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainMixin
 
 r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
@@ -28,12 +28,14 @@ class TrainDetect(
     SetSavePathMixin,  # set and get the paths for saving file of training
     LoadAllCheckPointMixin,  # load the config of the model trained before and others for training
     DataLoaderMixin,  # get dataloader
+    TrainMixin,  # for training
 ):
     r"""Trainer for detection, built by mixins"""
 
     def __init__(self, args):
         super(TrainDetect, self).__init__()
         # Get args
+        LOGGER.info('Initializing trainer for detection')
         self.device = args.device
         self.save_path = Path(args.save_path)
         self.weights = Path(args.weights)
@@ -53,7 +55,7 @@ class TrainDetect(
         # TODO design a way to get all parameters in train setting for research
 
         # Set one device
-        self.device = select_one_device(self.device)
+        self.device = select_one_device(self.device)  # requires model, images, labels .to(self.device)
         self.cuda = (self.device != 'cpu')
 
         # Initialize or auto seed manual
@@ -78,9 +80,10 @@ class TrainDetect(
         self.checkpoint = self.load_checkpoint()
 
         # TODO upgrade DP DDP
+        # TODO check whether start epoch set
 
         # Initialize or load model(has to self.device)
-        self.model = self.load_model(ModelDetect(self.inc, self.num_class), load=None)
+        self.model = self.load_model(ModelDetect(self.inc, self.num_class, ), load=None)
 
         # Set parameter groups to add to the optimizer
         self.param_groups = self.set_param_groups((('bias', nn.Parameter, {}),
@@ -96,8 +99,8 @@ class TrainDetect(
         # Initialize and load lr_scheduler
         self.scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 30), load=False)
 
-        # TODO 2022.2.19 load_gradscaler
-        self.scaler = GradScaler(enabled=self.cuda)
+        # Initialize and load GradScaler
+        self.scaler = self.load_gradscaler(GradScaler(enabled=self.cuda), load=False)
 
         # Initialize or load start_epoch
         self.start_epoch = self.load_start_epoch(load=None)
@@ -113,11 +116,22 @@ class TrainDetect(
 
         # Get dataloader for training testing
         self.train_dataloader = self.get_dataloader(DatasetDetect, 'train')
-        self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
+        self.nb_train = len(self.train_dataloader)  # number of batch for training
+
+        # self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
+        # self.nb_test = len(self.test_dataloader)
 
         # TODO upgrade warmup
 
+        # TODO loss model
+        self.loss_fn = None
+        self.anchors = None  # for loss_fn
+
         LOGGER.info('Initialize trainer successfully')
+
+    def train(self):
+        for self.epoch in range(self.start_epoch, self.epochs):
+            self.train_one_epoch()
 
 
 class TrainClassify(SetSavePathMixin):
@@ -155,10 +169,12 @@ def parse_args(known: bool = False):
     return namespace
 
 
-def main():
+@timer
+def train_detection():
     arguments = parse_args()
-    train = TrainDetect(arguments)
+    trainer = TrainDetect(arguments)
+    # trainer.train()
 
 
 if __name__ == '__main__':
-    main()
+    train_detection()

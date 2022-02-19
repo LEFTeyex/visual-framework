@@ -5,13 +5,30 @@ Consist of some general function.
 
 import yaml
 import torch
+import time
 import random
 import numpy as np
+
+from functools import wraps
 
 from utils.log import LOGGER
 from utils.typeslib import _int_or_None, _strpath
 
-__all__ = ['to_tuplex', 'delete_list_indices', 'load_all_yaml', 'save_all_yaml', 'init_seed', 'select_one_device',]
+__all__ = ['timer', 'to_tuplex', 'delete_list_indices', 'load_all_yaml', 'save_all_yaml', 'init_seed',
+           'select_one_device']
+
+
+def timer(func):
+    r"""A decorator for get run time"""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        t1 = time.time()
+        func(*args, **kwargs)
+        t = time.time() - t1
+        LOGGER.info(f'function: {func.__name__} took {t:.2f} s')
+
+    return wrapper
 
 
 def to_tuplex(value, n: int):

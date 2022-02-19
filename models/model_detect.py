@@ -42,11 +42,16 @@ class ModelDetect(nn.Module):
     Can be defined by changing Backbone and Head.
     """
 
-    def __init__(self, inc: int, num_class: int, num_others: int = 5, bias=True):
+    def __init__(self, inc: int, nc: int, anchors=None, num_others: int = 5, bias=True):
+        # in_channels, number of classes
         super(ModelDetect, self).__init__()
         LOGGER.info('Initializing the model...')
         self.backbone = Backbone(inc, bias=bias)
-        self.head = Head(num_class + num_others, bias=bias)
+        self.head = Head(nc + num_others, bias=bias)
+
+        self.register_buffer('anchors', anchors)
+        self.anchors = anchors
+
         LOGGER.info('Initialize model successfully')
 
     def forward(self, x):
@@ -56,5 +61,5 @@ class ModelDetect(nn.Module):
 
 
 if __name__ == '__main__':
-    model = ModelDetect(1, 1)
+    model = ModelDetect(1, 1, 1)
     print(isinstance(model, object))

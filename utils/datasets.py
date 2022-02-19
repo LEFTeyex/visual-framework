@@ -13,7 +13,7 @@ from torch.utils.data import Dataset
 from utils.log import LOGGER
 from utils.bbox import xywhn2xywhn
 from utils.general import load_all_yaml, to_tuplex
-from utils.typeslib import _strpath
+from utils.typeslib import _strpath, _int_or_tuple
 
 __all__ = ['DatasetDetect', 'get_path_and_check_datasets_yaml']
 
@@ -21,16 +21,27 @@ IMAGE_FORMATS = ('bmp', 'jpg', 'jpeg', 'jpe', 'png', 'tif', 'tiff', 'webp')  # a
 
 
 class DatasetDetect(Dataset):
+    r"""
+    Load images and labels while check them for detection.
+    For images, save its paths and load images with resizing, padding.
+    For labels, save it and convert labels when images resized or padded.
+    Args:
+        path: = path or [path, ...] for images
+        img_size: int = the largest edge of image size
+        prefix: str = the prefix for tqdm.tqdm
+    """
+
     # TODO upgrade val_from_train, test_from_train function in the future reference to random_split
     # TODO upgrade rectangular train shape for image model in the future reference to yolov5 rect=True
     # TODO upgrade .cache file in memory for faster training
-    def __init__(self, path, img_size, prefix: str = ''):
+    def __init__(self, path, img_size: int, prefix: str = ''):
         LOGGER.info('Initializing Dataset...')
         self.img_size = img_size
 
-        self.img_files = get_img_files(path)  # get the path list of image files
+        self.img_files = get_img_files(path)  # get the path tuple of image files
         # check img suffix and sort img_files(to str)
         self.img_files = sorted(str(x) for x in self.img_files if x.suffix.replace('.', '').lower() in IMAGE_FORMATS)
+        self.img_files = tuple(self.img_files)  # to save memory
         if not self.img_files:
             raise FileNotFoundError('No images found')
 
@@ -74,10 +85,18 @@ class DatasetDetect(Dataset):
         return image, label  # only one image(h,w,c), label(nl, nlabel + 1)
 
     def __len__(self):
+        r"""Return len of all data"""
         return len(self.img_files)
 
     @staticmethod
-    def collate_fn(batch):  # for dataloader in the Dataset
+    def collate_fn(batch):
+        r"""
+        For Dataloader batch data at last.
+        Args:
+            batch: list = [0, 1, 2, 3] for batch index of data
+
+        Return images, labels
+        """
         # batch is [(image, label), ...]
         images, labels = zip(*batch)
         # add index for label to image
@@ -86,19 +105,31 @@ class DatasetDetect(Dataset):
 
         labels = torch.cat(labels, dim=0)  # shape (n, nlabel + 1)
         images = torch.stack(images, dim=0)  # shape (bs, c, h, w)
-        return images, labels
+        return images, labels  # images(bs, c, h, w) labels(n, nlabel + 1)
 
     @staticmethod
     def _check_img_get_label_detect(images_files, labels_files, prefix: str = '', nlabel: int = 5):
+        r"""
+        Check image (channels) and labels (empty, shape, positive, normalized).
+        Get labels then.
+        Args:
+            images_files: = images_files(path tuple)
+            labels_files: = labels_files(path tuple)
+            prefix: str = the prefix for tqdm.tqdm
+            nlabel: int = number for detecting (x,y,w,h,object) new
+
+        Return labels(tuple), nlabel
+        """
         labels = []  # save labels
         channel = cv2.imread(images_files[0]).shape[-1]
         with tqdm(zip(images_files, labels_files),
+                  bar_format='{l_bar}{bar:20}{r_bar}',
                   desc=f'{prefix}: checking image and label',
                   total=len(images_files)) as pbar:
             for ip, lp in pbar:  # image path, label path
                 # check image
-                assert cv2.imread(ip).shape[
-                           -1] == channel, f'The channel of the image {ip} do not match with {channel}'
+                assert cv2.imread(ip).shape[-1] == channel, \
+                    f'The channel of the image {ip} do not match with {channel}'
                 # check label and get read it to list
                 with open(lp, 'r') as f:
                     label = [x.strip().split() for x in f.read().splitlines() if x]  # label is [[class,x,y,w,h], ...]
@@ -108,9 +139,9 @@ class DatasetDetect(Dataset):
                     assert label.ndim == 2, f'There are format problem with label {lp}'
                     assert label.shape[1] == nlabel, f'The label require {nlabel} element {lp}'
                     assert (label >= 0).all(), f'The value in label should not be negative {lp}'
-                    assert (label[:, 1:]).all(), f'Non-normalized or out of bounds coordinates {lp}'
+                    assert (label[:, 1:] <= 1).all(), f'Non-normalized or out of bounds coordinates {lp}'
                     labels.append(label)
-        return labels, nlabel
+        return tuple(labels), nlabel
 
 
 def load_image_resize(img_path: _strpath, img_size: int):
@@ -140,12 +171,12 @@ def load_image_resize(img_path: _strpath, img_size: int):
     return image, (h0, w0), (h1, w1)
 
 
-def letterbox(image: np.ndarray, shape_pad, color: tuple = (0, 0, 0)):
+def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0, 0)):
     r"""
     Pad image to specified shape.
     Args:
         image: np.ndarray = image(ndarray)
-        shape_pad: = (h, w) or int (int, int)
+        shape_pad: _int_or_tuple = (h, w) or int
         color: tuple = RGB
 
     Return image(ndarray), (h2, w2), pxy
@@ -172,6 +203,13 @@ def letterbox(image: np.ndarray, shape_pad, color: tuple = (0, 0, 0)):
 
 
 def get_img_files(path):  # path is list or pathlike
+    r"""
+    Get all the image path in the path.
+    Args:
+        path: = pathlike or [pathlike, ...]
+
+    Return img_files(which is absolute image paths tuple)
+    """
     img_files = []
     for p in path if isinstance(path, list) else [path]:
         p = Path(p)
@@ -191,7 +229,7 @@ def get_img_files(path):  # path is list or pathlike
                         img_files.append(parent / element)
         else:
             raise TypeError(f'Something wrong with {p} in the type of file')
-    return img_files
+    return tuple(img_files)  # to save memory
 
 
 def img2label_files(img_files):
@@ -205,16 +243,16 @@ def img2label_files(img_files):
     """
     # change 'images' to 'labels' and change suffix to '.txt'
     label_files = ['labels'.join(p.rsplit('images', 1)).rsplit('.', 1)[0] + '.txt' for p in img_files]
-    return label_files
+    return tuple(label_files)  # to save memory
 
 
 def get_path_and_check_datasets_yaml(path: _strpath):
     r"""
-    Get path of datasets yaml for training and check datasets yaml.
+    Get path and other data of datasets yaml for training and check datasets yaml.
     Args:
         path: _strpath = StrPath
 
-    Return path_dict
+    Return datasets
     """
     LOGGER.info('Checking and loading the datasets yaml file...')
     # check path and get them

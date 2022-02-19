@@ -11,14 +11,20 @@ Please follow the rule, if you want to upgrade and maintain this module with me.
 
 import torch
 import torch.nn as nn
+
+from tqdm import tqdm
 from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast
 
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
 from utils.general import delete_list_indices
-from utils.typeslib import _str_or_None, _module_or_None, _optimizer, _lr_scheduler, _pkt_or_None, _dataset_c
+from utils.typeslib import _str_or_None, \
+    _module_or_None, _optimizer, _lr_scheduler, _gradscaler, \
+    _dataset_c, \
+    _pkt_or_None
 
-__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin']
+__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainMixin']
 
 
 class SetSavePathMixin(object):
@@ -90,9 +96,10 @@ class LoadAllCheckPointMixin(object):
     2. Load model from 'model' or 'state_dict' or initialize model. ------- ues self.device, self.checkpoint
     3. Load optimizer from state_dict and add param_groups first. --------- ues self.checkpoint, self.param_groups
     4. Load lr_scheduler from state_dict. --------------------------------- ues self.checkpoint
-    5. Load start_epoch. -------------------------------------------------- ues self.checkpoint, self.epochs
-    6. Load best_fitness for choosing which weights of model is best among epochs. --- ues self.checkpoint
-    7. Set param_groups, need to know how to set param_kind_list. --------- ues self.model
+    5. Load GradScaler from state_dict. ----------------------------------- ues self.checkpoint
+    6. Load start_epoch. -------------------------------------------------- ues self.checkpoint, self.epochs
+    7. Load best_fitness for choosing which weights of model is best among epochs. --- ues self.checkpoint
+    8. Set param_groups, need to know how to set param_kind_list. --------- ues self.model
     """
 
     def __init__(self):
@@ -110,6 +117,7 @@ class LoadAllCheckPointMixin(object):
             checkpoint = {'model':                    model,
                           'optimizer_state_dict':     optimizer.state_dict(),
                           'lr_scheduler_state_dict':  scheduler.state_dict(),
+                          'gradscaler_state_dict':    scaler.state_dict(),
                           'epoch':                    epoch,
                           'best_fitness':             best_fitness}
         Args:
@@ -232,6 +240,27 @@ class LoadAllCheckPointMixin(object):
         else:
             LOGGER.info('Do not load lr_scheduler state_dict')
         return scheduler_instance
+
+    def load_gradscaler(self, gradscaler_instance: _gradscaler, load: bool = True):
+        r"""
+        Load GradScaler from state_dict.
+        Args:
+            gradscaler_instance: _gradscaler = GradScaler(enabled=self.cuda) etc. the instance of GradScaler
+            load: bool = True / False, Default=True(load GradScaler state_dict)
+
+        Return gradscaler_instance
+        """
+        LOGGER.info('Initialize GradScaler successfully')
+        if load:
+            # load GradScaler
+            LOGGER.info('Loading GradScaler state_dict...')
+            self._check_checkpoint_not_none()
+            gradscaler_instance.load_state_dict(self.checkpoint['gradscaler_state_dict'])
+            LOGGER.info('Load GradScaler state_dict successfully...')
+
+        else:
+            LOGGER.info('Do not load lr_scheduler state_dict')
+        return gradscaler_instance
 
     def load_start_epoch(self, load: _str_or_None = 'continue'):
         r"""
@@ -424,6 +453,58 @@ class DataLoaderMixin(object):
                                 collate_fn=dataset.collate_fn)
         LOGGER.info('Initialize Dataloader successfully')
         return dataloader
+
+
+class LossMixin(object):
+    def get_loss_fn(self):
+        pass
+
+
+class TrainMixin(object):
+    def __init__(self):
+        self.epochs = None
+        self.epoch = None
+        self.lr_scheduler = None
+        self.device = None
+        self.cuda = None
+        self.optimizer = None
+        self.nb_train = None
+        self.train_dataloader = None
+        self.model = None
+        self.loss_fn = None
+        self.scaler = None
+
+    def train_one_epoch(self):
+        self.model.train()
+        self.optimizer.zero_grad()
+
+        with tqdm(enumerate(self.train_dataloader), total=self.nb_train,
+                  bar_format='{l_bar}{bar:10}{r_bar}',
+                  desc=f'epoch:{self.epoch}/{self.epochs}',
+                  postfix=f'') as pbar:
+            for index, (images, labels) in pbar:
+                images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
+                labels = labels.to(self.device)
+
+                # TODO warmup in the future
+
+                # forward
+                with autocast(enabled=self.cuda):
+                    outputs = self.model(images)
+                    loss = self.loss_fn(outputs, labels)
+
+                # backward
+                self.scaler.scale(loss).backward()
+
+                # optimize
+                # maybe accumulating gradient will be better (if index...: ...)
+                self.scaler.step(self.optimizer)  # optimizer.step()
+                self.scaler.update()
+                self.optimizer.zero_grad()
+
+            # lr_scheduler
+            self.lr_scheduler.step()
+        return loss.detach()
 
 
 class EMAModelMixin(object):
