@@ -4,8 +4,8 @@ Consist of some general function.
 """
 
 import yaml
-import torch
 import time
+import torch
 import random
 import numpy as np
 

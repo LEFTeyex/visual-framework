@@ -16,8 +16,9 @@ from torch.cuda.amp import GradScaler
 from models import ModelDetect
 from utils import \
     LOGGER, timer, \
-    load_all_yaml, save_all_yaml, init_seed, select_one_device, get_path_and_check_datasets_yaml, \
+    load_all_yaml, save_all_yaml, init_seed, select_one_device, get_and_check_datasets_yaml, \
     DatasetDetect, \
+    LossDetectYolov5, \
     SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainMixin
 
 r"""Set Global Constant for file save and load"""
@@ -28,6 +29,7 @@ class TrainDetect(
     SetSavePathMixin,  # set and get the paths for saving file of training
     LoadAllCheckPointMixin,  # load the config of the model trained before and others for training
     DataLoaderMixin,  # get dataloader
+    LossMixin,
     TrainMixin,  # for training
 ):
     r"""Trainer for detection, built by mixins"""
@@ -97,7 +99,7 @@ class TrainDetect(
                                              load=False)
 
         # Initialize and load lr_scheduler
-        self.scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 30), load=False)
+        self.lr_scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 30), load=False)
 
         # Initialize and load GradScaler
         self.scaler = self.load_gradscaler(GradScaler(enabled=self.cuda), load=False)
@@ -112,26 +114,24 @@ class TrainDetect(
         del self.checkpoint
 
         # Get datasets path dict
-        self.datasets = get_path_and_check_datasets_yaml(self.datasets_path)
+        self.datasets = get_and_check_datasets_yaml(self.datasets_path)
 
         # Get dataloader for training testing
         self.train_dataloader = self.get_dataloader(DatasetDetect, 'train')
-        self.nb_train = len(self.train_dataloader)  # number of batch for training
-
+        # self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
         # self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
-        # self.nb_test = len(self.test_dataloader)
 
         # TODO upgrade warmup
 
-        # TODO loss model
-        self.loss_fn = None
-        self.anchors = None  # for loss_fn
-
+        # Get loss function
+        self.loss_fn = self.get_loss_fn(LossDetectYolov5)
         LOGGER.info('Initialize trainer successfully')
 
     def train(self):
         for self.epoch in range(self.start_epoch, self.epochs):
-            self.train_one_epoch()
+            loss = self.train_one_epoch()
+            LOGGER.info(f'{loss}')
+            # TODO 2022.2.21 design how to deal result and save something
 
 
 class TrainClassify(SetSavePathMixin):
@@ -173,7 +173,7 @@ def parse_args(known: bool = False):
 def train_detection():
     arguments = parse_args()
     trainer = TrainDetect(arguments)
-    # trainer.train()
+    trainer.train()
 
 
 if __name__ == '__main__':

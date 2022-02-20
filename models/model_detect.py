@@ -2,7 +2,7 @@ r"""
 Detection Model.
 It is built by units.py or torch.nn Module.
 """
-
+import torch
 import torch.nn as nn
 
 from models.units import Conv
@@ -32,7 +32,7 @@ class Head(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
-        return x
+        return x, x, x
 
 
 class ModelDetect(nn.Module):
@@ -50,7 +50,9 @@ class ModelDetect(nn.Module):
         self.head = Head(nc + num_others, bias=bias)
 
         self.register_buffer('anchors', anchors)
-        self.anchors = anchors
+        # TODO design anchors args
+        self.anchors = torch.rand(3, 3, 2)
+        self.nc = nc
 
         LOGGER.info('Initialize model successfully')
 
@@ -61,5 +63,5 @@ class ModelDetect(nn.Module):
 
 
 if __name__ == '__main__':
-    model = ModelDetect(1, 1, 1)
+    model = ModelDetect(3, 20, 1)
     print(isinstance(model, object))

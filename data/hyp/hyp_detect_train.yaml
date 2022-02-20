@@ -4,3 +4,14 @@
 lr0: 0.01
 momentum: 0.9
 weight_decay: 0.005
+label_smoothing: 0.1
+fl_gamma: 0.0
+
+bbox: 0.0296
+cls: 0.243
+obj: 0.301
+
+cls_pw: 0.631
+obj_pw: 0.911
+
+anchor_threshold: 4.0

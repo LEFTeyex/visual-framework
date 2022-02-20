@@ -2,6 +2,7 @@ r"""
 Custom Dataset module.
 Consist of Dataset that designed for different tasks.
 """
+
 import cv2
 import torch
 import numpy as np
@@ -15,7 +16,7 @@ from utils.bbox import xywhn2xywhn
 from utils.general import load_all_yaml, to_tuplex
 from utils.typeslib import _strpath, _int_or_tuple
 
-__all__ = ['DatasetDetect', 'get_path_and_check_datasets_yaml']
+__all__ = ['DatasetDetect', 'get_and_check_datasets_yaml']
 
 IMAGE_FORMATS = ('bmp', 'jpg', 'jpeg', 'jpe', 'png', 'tif', 'tiff', 'webp')  # acceptable image suffixes
 
@@ -35,9 +36,8 @@ class DatasetDetect(Dataset):
     # TODO upgrade rectangular train shape for image model in the future reference to yolov5 rect=True
     # TODO upgrade .cache file in memory for faster training
     def __init__(self, path, img_size: int, prefix: str = ''):
-        LOGGER.info('Initializing Dataset...')
-        self.img_size = img_size
 
+        self.img_size = img_size
         self.img_files = get_img_files(path)  # get the path tuple of image files
         # check img suffix and sort img_files(to str)
         self.img_files = sorted(str(x) for x in self.img_files if x.suffix.replace('.', '').lower() in IMAGE_FORMATS)
@@ -50,7 +50,6 @@ class DatasetDetect(Dataset):
         # check images and labels then get labels which is [np.array shape(n,nlabel), ...]
         self.label_files, self.nlabel = self._check_img_get_label_detect(self.img_files, self.label_files, prefix)
         LOGGER.info(f'Load {len(self.img_files)} images and {len(self.label_files)} labels')
-        LOGGER.info('Initialize Dataset successfully')
 
     def __getitem__(self, index):
         # TODO upgrade mosaic, cutout, cutmix, mixup etc.
@@ -202,7 +201,7 @@ def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0,
     return image, (h2, w2), pxy
 
 
-def get_img_files(path):  # path is list or pathlike
+def get_img_files(path):
     r"""
     Get all the image path in the path.
     Args:
@@ -246,7 +245,7 @@ def img2label_files(img_files):
     return tuple(label_files)  # to save memory
 
 
-def get_path_and_check_datasets_yaml(path: _strpath):
+def get_and_check_datasets_yaml(path: _strpath):
     r"""
     Get path and other data of datasets yaml for training and check datasets yaml.
     Args:

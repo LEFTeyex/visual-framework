@@ -10,11 +10,11 @@ from utils.units_utils import *
 
 __all__ = [
     # bbox
-    'xywhn2xywhn',
+    'xywhn2xywhn', 'bbox_iou',
     # check
     'check_odd', 'check_even', 'check_only_one_set',
     # datasets
-    'DatasetDetect', 'get_path_and_check_datasets_yaml',
+    'DatasetDetect', 'get_and_check_datasets_yaml',
     # decode
     'solve_bbox_yolov5',
     # general

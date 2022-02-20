@@ -13,15 +13,16 @@ import torch
 import torch.nn as nn
 
 from tqdm import tqdm
-from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast
+from torch.utils.data import DataLoader
 
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
 from utils.general import delete_list_indices
-from utils.typeslib import _str_or_None, \
+from utils.typeslib import \
+    _str_or_None, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler, \
-    _dataset_c, \
+    _dataset_c, _instance_c, \
     _pkt_or_None
 
 __all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainMixin']
@@ -338,7 +339,7 @@ class LoadAllCheckPointMixin(object):
                                                 Default=None(do not set param_groups)
                                    for example: (('weight'/'bias', nn.Parameter/nn.*, {lr=0.01, ...}), ...)
 
-        Return param_groups
+        Return param_groups {'params': nn.Parameter, 'lr': 0.01, ...}
         """
         # do not set param_groups
         if param_kind_tuple is None:
@@ -348,8 +349,8 @@ class LoadAllCheckPointMixin(object):
         LOGGER.info('Setting param_groups...')
         # TODO: Upgrade the algorithm in the future for filtering parameters from model.modules() better
         param_groups = []
-        rest = []  # save the rest parameters that are not filtered
-        indices = []  # save parameters (index, name) temporarily to delete
+        rest = []  # save_params the rest parameters that are not filtered
+        indices = []  # save_params parameters (index, name) temporarily to delete
 
         # get all parameters from model and set one of ('weightbias', 'weight', 'bias') to its indices
         for element in self.model.modules():
@@ -366,7 +367,7 @@ class LoadAllCheckPointMixin(object):
         # loop the param_groups
         for name, kind, param_dict in param_kind_tuple:
             str_eval = 'module.' + name  # for eval to get code module.weight or module.bias
-            save = []  # save parameters temporarily
+            save_params = []  # save parameters temporarily
 
             # filter parameters from model
             for index, module in enumerate(rest):
@@ -375,11 +376,11 @@ class LoadAllCheckPointMixin(object):
 
                     if isinstance(module, kind):
                         indices[index] = indices[index].replace(name, '')
-                        save.append(module_name)
+                        save_params.append(module_name)
 
                     elif isinstance(module_name, kind):
                         indices[index] = indices[index].replace(name, '')
-                        save.append(module_name)
+                        save_params.append(module_name)
 
                     elif isinstance(module, nn.Module):
                         # let nn.others pass to prevent other unexpected problems from happening
@@ -400,7 +401,7 @@ class LoadAllCheckPointMixin(object):
             rest = delete_list_indices(rest, indices_filter)
 
             # add params to dict and add param_dict to param_groups
-            param_dict['params'] = save
+            param_dict['params'] = save_params
             param_groups.append(param_dict)
 
         # check whether rest is empty
@@ -424,11 +425,11 @@ class DataLoaderMixin(object):
     """
 
     def __init__(self):
+        self.shuffle = None
+        self.workers = None
         self.datasets = None
         self.image_size = None
         self.batch_size = None
-        self.shuffle = None
-        self.workers = None
         self.pin_memory = None
 
     def get_dataloader(self, dataset: _dataset_c, name: str):
@@ -438,11 +439,13 @@ class DataLoaderMixin(object):
             dataset: _dataset = dataset class
             name: str = 'train' / 'val' / 'test'
 
-        Return dataloader
+        Return dataloader instance
         """
         LOGGER.info('Initializing Dataloader...')
         # set dataset
+        LOGGER.info('Initializing Dataset...')
         dataset = dataset(self.datasets[name], self.image_size, name)
+        LOGGER.info('Initialize Dataset successfully')
 
         # set dataloader
         # TODO upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
@@ -456,31 +459,50 @@ class DataLoaderMixin(object):
 
 
 class LossMixin(object):
-    def get_loss_fn(self):
-        pass
+    r"""
+    Need self.hyp, self.model
+    The function in the Mixin below.
+    1. Get loss function. --- all self.*
+    """
+
+    def __init__(self):
+        self.hyp = None
+        self.model = None
+
+    def get_loss_fn(self, loss_class: _instance_c):
+        r"""
+        Get loss function.
+        Args:
+            loss_class: _instance_c = loss class
+
+        Return loss_instance
+        """
+        LOGGER.info('Initializing LossDetect...')
+        loss_instance = loss_class(self.model, self.hyp)
+        LOGGER.info('Initialize LossDetect successfully')
+        return loss_instance
 
 
 class TrainMixin(object):
     def __init__(self):
-        self.epochs = None
-        self.epoch = None
-        self.lr_scheduler = None
-        self.device = None
         self.cuda = None
-        self.optimizer = None
-        self.nb_train = None
-        self.train_dataloader = None
+        self.epoch = None
         self.model = None
-        self.loss_fn = None
+        self.epochs = None
+        self.device = None
         self.scaler = None
+        self.loss_fn = None
+        self.optimizer = None
+        self.lr_scheduler = None
+        self.train_dataloader = None
 
     def train_one_epoch(self):
         self.model.train()
         self.optimizer.zero_grad()
 
-        with tqdm(enumerate(self.train_dataloader), total=self.nb_train,
+        with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
                   bar_format='{l_bar}{bar:10}{r_bar}',
-                  desc=f'epoch:{self.epoch}/{self.epochs}',
+                  desc=f'epoch: {self.epoch}/{self.epochs}',
                   postfix=f'') as pbar:
             for index, (images, labels) in pbar:
                 images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
@@ -491,7 +513,7 @@ class TrainMixin(object):
                 # forward
                 with autocast(enabled=self.cuda):
                     outputs = self.model(images)
-                    loss = self.loss_fn(outputs, labels)
+                    loss = self.loss_fn(outputs, labels, kind='ciou')
 
                 # backward
                 self.scaler.scale(loss).backward()
@@ -504,7 +526,7 @@ class TrainMixin(object):
 
             # lr_scheduler
             self.lr_scheduler.step()
-        return loss.detach()
+        return loss.detach().item()
 
 
 class EMAModelMixin(object):
