@@ -51,7 +51,7 @@ class LossDetectYolov5(object):
             labels: Tensor = labels from Dataloader
             kind: str = 'iou' / 'giou' / 'diou' / 'ciou' the kind of IoU
 
-        Return loss
+        Return loss, loss_items
         """
         bs = outputs[0].shape[0]  # batch size
         # initialize all loss
@@ -89,12 +89,13 @@ class LossDetectYolov5(object):
             loss_obj += self.loss_obj_fn(output[..., 4], labels_obj)
 
         # deal all loss
-        loss_bbox *= self.hyp['bbox']
-        loss_cls *= self.hyp['cls']
-        loss_obj *= self.hyp['obj']
+        loss_bbox *= self.hyp['bbox'] * bs
+        loss_cls *= self.hyp['cls'] * bs
+        loss_obj *= self.hyp['obj'] * bs
 
-        loss = (loss_bbox + loss_cls + loss_obj) * bs
-        return loss
+        loss = (loss_bbox + loss_cls + loss_obj)
+        loss_items = torch.cat((loss_bbox, loss_cls, loss_obj))
+        return loss, loss_items
 
     def convert_labels_for_loss_yolov5(self, outputs: Tensor, labels: Tensor):
         r"""

@@ -25,7 +25,8 @@ from utils.typeslib import \
     _dataset_c, _instance_c, \
     _pkt_or_None
 
-__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainMixin']
+__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainMixin',
+           'ValMixin']
 
 
 class SetSavePathMixin(object):
@@ -499,11 +500,11 @@ class TrainMixin(object):
     def train_one_epoch(self):
         self.model.train()
         self.optimizer.zero_grad()
+        loss_name = ('total loss', 'bbox loss', 'class loss', 'object loss')
+        loss_all_mean = torch.zeros(4, device=self.device)
 
         with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
-                  bar_format='{l_bar}{bar:10}{r_bar}',
-                  desc=f'epoch: {self.epoch}/{self.epochs}',
-                  postfix=f'') as pbar:
+                  bar_format='{l_bar:>35}{bar:10}{r_bar}') as pbar:
             for index, (images, labels) in pbar:
                 images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
                 labels = labels.to(self.device)
@@ -513,7 +514,7 @@ class TrainMixin(object):
                 # forward
                 with autocast(enabled=self.cuda):
                     outputs = self.model(images)
-                    loss = self.loss_fn(outputs, labels, kind='ciou')
+                    loss, loss_items = self.loss_fn(outputs, labels, kind='ciou')
 
                 # backward
                 self.scaler.scale(loss).backward()
@@ -524,9 +525,31 @@ class TrainMixin(object):
                 self.scaler.update()
                 self.optimizer.zero_grad()
 
+                # mean total loss and loss items
+                loss_all = torch.cat((loss, loss_items), dim=0).detach()
+                loss_all_mean = self.loss_mean(index, loss_all_mean, loss_all)
+                self._show_loss_in_pbar_training(loss_all_mean, pbar)
+
             # lr_scheduler
             self.lr_scheduler.step()
-        return loss.detach().item()
+        return loss_all_mean, loss_name
+
+    def _show_loss_in_pbar_training(self, loss, pbar):
+        # GPU memory used
+        memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}GB'
+
+        # show in pbar
+        pbar.set_description_str(f'epoch: {self.epoch}/{self.epochs - 1}, {memory_cuda}')
+        pbar.set_postfix_str(f'total loss: {loss[0]:.3f}, '
+                             f'bbox loss: {loss[1]:.3f}, '
+                             f'class loss: {loss[2]:.3f}, '
+                             f'object loss: {loss[3]:.3f}')
+
+    @staticmethod
+    def loss_mean(index, loss_all_mean, loss_all):
+        loss_all_mean = (loss_all_mean * index + loss_all) / (index + 1)
+        loss_all_mean = [x.item() for x in loss_all_mean]
+        return tuple(loss_all_mean)
 
 
 class EMAModelMixin(object):
@@ -555,6 +578,37 @@ class CheckMixin(object):
 class FreezeLayersMixin(object):
     def freeze_layers(self, layers):
         raise NotImplementedError
+
+
+class ValMixin(object):
+    def __init__(self):
+        self.dataloader = None
+        self.half = None
+        self.model = None
+        self.device = None
+        self.loss_fn = None
+
+    def val_once(self):
+        loss_name = ('total loss', 'bbox loss', 'class loss', 'object loss')
+        loss_all_mean = torch.zeros(4, device=self.device).half() if self.half else torch.zeros(4, device=self.device)
+        with tqdm(enumerate(self.dataloader), total=len(self.dataloader),
+                  bar_format='{l_bar:>35}{bar:10}{r_bar}') as pbar:
+            for index, (images, labels) in pbar:
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+
+                # to half16 or float32 and normalized 0.0-1.0
+                images = images.half() / 255 if self.half else images.float() / 255
+
+                # inference
+                outputs = self.model(images)
+                loss, loss_items = self.loss_fn(outputs, labels, kind='ciou')
+
+                # mean total loss and loss items
+                loss_all = torch.cat((loss, loss_items), dim=0).detach()
+                loss_all_mean = TrainMixin.loss_mean(index, loss_all_mean, loss_all)
+
+        return loss_all_mean, loss_name
 
 
 if __name__ == '__main__':

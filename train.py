@@ -46,7 +46,6 @@ class TrainDetect(
         self.hyp = args.hyp
         self.seed = args.seed
         self.inc = args.inc
-        self.num_class = args.num_class
         self.image_size = args.image_size
         self.epochs = args.epochs
         self.batch_size = args.batch_size
@@ -66,6 +65,7 @@ class TrainDetect(
         # Get save_dict
         self.save_dict = self.get_save_path(('hyp', 'hyp.yaml'),
                                             ('args', 'args.yaml'),
+                                            ('datasets', 'datasets.yaml'),
                                             ('results', 'results.txt'),
                                             ('last', 'weights/last.pt'),
                                             ('best', 'weights/best.pt'),
@@ -73,9 +73,13 @@ class TrainDetect(
         # Load hyp yaml
         self.hyp = load_all_yaml(self.hyp)
 
+        # Get datasets path dict
+        self.datasets = get_and_check_datasets_yaml(self.datasets_path)
+
         # Save yaml dict
         save_all_yaml((vars(args), self.save_dict['args']),
-                      (self.hyp, self.save_dict['hyp']))
+                      (self.hyp, self.save_dict['hyp']),
+                      (self.datasets, self.save_dict['datasets']))
         del args
 
         # Load checkpoint(has to self.device)
@@ -85,7 +89,7 @@ class TrainDetect(
         # TODO check whether start epoch set
 
         # Initialize or load model(has to self.device)
-        self.model = self.load_model(ModelDetect(self.inc, self.num_class, ), load=None)
+        self.model = self.load_model(ModelDetect(self.inc, self.datasets['nc']), load=None)
 
         # Set parameter groups to add to the optimizer
         self.param_groups = self.set_param_groups((('bias', nn.Parameter, {}),
@@ -113,9 +117,6 @@ class TrainDetect(
         # Delete self.checkpoint when load finished
         del self.checkpoint
 
-        # Get datasets path dict
-        self.datasets = get_and_check_datasets_yaml(self.datasets_path)
-
         # Get dataloader for training testing
         self.train_dataloader = self.get_dataloader(DatasetDetect, 'train')
         # self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
@@ -128,10 +129,10 @@ class TrainDetect(
         LOGGER.info('Initialize trainer successfully')
 
     def train(self):
+        LOGGER.info('Start training')
         for self.epoch in range(self.start_epoch, self.epochs):
-            loss = self.train_one_epoch()
-            LOGGER.info(f'{loss}')
-            # TODO 2022.2.21 design how to deal result and save something
+            loss_all, loss_name = self.train_one_epoch()
+            LOGGER.debug(f'{loss_name} is {loss_all}')
 
 
 class TrainClassify(SetSavePathMixin):
@@ -153,7 +154,7 @@ def parse_args(known: bool = False):
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
-    parser.add_argument('--batch_size', type=int, default=32, help='')
+    parser.add_argument('--batch_size', type=int, default=2, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
     parser.add_argument('--pin_memory', type=bool, default=True, help='')
@@ -163,7 +164,6 @@ def parse_args(known: bool = False):
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
     parser.add_argument('--seed', type=int, default=None, help='None is auto')
     parser.add_argument('--inc', type=int, default=3, help='')
-    parser.add_argument('--num_class', type=int, default=1, help='')
     parser.add_argument('--image_size', type=int, default=640, help='')
     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
     return namespace

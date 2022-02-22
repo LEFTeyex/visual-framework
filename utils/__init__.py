@@ -26,6 +26,7 @@ __all__ = [
     'LossDetectYolov5',
     # mixins
     'SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainMixin',
+    'ValMixin',
     # units_utils
     'auto_pad', 'select_act',
 ]

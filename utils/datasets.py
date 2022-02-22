@@ -290,6 +290,18 @@ def get_and_check_datasets_yaml(path: _strpath):
                 raise FileExistsError(f'The path {path} do not exists, '
                                       f'please reset in the {path}')
 
+    def to_str(obj):
+        if isinstance(obj, list):
+            obj = [str(x) for x in obj]
+        else:
+            obj = str(obj)
+        return obj
+
+    # convert pathlike to str type
+    train = to_str(train)
+    val = to_str(val)
+    test = to_str(test)
+
     datasets['train'], datasets['val'], datasets['test'] = train, val, test
 
     # check number of classes and name

@@ -15,19 +15,19 @@
 #                                                        |---...
 
 # the path should better be absolute
-path: f:/datasets/VOC
+path: f:/datasets/Codinguse
 
 # the train image path(or train.txt which the image path is relative to 'path') in the path
-train: images/train2007
+train: images
 
 # the val image path(or val.txt) in the path
-val: images/train2007
+val: images
 
 # the test image path(or test.txt) in the path
-test: images/train2007
+test: images
 
 # number of classes
-nc: 2
+nc: 18
 
 # name of classes corresponding to 0, 1, 2, ...
-names: [ 'ship', 'buoy' ]
+names: [ '0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0', ]
