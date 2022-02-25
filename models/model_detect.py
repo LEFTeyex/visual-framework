@@ -51,7 +51,12 @@ class ModelDetect(nn.Module):
 
         self.register_buffer('anchors', anchors)
         # TODO design anchors args
-        self.anchors = torch.rand(3, 3, 2)
+        self.anchors = torch.rand(3, 3, 2)  # need to scale to output size
+
+        scalings = None
+        self.register_buffer('scalings', scalings)
+        self.scalings = torch.tensor([1, 1, 1])
+
         self.nc = nc
 
         LOGGER.info('Initialize model successfully')
@@ -59,6 +64,7 @@ class ModelDetect(nn.Module):
     def forward(self, x):
         x = self.backbone(x)
         x = self.head(x)
+        # TODO x view then permute  MUST
         return x
 
 

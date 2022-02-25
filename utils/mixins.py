@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
 from utils.general import delete_list_indices
+from decode import parse_outputs_yolov5
 from utils.typeslib import \
     _str_or_None, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler, \
@@ -535,6 +536,7 @@ class TrainMixin(object):
         return loss_all_mean, loss_name
 
     def _show_loss_in_pbar_training(self, loss, pbar):
+        loss = tuple(loss)
         # GPU memory used
         memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}GB'
 
@@ -548,8 +550,7 @@ class TrainMixin(object):
     @staticmethod
     def loss_mean(index, loss_all_mean, loss_all):
         loss_all_mean = (loss_all_mean * index + loss_all) / (index + 1)
-        loss_all_mean = [x.item() for x in loss_all_mean]
-        return tuple(loss_all_mean)
+        return loss_all_mean
 
 
 class EMAModelMixin(object):
@@ -599,6 +600,7 @@ class ValMixin(object):
 
                 # to half16 or float32 and normalized 0.0-1.0
                 images = images.half() / 255 if self.half else images.float() / 255
+                bs, _, h, w = images.shape
 
                 # inference
                 outputs = self.model(images)
@@ -607,6 +609,11 @@ class ValMixin(object):
                 # mean total loss and loss items
                 loss_all = torch.cat((loss, loss_items), dim=0).detach()
                 loss_all_mean = TrainMixin.loss_mean(index, loss_all_mean, loss_all)
+
+                # nms
+                labels[:, 2:] *= torch.tensor([w, h, w, h], device=self.device)  # pixel scale
+                outputs = parse_outputs_yolov5(outputs, self.model.anchors, self.model.scalings)
+                # TODO NMS 2022.2.24-26
 
         return loss_all_mean, loss_name
 

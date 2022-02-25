@@ -1,6 +1,7 @@
 r"""Set type hints in this lib"""
 
 from os import PathLike
+from torch import Tensor
 from typing import Union, Optional, TypeVar, Type, Tuple
 
 from torch.optim import Optimizer
@@ -14,13 +15,15 @@ __all__ = ['_strpath',
            '_int_or_tuple',
            '_int_or_None', '_str_or_None', '_float_or_None', '_complex_or_None',
            '_set_or_None', '_list_or_None', '_dict_or_None', '_tuple_or_None',
+           '_Tensor_or_None',
            # instance
            '_instance', '_module', '_optimizer', '_lr_scheduler', '_gradscaler', '_parameter',
            '_module_or_parameter', '_module_or_None',
            # class
            '_dataset_c', '_instance_c',
            # special design
-           '_pkt_or_None']
+           '_pkt_or_None',
+           '_int_or_Tensor', ]
 
 # path type hints
 _strpath = Union[str, PathLike[str]]
@@ -53,6 +56,8 @@ _module_or_parameter = Union[_module, _parameter]
 # Union[pytorch built_in type, None]
 _module_or_None = Optional[_module]
 
+_Tensor_or_None = Optional[Tensor]
+
 # for class
 _instance_c = Type[_instance]
 _dataset_c = Type[_dataset]
@@ -61,3 +66,5 @@ _dataset_c = Type[_dataset]
 _param_kind = Tuple[str, Type[_module_or_parameter], dict]
 _param_kind_tuple_any = Tuple[_param_kind, ...]
 _pkt_or_None = Optional[_param_kind_tuple_any]
+
+_int_or_Tensor = Union[int, Tensor]

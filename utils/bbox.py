@@ -90,3 +90,7 @@ def bbox_iou(bbox1: Tensor, bbox2: Tensor, *, xyxy: bool = False, kind: str = 'i
         if kind != 'iou':
             raise ValueError(f"The arg kind: {kind} do not in ('iou', 'giou', 'diou', 'ciou')")
     return iou
+
+
+def non_max_suppression():
+    pass

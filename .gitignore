@@ -5,6 +5,8 @@
 __pycache__/**
 runs/**
 
+data/images/grandmother.jpg
+
 # *.py
 try.py
 

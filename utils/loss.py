@@ -9,7 +9,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from utils.bbox import bbox_iou
-from utils.decode import solve_bbox_yolov5
+from utils.decode import parse_bbox_yolov5
 from utils.typeslib import _module
 
 __all__ = ['LossDetectYolov5']
@@ -43,11 +43,11 @@ class LossDetectYolov5(object):
         if g > 0:
             self.loss_cls_fn, self.loss_obj_fn = FocalLoss(self.loss_cls_fn, g), FocalLoss(self.loss_obj_fn, g)
 
-    def __call__(self, outputs: Tensor, labels: Tensor, kind: str = 'iou'):
+    def __call__(self, outputs: tuple, labels: Tensor, kind: str = 'iou'):
         r"""
         Compute loss.
         Args:
-            outputs: Tensor = outputs during model forward
+            outputs: tuple = outputs during model forward
             labels: Tensor = labels from Dataloader
             kind: str = 'iou' / 'giou' / 'diou' / 'ciou' the kind of IoU
 
@@ -69,7 +69,7 @@ class LossDetectYolov5(object):
                 output_filter = output[b, a, gy, gx]  # shape(n, nlabel+classes)
 
                 # bbox loss regression
-                bbox = solve_bbox_yolov5(output_filter[:, 0:4], anchors[index])
+                bbox = parse_bbox_yolov5(output_filter[:, 0:4], anchors[index])
                 iou = bbox_iou(bbox, labels_bbox[index], xyxy=False, kind=kind)
                 loss_bbox += (1.0 - iou).mean()
 
@@ -77,6 +77,7 @@ class LossDetectYolov5(object):
                 if self.nc > 1:
                     labels_cls = torch.full_like(output_filter[:, 5:], self.cn, device=self.device)
                     labels_cls[range(n), index_cls[index]] = self.cp
+                    # the sigmoid in loss_fn
                     loss_cls += self.loss_cls_fn(output_filter[:, 5:], labels_cls)
                 else:
                     raise NotImplementedError(f'The loss for {self.nc} class has not implemented')
@@ -86,6 +87,7 @@ class LossDetectYolov5(object):
                 labels_obj[b, a, gy, gx] = score_iou
 
             # object loss
+            # the sigmoid in loss_fn
             loss_obj += self.loss_obj_fn(output[..., 4], labels_obj)
 
         # deal all loss
@@ -97,11 +99,11 @@ class LossDetectYolov5(object):
         loss_items = torch.cat((loss_bbox, loss_cls, loss_obj))
         return loss, loss_items
 
-    def convert_labels_for_loss_yolov5(self, outputs: Tensor, labels: Tensor):
+    def convert_labels_for_loss_yolov5(self, outputs: tuple, labels: Tensor):
         r"""
         Convert labels for computing loss.
         Args:
-            outputs: Tensor = outputs is [(bs, 3, s, s, 85), ] * number of output
+            outputs: tuple = outputs is [(bs, 3, s, s, 85), ] * number of output
             labels: Tensor = labels is shape (nl, 6) [(bs_index, class, x,y,w,h), ...]
 
         Return index_cls, labels_bbox, indices, anchors
@@ -110,13 +112,13 @@ class LossDetectYolov5(object):
         index_cls, labels_bbox, indices, anchors = [], [], [], []
         na, nl = self.anchors.shape[1], labels.shape[0]  # number of anchors, labels
         gain = torch.ones(7, device=self.device)  # normalized to grid space gain
-        ai = torch.arange(na, device=self.device).float().view(na, 1, 1).repeat(1, nl, 1)  # anchor index
+        ai = torch.arange(na, device=self.device).view(na, 1, 1).repeat(1, nl, 1)  # anchor index
         labels = torch.cat((ai, labels.repeat(na, 1, 1)), dim=2)  # append anchor index for labels
         # labels is shape(na, nl, 7) (anchor_index, bs_index, class, x,y,w,h)
 
         bias = 0.5
         # corresponding to (center, left, top, right, bottom)
-        off = bias * torch.tensor([[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1]], device=self.device).float()
+        off = bias * torch.tensor([[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1]], device=self.device)
 
         for index in range(no):
             anchor = self.anchors[index]
