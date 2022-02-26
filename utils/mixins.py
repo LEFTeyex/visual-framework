@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
 from utils.general import delete_list_indices
-from decode import parse_outputs_yolov5
+from utils.decode import parse_outputs_yolov5, filter_outputs2predictions
 from utils.typeslib import \
     _str_or_None, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler, \
@@ -538,6 +538,7 @@ class TrainMixin(object):
     def _show_loss_in_pbar_training(self, loss, pbar):
         loss = tuple(loss)
         # GPU memory used
+        # TODO check whether the cuda memory is right to compute below
         memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}GB'
 
         # show in pbar
@@ -613,6 +614,9 @@ class ValMixin(object):
                 # nms
                 labels[:, 2:] *= torch.tensor([w, h, w, h], device=self.device)  # pixel scale
                 outputs = parse_outputs_yolov5(outputs, self.model.anchors, self.model.scalings)
+                # TODO get it by predictions or outputs through below whether used outputs over
+                # TODO think it in memory
+                predictions = filter_outputs2predictions(outputs)
                 # TODO NMS 2022.2.24-26
 
         return loss_all_mean, loss_name

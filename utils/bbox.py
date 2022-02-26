@@ -8,25 +8,43 @@ import numpy as np
 
 from torch import Tensor
 
-__all__ = ['xywhn2xywhn', 'bbox_iou']
+from utils.typeslib import _Tensor_or_ndarray
+
+__all__ = ['xywh2xyxy', 'xywhn2xywhn', 'bbox_iou']
 
 
-def xywhn2xywhn(bbox, hw_nopad: tuple, hw_pad: tuple, pxy: tuple):
+def xywh2xyxy(bbox: _Tensor_or_ndarray):
     r"""
-    convert the xywh normalized to the xywh normalized resized and padded.
+    Convert the center xywh to the topleft and bottomright xyxy.
     Args:
-        bbox: = bbox shape(n, 4)
+        bbox: _Tensor_or_ndarray = bbox shape(..., 4)
+
+    Return bbox (converted)
+    """
+    y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
+    y[..., 0] = bbox[..., 0] - bbox[..., 2] / 2  # top left x
+    y[..., 1] = bbox[..., 1] - bbox[..., 3] / 2  # top left y
+    y[..., 2] = bbox[..., 0] + bbox[..., 2] / 2  # bottom right x
+    y[..., 3] = bbox[..., 1] + bbox[..., 3] / 2  # bottom right y
+    return y
+
+
+def xywhn2xywhn(bbox: _Tensor_or_ndarray, hw_nopad: tuple, hw_pad: tuple, pxy: tuple):
+    r"""
+    Convert the center xywh normalized to the center xywh normalized resized and padded.
+    Args:
+        bbox: _Tensor_or_ndarray = bbox shape(..., 4)
         hw_nopad: tuple = shape with no padding (h0, w0)
         hw_pad: tuple = shape with padding (h, w)
         pxy: tuple = padding xy (left, top)
 
     Return bbox (converted)
     """
-    y = bbox.clone() if isinstance(bbox, torch.Tensor) else np.copy(bbox)
+    y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
     h0, w0 = hw_nopad
     h, w = hw_pad
-    y[:, 0] = (w0 * bbox[:, 0] + pxy[0]) / w
-    y[:, 1] = (h0 * bbox[:, 1] + pxy[1]) / h
+    y[..., 0] = (w0 * bbox[..., 0] + pxy[0]) / w  # center x
+    y[..., 1] = (h0 * bbox[..., 1] + pxy[1]) / h  # center y
     return y
 
 
@@ -90,7 +108,3 @@ def bbox_iou(bbox1: Tensor, bbox2: Tensor, *, xyxy: bool = False, kind: str = 'i
         if kind != 'iou':
             raise ValueError(f"The arg kind: {kind} do not in ('iou', 'giou', 'diou', 'ciou')")
     return iou
-
-
-def non_max_suppression():
-    pass

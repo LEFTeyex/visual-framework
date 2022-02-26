@@ -2,6 +2,7 @@ r"""Set type hints in this lib"""
 
 from os import PathLike
 from torch import Tensor
+from numpy import ndarray
 from typing import Union, Optional, TypeVar, Type, Tuple
 
 from torch.optim import Optimizer
@@ -23,7 +24,7 @@ __all__ = ['_strpath',
            '_dataset_c', '_instance_c',
            # special design
            '_pkt_or_None',
-           '_int_or_Tensor', ]
+           '_int_or_Tensor', '_Tensor_or_ndarray']
 
 # path type hints
 _strpath = Union[str, PathLike[str]]
@@ -68,3 +69,4 @@ _param_kind_tuple_any = Tuple[_param_kind, ...]
 _pkt_or_None = Optional[_param_kind_tuple_any]
 
 _int_or_Tensor = Union[int, Tensor]
+_Tensor_or_ndarray = Union[Tensor, ndarray]

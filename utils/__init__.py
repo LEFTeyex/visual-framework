@@ -10,13 +10,13 @@ from utils.units_utils import *
 
 __all__ = [
     # bbox
-    'xywhn2xywhn', 'bbox_iou',
+    'xywh2xyxy', 'xywhn2xywhn', 'bbox_iou',
     # check
-    'check_odd', 'check_even', 'check_only_one_set',
+    'check_odd', 'check_even', 'check_0_1', 'check_only_one_set',
     # datasets
     'DatasetDetect', 'get_and_check_datasets_yaml',
     # decode
-    'parse_bbox_yolov5', 'parse_outputs_yolov5',
+    'parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
     # general
     'timer', 'to_tuplex', 'delete_list_indices',
     'load_all_yaml', 'save_all_yaml', 'init_seed', 'select_one_device',

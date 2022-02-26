@@ -3,7 +3,7 @@ Check utils.
 Consist of all check function.
 """
 
-__all__ = ['check_odd', 'check_even', 'check_only_one_set']
+__all__ = ['check_odd', 'check_even', 'check_0_1', 'check_only_one_set']
 
 
 def check_odd(x: int):
@@ -26,6 +26,20 @@ def check_even(x: int):
     Return True or False
     """
     return abs(x) & 1 == 0
+
+
+def check_0_1(x):
+    r"""
+    Check x whether it is in interval (0, 1)
+    Args:
+        x: any number = number
+
+    Return True or False
+    """
+    if 0 <= x <= 1:
+        return True
+    else:
+        return False
 
 
 def check_only_one_set(one, two):

@@ -26,12 +26,16 @@ class Backbone(nn.Module):
 class Head(nn.Module):
     def __init__(self, num_output: int, bias=True):
         super(Head, self).__init__()
+        self.na = 3  # TODO need to design
+        self.no = num_output
         self.conv1 = Conv(1, 3, act='relu', bias=bias)
-        self.conv2 = Conv(3, num_output, act='relu', bias=bias)
+        self.conv2 = Conv(3, num_output * self.na, act='relu', bias=bias)
 
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
+        bs, _, h, w = x.shape
+        x = x.view(bs, self.na, self.no, h, w).permute(0, 1, 3, 4, 2).contiguous()
         return x, x, x
 
 
@@ -42,12 +46,12 @@ class ModelDetect(nn.Module):
     Can be defined by changing Backbone and Head.
     """
 
-    def __init__(self, inc: int, nc: int, anchors=None, num_others: int = 5, bias=True):
+    def __init__(self, inc: int, nc: int, anchors=None, num_bbox: int = 5, bias=True):
         # in_channels, number of classes
         super(ModelDetect, self).__init__()
         LOGGER.info('Initializing the model...')
         self.backbone = Backbone(inc, bias=bias)
-        self.head = Head(nc + num_others, bias=bias)
+        self.head = Head(nc + num_bbox, bias=bias)
 
         self.register_buffer('anchors', anchors)
         # TODO design anchors args
