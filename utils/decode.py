@@ -7,12 +7,15 @@ import time
 import torch
 
 from torch import Tensor
+from torchvision.ops import batched_nms
 
+from utils.log import LOGGER
 from utils.check import check_0_1
 from utils.bbox import xywh2xyxy
 from utils.typeslib import _tuple_or_None, _int_or_Tensor
 
-__all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions']
+__all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
+           'non_max_suppression']
 
 
 def parse_outputs_yolov5(outputs: tuple, anchors: Tensor, scalings: Tensor):
@@ -73,17 +76,19 @@ def create_grid_tensor(nxy_grid: tuple, ndim_bbox: int, device):
 
 
 def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, classes: _tuple_or_None = None):
-    # TODO only filter, do not nms
-    # checks
+    # check
     assert check_0_1(obj_threshold), f'Except obj_threshold value is in interval (0, 1), but got {obj_threshold}'
     cls_threshold = obj_threshold  # equal if wanted to be not equal need to change input args
 
     filter_obj = outputs[..., 4] > obj_threshold  # object
-    predictions = [torch.empty((0, 6), device=outputs.device)] * outputs.shape[0]
+    predictions = [torch.zeros((0, 6), device=outputs.device)] * outputs.shape[0]
 
     for index, output in enumerate(outputs):
         output = output[filter_obj[index]]  # filter by object confidence
 
+        # output not empty
+        if not output.shape[0]:
+            continue
         # TODO maybe need apriori label to cat
 
         # compute class confidence (class_conf) = obj_conf * only_class_conf
@@ -92,7 +97,7 @@ def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, cla
 
         # TODO maybe multi labels
 
-        cls_conf, cls_index = output[:, 5:].max(dim=-1, keepdim=True)
+        cls_conf, cls_index = output[:, 5:].max(dim=-1, keepdim=True)  # only best class
         # filter by class confidence shape(n, 6) is [(x,y,x,y,cls_conf,cls_index), ...]
         output = torch.cat((bbox, cls_conf, cls_index), dim=-1)[cls_conf.view(-1) > cls_threshold]
 
@@ -105,13 +110,45 @@ def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, cla
     return predictions
 
 
-def non_max_suppression(iou_threshold: float = 0.5, max_detect: int = 300):
+def non_max_suppression(predictions: list, iou_threshold: float = 0.5, max_detect: int = 300):
+    # check
     assert check_0_1(iou_threshold), f'Except iou_threshold value is in interval (0, 1), but got {iou_threshold}'
+
     # todo: args can change
-    min_wh, max_wh = 2, 7680  # min and max bbox wh
-    time_limit = 10.0  # seconds to quit after
+    # min_wh, max_wh = 2, 7680  # min and max bbox wh
     max_nms = 30000  # max number of bbox for nms
+    time_limit = 10.0  # seconds to quit after
+
     t0 = time.time()
+    outputs = [torch.zeros((0, 6), device=predictions[0].device)] * len(predictions)
+    for index, pre in enumerate(predictions):
+        # check
+        n = pre.shape[0]
+        if not n:
+            continue
+
+        # filter number
+        if n > max_nms:
+            filter_num = pre[:, 4].argsort(descending=True)[:max_nms]
+            pre = pre[filter_num]
+
+        # batched nms in torchvision
+        boxes, scores, idxs = pre[:, :4], pre[:, 4], pre[:, 5]
+        filter_pre = batched_nms(boxes, scores, idxs, iou_threshold)
+
+        # TODO add many different nms methods
+
+        # limit number of detection
+        if filter_pre.shape[0] > max_detect:
+            filter_pre = filter_pre[:max_detect]
+
+        outputs[index] = pre[filter_pre]
+
+        t = time.time()
+        if (t - t0) > time_limit:
+            LOGGER.warning(f'NMS time limit {time_limit:.2f}s exceeded')
+
+    return outputs
 
 
 if __name__ == '__main__':

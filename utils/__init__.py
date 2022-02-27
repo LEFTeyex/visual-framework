@@ -17,6 +17,7 @@ __all__ = [
     'DatasetDetect', 'get_and_check_datasets_yaml',
     # decode
     'parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
+    'non_max_suppression',
     # general
     'timer', 'to_tuplex', 'delete_list_indices',
     'load_all_yaml', 'save_all_yaml', 'init_seed', 'select_one_device',
