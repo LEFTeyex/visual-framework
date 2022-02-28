@@ -12,7 +12,7 @@ from pathlib import Path
 from torch.utils.data import Dataset
 
 from utils.log import LOGGER
-from utils.bbox import xywhn2xywhn
+from utils.bbox import rescale_xywhn
 from utils.general import load_all_yaml, to_tuplex
 from utils.typeslib import _strpath, _int_or_tuple
 
@@ -60,12 +60,14 @@ class DatasetDetect(Dataset):
         nl = len(label)  # number of label
 
         # load image and resize it
-        image, hw0, hw_nopad = load_image_resize(img_path, self.img_size)
-        image, hw_pad, pxy = letterbox(image, self.img_size)  # pad image to shape or img_size
+        # TODO maybe the shape computed in __init__ and save will be better
+        image, hw0, hw_nopad, ratio = load_image_resize(img_path, self.img_size)
+        image, hw_pad, padxy = letterbox(image, self.img_size)  # pad image to shape or img_size
+        shape_convert = hw0, ratio, padxy  # for convert coordinate from hw_pad to hw0
 
         # convert label normalized to match the image resized and padded
         if nl:
-            label[:, 1:] = xywhn2xywhn(label[:, 1:], hw_nopad, hw_pad, pxy)
+            label[:, 1:] = rescale_xywhn(label[:, 1:], hw_nopad, hw_pad, padxy)
 
         # TODO upgrade augment
         # deal image
@@ -81,7 +83,7 @@ class DatasetDetect(Dataset):
         else:
             label = torch.empty((0, self.nlabel + 1))  # empty
 
-        return image, label  # only one image(h,w,c), label(nl, nlabel + 1)
+        return image, label, shape_convert  # only one image(h,w,c), label(nl, nlabel + 1)
 
     def __len__(self):
         r"""Return len of all data"""
@@ -92,19 +94,20 @@ class DatasetDetect(Dataset):
         r"""
         For Dataloader batch data at last.
         Args:
-            batch: list = [0, 1, 2, 3] for batch index of data
+            batch: list = [0(image, label, ...), 1, 2, 3] for batch index of data
 
         Return images, labels
         """
         # batch is [(image, label), ...]
-        images, labels = zip(*batch)
+        images, labels, shape_converts = zip(*batch)
         # add index for label to image
         for index, label in enumerate(labels):
             label[:, 0] = index
 
         labels = torch.cat(labels, dim=0)  # shape (n, nlabel + 1)
         images = torch.stack(images, dim=0)  # shape (bs, c, h, w)
-        return images, labels  # images(bs, c, h, w) labels(n, nlabel + 1)
+        # shape_converts is tuple
+        return images, labels, shape_converts
 
     @staticmethod
     def _check_img_get_label_detect(images_files, labels_files, prefix: str = '', nlabel: int = 5):
@@ -150,7 +153,7 @@ def load_image_resize(img_path: _strpath, img_size: int):
         img_path: _strpath = StrPath
         img_size: int = img_size for the largest edge
 
-    Return image, (h0, w0), (h1, w1)
+    Return image, (h0, w0), (h1, w1), r
     """
     image = cv2.imread(img_path)  # (h,w,c) BGR
     image = image[..., ::-1]  # BGR to RGB
@@ -167,7 +170,7 @@ def load_image_resize(img_path: _strpath, img_size: int):
         # todo: args can change
         image = cv2.resize(image, dsize=(w1, h1),  # cv2.resize dsize need (w, h)
                            interpolation=cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR)
-    return image, (h0, w0), (h1, w1)
+    return image, (h0, w0), (h1, w1), r
 
 
 def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0, 0)):
@@ -197,8 +200,8 @@ def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0,
     image = cv2.copyMakeBorder(image, top, bottom, left, right,
                                cv2.BORDER_CONSTANT, value=color)
     h2, w2 = image.shape[:2]
-    pxy = (left, top)  # for converting labels as pxy
-    return image, (h2, w2), pxy
+    padxy = (left, top)  # for converting labels as padxy
+    return image, (h2, w2), padxy
 
 
 def get_img_files(path):

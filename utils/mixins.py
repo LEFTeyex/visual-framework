@@ -10,15 +10,18 @@ Please follow the rule, if you want to upgrade and maintain this module with me.
 """
 
 import torch
+import numpy as np
 import torch.nn as nn
 
 from tqdm import tqdm
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
+from torchvision.ops import box_iou
 
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
 from utils.general import delete_list_indices
+from utils.bbox import xywh2xyxy, rescale_xyxy
 from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
 from utils.typeslib import \
     _str_or_None, \
@@ -26,8 +29,8 @@ from utils.typeslib import \
     _dataset_c, _instance_c, \
     _pkt_or_None
 
-__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainMixin',
-           'ValMixin']
+__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainDetectMixin',
+           'ValDetectMixin']
 
 
 class SetSavePathMixin(object):
@@ -485,7 +488,7 @@ class LossMixin(object):
         return loss_instance
 
 
-class TrainMixin(object):
+class TrainDetectMixin(object):
     def __init__(self):
         self.cuda = None
         self.epoch = None
@@ -506,7 +509,7 @@ class TrainMixin(object):
 
         with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
                   bar_format='{l_bar:>35}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels) in pbar:
+            for index, (images, labels, _) in pbar:
                 images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
                 labels = labels.to(self.device)
 
@@ -582,20 +585,22 @@ class FreezeLayersMixin(object):
         raise NotImplementedError
 
 
-class ValMixin(object):
+class ValDetectMixin(object):
     def __init__(self):
-        self.dataloader = None
         self.half = None
         self.model = None
         self.device = None
         self.loss_fn = None
+        self.dataloader = None
 
     def val_once(self):
         loss_name = ('total loss', 'bbox loss', 'class loss', 'object loss')
         loss_all_mean = torch.zeros(4, device=self.device).half() if self.half else torch.zeros(4, device=self.device)
+        iou_vector = torch.linspace(0.5, 0.95, 10, device=self.device)
+        stats = []  # statistics to save tuple(pred_iou_level, pred cls_conf, pred cls, label cls)
         with tqdm(enumerate(self.dataloader), total=len(self.dataloader),
                   bar_format='{l_bar:>35}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels) in pbar:
+            for index, (images, labels, shape_converts) in pbar:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
@@ -609,19 +614,91 @@ class ValMixin(object):
 
                 # mean total loss and loss items
                 loss_all = torch.cat((loss, loss_items), dim=0).detach()
-                loss_all_mean = TrainMixin.loss_mean(index, loss_all_mean, loss_all)
+                loss_all_mean = TrainDetectMixin.loss_mean(index, loss_all_mean, loss_all)
+
+                # convert labels
+                labels[:, 2:] *= torch.tensor([w, h, w, h], device=self.device)  # pixel scale
+
+                # parse outputs to predictions
+                predictions = self._parse_outputs(outputs)
 
                 # nms
-                labels[:, 2:] *= torch.tensor([w, h, w, h], device=self.device)  # pixel scale
-                outputs = parse_outputs_yolov5(outputs, self.model.anchors, self.model.scalings)
+                predictions = non_max_suppression(predictions, 0.5, 300)  # list which len is batch size
 
-                # TODO get it by predictions or outputs through below whether used outputs over
-                # TODO think it in memory for filter_outputs2predictions
-                predictions = filter_outputs2predictions(outputs)  # list len is bs
-                predictions = non_max_suppression(predictions)  # list len is bs
+                # get metrics data
+                _stats = self._get_metrics_stats(predictions, labels, shape_converts, iou_vector)
+                stats.extend(_stats)
+                # TODO maybe save something or plot images
 
-        return loss_all_mean, loss_name
+        return loss_all_mean, loss_name, stats
+
+    def compute_metrics(self):
+        # TODO write 2022.3.1
+        pass
+
+    def _parse_outputs(self, outputs):
+        outputs = parse_outputs_yolov5(outputs, self.model.anchors, self.model.scalings)  # bbox is xyxy
+        # TODO get it by predictions or outputs through below whether used outputs over
+        # TODO think it in memory for filter_outputs2predictions
+        outputs = filter_outputs2predictions(outputs, 0.25)  # list which len is bs
+        return outputs
+
+    def _get_metrics_stats(self, predictions, labels, shape_converts, iou_vector):
+        # save tuple(pred_iou_level, pred cls_conf, pred cls, label cls)
+        stats = []  # save temporarily
+        for index, pred in enumerate(predictions):
+            label = labels[labels[:, 0] == index, 1:]  # one image label
+            nl = label.shape[0]  # number of label
+            label_cls = label[:, 0].tolist() if nl else []
+
+            if not pred.shape[0]:
+                if nl:
+                    pred_iou_level = torch.zeros((0, iou_vector.shape[0]), dtype=torch.bool)
+                    stats.append((pred_iou_level, torch.Tensor(), torch.Tensor(), label_cls))
+                continue
+
+            pred[:, :4] = rescale_xyxy(pred[:, :4], shape_converts[index])
+
+            if nl:
+                label[:, 1:] = xywh2xyxy(label[:, 1:])
+                label[:, 1:] = rescale_xyxy(label[:, 1:], shape_converts[index])
+                pred_iou_level = self._match_pred_label_iou_vector(pred, label, iou_vector)
+                # TODO confusion matrix needed
+            else:
+                pred_iou_level = torch.zeros((pred.shape[0], iou_vector.shape[0]), dtype=torch.bool)
+            stats.append((pred_iou_level.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), label_cls))
+        return stats
+
+    @staticmethod
+    def _match_pred_label_iou_vector(pred, label, iou_vector):
+        r"""
+        Match prediction to label and compare it with iou_vector.
+        Args:
+            pred: = prediction (n, 6 (x,y,x,y,conf,cls) )
+            label: = label (m, 5 (cls,x,y,x,y) )
+            iou_vector: = iou_vector (10)
+
+        Return pred_iou_level (n, 10) for IoU levels
+        """
+        pred_iou_level = torch.zeros((pred.shape[0], iou_vector.shape[0]), dtype=torch.bool, device=iou_vector.device)
+        iou = box_iou(label[:, 1:], pred[:, :4])  # iou shape (n_label, n_pred)
+        x = torch.nonzero((iou >= iou_vector[0]) & (label[:, 0:1] == pred[:, 5]))  # index tensor
+        if x.shape[0]:
+            iou = iou[x.T[0], x.T[1]].view(-1, 1)  # shape to x
+            matches = torch.cat((x, iou), dim=-1).cpu().numpy()
+            if x.shape[0] > 1:
+                # make pred and label correspond one by one
+                # need to think carefully it is interesting and great
+                matches = matches[np.argsort(matches[:, 2])[::-1]]  # sort big to small
+                matches = matches[np.unique(matches[:, 1], return_index=True)[1]]  # filter pred first
+                matches = matches[np.unique(matches[:, 0], return_index=True)[1]]  # filter label second
+            matches = torch.tensor(matches, device=iou_vector.device)
+            pred_iou_level[matches[:, 1].long()] = matches[:, 2:3] >= iou_vector
+        return pred_iou_level
 
 
 if __name__ == '__main__':
-    pass
+    a = [(1, 5), (2, 3)]
+    b = [(0, 0)]
+    b.extend(a)
+    print(b)

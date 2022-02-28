@@ -10,7 +10,7 @@ from torch import Tensor
 
 from utils.typeslib import _Tensor_or_ndarray
 
-__all__ = ['xywh2xyxy', 'xywhn2xywhn', 'bbox_iou']
+__all__ = ['xywh2xyxy', 'rescale_xywhn', 'rescale_xyxy', 'clip_bbox', 'bbox_iou']
 
 
 def xywh2xyxy(bbox: _Tensor_or_ndarray):
@@ -29,9 +29,9 @@ def xywh2xyxy(bbox: _Tensor_or_ndarray):
     return y
 
 
-def xywhn2xywhn(bbox: _Tensor_or_ndarray, hw_nopad: tuple, hw_pad: tuple, pxy: tuple):
+def rescale_xywhn(bbox: _Tensor_or_ndarray, hw_nopad: tuple, hw_pad: tuple, pxy: tuple):
     r"""
-    Convert the center xywh normalized to the center xywh normalized resized and padded.
+    Rescale the center xywh normalized from original to which is resized and padded.
     Args:
         bbox: _Tensor_or_ndarray = bbox shape(..., 4)
         hw_nopad: tuple = shape with no padding (h0, w0)
@@ -45,6 +45,42 @@ def xywhn2xywhn(bbox: _Tensor_or_ndarray, hw_nopad: tuple, hw_pad: tuple, pxy: t
     h, w = hw_pad
     y[..., 0] = (w0 * bbox[..., 0] + pxy[0]) / w  # center x
     y[..., 1] = (h0 * bbox[..., 1] + pxy[1]) / h  # center y
+    y[..., 2] = (w0 * bbox[..., 2]) / w  # w
+    y[..., 3] = (h0 * bbox[..., 3]) / h  # h
+    return y
+
+
+def rescale_xyxy(bbox: _Tensor_or_ndarray, shape_converts):
+    r"""
+    Rescale xyxy from new image size to original image size.
+    Args:
+        bbox: _Tensor_or_ndarray = bbox shape(..., 4)
+        shape_converts: = (hw0, ratio, padxy)
+
+    Return bbox (converted)
+    """
+    y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
+    hw0, ratio, (px, py) = shape_converts
+    y[..., [0, 2]] = bbox[..., [0, 2]] - px
+    y[..., [1, 3]] = bbox[..., [1, 3]] - py
+    y[..., :4] /= ratio
+    y = clip_bbox(y, hw0)
+    return y
+
+
+def clip_bbox(bbox: _Tensor_or_ndarray, shape):
+    r"""
+    Clip bounding box to image size(shape).
+    Args:
+        bbox: _Tensor_or_ndarray = bbox shape(..., 4)
+        shape: = (h, w) to clip
+
+    Return bbox (converted)
+    """
+    y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
+    h, w = shape
+    y[..., [0, 2]] = bbox[..., [0, 2]].clip(0, w)
+    y[..., [1, 3]] = bbox[..., [1, 3]].clip(0, h)
     return y
 
 

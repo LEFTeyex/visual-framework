@@ -19,7 +19,7 @@ from utils import \
     load_all_yaml, save_all_yaml, init_seed, select_one_device, get_and_check_datasets_yaml, \
     DatasetDetect, \
     LossDetectYolov5, \
-    SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainMixin
+    SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainDetectMixin
 
 r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
@@ -30,7 +30,7 @@ class TrainDetect(
     LoadAllCheckPointMixin,  # load the config of the model trained before and others for training
     DataLoaderMixin,  # get dataloader
     LossMixin,
-    TrainMixin,  # for training
+    TrainDetectMixin,  # for training
 ):
     r"""Trainer for detection, built by mixins"""
 

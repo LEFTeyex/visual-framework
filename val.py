@@ -6,16 +6,16 @@ Consist of some Valers.
 import torch
 
 from utils import \
-    LOGGER, ValMixin
+    LOGGER, ValDetectMixin
 
-__all__ = ['ValDetect']
+__all__ = ['ValDetectDetect']
 
 
-class ValDetect(
-    ValMixin  # for validating
+class ValDetectDetect(
+    ValDetectMixin  # for validating
 ):
     def __init__(self, args, model=None, half=True, dataloader=None, loss_fn=None):
-        super(ValDetect, self).__init__()
+        super(ValDetectDetect, self).__init__()
         self.training = model is not None
 
         # val during training
@@ -31,4 +31,4 @@ class ValDetect(
 
     def val(self):
         self.model.eval()
-        loss_all, loss_name = self.val_once()
+        loss_all, loss_name, stats = self.val_once()

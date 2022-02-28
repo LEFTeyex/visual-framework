@@ -10,7 +10,7 @@ from utils.units_utils import *
 
 __all__ = [
     # bbox
-    'xywh2xyxy', 'xywhn2xywhn', 'bbox_iou',
+    'xywh2xyxy', 'rescale_xywhn', 'rescale_xyxy', 'clip_bbox', 'bbox_iou',
     # check
     'check_odd', 'check_even', 'check_0_1', 'check_only_one_set',
     # datasets
@@ -26,8 +26,8 @@ __all__ = [
     # loss
     'LossDetectYolov5',
     # mixins
-    'SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainMixin',
-    'ValMixin',
+    'SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainDetectMixin',
+    'ValDetectMixin',
     # units_utils
     'auto_pad', 'select_act',
 ]
