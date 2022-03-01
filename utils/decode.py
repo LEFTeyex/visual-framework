@@ -91,15 +91,15 @@ def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, cla
             continue
         # TODO maybe need apriori label to cat
 
-        # compute class confidence (class_conf) = obj_conf * only_class_conf
+        # compute  confidence = obj_conf * class_conf
         output[:, 5:] *= output[:, 4:5]
         bbox = xywh2xyxy(output[:, :4])
 
         # TODO maybe multi labels
 
-        cls_conf, cls_index = output[:, 5:].max(dim=-1, keepdim=True)  # only best class
-        # filter by class confidence shape(n, 6) is [(x,y,x,y,cls_conf,cls_index), ...]
-        output = torch.cat((bbox, cls_conf, cls_index), dim=-1)[cls_conf.view(-1) > cls_threshold]
+        conf, cls_index = output[:, 5:].max(dim=-1, keepdim=True)  # only best class
+        # filter by class confidence shape(n, 6) is [(x,y,x,y,conf,cls_index), ...]
+        output = torch.cat((bbox, conf, cls_index), dim=-1)[conf.view(-1) > cls_threshold]
 
         if classes is not None:
             # filter by classes

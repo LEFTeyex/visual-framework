@@ -5,6 +5,7 @@ from utils.decode import *
 from utils.general import *
 from utils.log import *
 from utils.loss import *
+from utils.metrics import *
 from utils.mixins import *
 from utils.units_utils import *
 
@@ -25,6 +26,8 @@ __all__ = [
     'LOGGER', 'add_log_file',
     # loss
     'LossDetectYolov5',
+    # metrics
+    'match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap',
     # mixins
     'SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainDetectMixin',
     'ValDetectMixin',

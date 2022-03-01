@@ -16,13 +16,13 @@ import torch.nn as nn
 from tqdm import tqdm
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
-from torchvision.ops import box_iou
 
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
 from utils.general import delete_list_indices
 from utils.bbox import xywh2xyxy, rescale_xyxy
 from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
+from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class
 from utils.typeslib import \
     _str_or_None, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler, \
@@ -597,7 +597,7 @@ class ValDetectMixin(object):
         loss_name = ('total loss', 'bbox loss', 'class loss', 'object loss')
         loss_all_mean = torch.zeros(4, device=self.device).half() if self.half else torch.zeros(4, device=self.device)
         iou_vector = torch.linspace(0.5, 0.95, 10, device=self.device)
-        stats = []  # statistics to save tuple(pred_iou_level, pred cls_conf, pred cls, label cls)
+        stats = []  # statistics to save tuple(pred_iou_level, pred conf, pred cls, label cls)
         with tqdm(enumerate(self.dataloader), total=len(self.dataloader),
                   bar_format='{l_bar:>35}{bar:10}{r_bar}') as pbar:
             for index, (images, labels, shape_converts) in pbar:
@@ -629,12 +629,16 @@ class ValDetectMixin(object):
                 _stats = self._get_metrics_stats(predictions, labels, shape_converts, iou_vector)
                 stats.extend(_stats)
                 # TODO maybe save something or plot images
-
         return loss_all_mean, loss_name, stats
 
-    def compute_metrics(self):
-        # TODO write 2022.3.1
-        pass
+    @staticmethod
+    def compute_metrics(stats):
+        stats = [np.concatenate(x, 0) for x in zip(*stats)]  # all of pred_iou_level, pred cls_conf, pred cls, label cls
+        if stats and stats[0].any():
+            # consist of all iou 0.50:0.95 metrics
+            ap, f1, p, r, cls = compute_metrics_per_class(*stats)
+        # TODO finish it 2022.3.2
+        return 1
 
     def _parse_outputs(self, outputs):
         outputs = parse_outputs_yolov5(outputs, self.model.anchors, self.model.scalings)  # bbox is xyxy
@@ -643,8 +647,9 @@ class ValDetectMixin(object):
         outputs = filter_outputs2predictions(outputs, 0.25)  # list which len is bs
         return outputs
 
-    def _get_metrics_stats(self, predictions, labels, shape_converts, iou_vector):
-        # save tuple(pred_iou_level, pred cls_conf, pred cls, label cls)
+    @staticmethod
+    def _get_metrics_stats(predictions, labels, shape_converts, iou_vector):
+        # save tuple(pred_iou_level, pred conf, pred cls, label cls)
         stats = []  # save temporarily
         for index, pred in enumerate(predictions):
             label = labels[labels[:, 0] == index, 1:]  # one image label
@@ -662,39 +667,12 @@ class ValDetectMixin(object):
             if nl:
                 label[:, 1:] = xywh2xyxy(label[:, 1:])
                 label[:, 1:] = rescale_xyxy(label[:, 1:], shape_converts[index])
-                pred_iou_level = self._match_pred_label_iou_vector(pred, label, iou_vector)
+                pred_iou_level = match_pred_label_iou_vector(pred, label, iou_vector)
                 # TODO confusion matrix needed
             else:
                 pred_iou_level = torch.zeros((pred.shape[0], iou_vector.shape[0]), dtype=torch.bool)
             stats.append((pred_iou_level.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), label_cls))
         return stats
-
-    @staticmethod
-    def _match_pred_label_iou_vector(pred, label, iou_vector):
-        r"""
-        Match prediction to label and compare it with iou_vector.
-        Args:
-            pred: = prediction (n, 6 (x,y,x,y,conf,cls) )
-            label: = label (m, 5 (cls,x,y,x,y) )
-            iou_vector: = iou_vector (10)
-
-        Return pred_iou_level (n, 10) for IoU levels
-        """
-        pred_iou_level = torch.zeros((pred.shape[0], iou_vector.shape[0]), dtype=torch.bool, device=iou_vector.device)
-        iou = box_iou(label[:, 1:], pred[:, :4])  # iou shape (n_label, n_pred)
-        x = torch.nonzero((iou >= iou_vector[0]) & (label[:, 0:1] == pred[:, 5]))  # index tensor
-        if x.shape[0]:
-            iou = iou[x.T[0], x.T[1]].view(-1, 1)  # shape to x
-            matches = torch.cat((x, iou), dim=-1).cpu().numpy()
-            if x.shape[0] > 1:
-                # make pred and label correspond one by one
-                # need to think carefully it is interesting and great
-                matches = matches[np.argsort(matches[:, 2])[::-1]]  # sort big to small
-                matches = matches[np.unique(matches[:, 1], return_index=True)[1]]  # filter pred first
-                matches = matches[np.unique(matches[:, 0], return_index=True)[1]]  # filter label second
-            matches = torch.tensor(matches, device=iou_vector.device)
-            pred_iou_level[matches[:, 1].long()] = matches[:, 2:3] >= iou_vector
-        return pred_iou_level
 
 
 if __name__ == '__main__':

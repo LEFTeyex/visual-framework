@@ -32,3 +32,5 @@ class ValDetectDetect(
     def val(self):
         self.model.eval()
         loss_all, loss_name, stats = self.val_once()
+        # TODO finish it 2022.3.2
+        x = self.compute_metrics(stats)
