@@ -13,7 +13,7 @@ __all__ = [
     # bbox
     'xywh2xyxy', 'rescale_xywhn', 'rescale_xyxy', 'clip_bbox', 'bbox_iou',
     # check
-    'check_odd', 'check_even', 'check_0_1', 'check_only_one_set',
+    'check_odd', 'check_even', 'check_between_0_1', 'check_only_one_set',
     # datasets
     'DatasetDetect', 'get_and_check_datasets_yaml',
     # decode

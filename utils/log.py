@@ -8,7 +8,7 @@ import logging
 __all__ = ['LOGGER', 'add_log_file']
 
 
-def _set_logger(name: str, ch_level=logging.INFO):
+def _set_logger(name: str, ch_level=logging.INFO, developing=True):
     r"""
     Set LOGGER with StreamHandler.
     Args:
@@ -23,7 +23,11 @@ def _set_logger(name: str, ch_level=logging.INFO):
 
     # create formatter for handler
     # todo: args can change
-    formatter = logging.Formatter(fmt='{asctime:<18} {levelname:<10} {filename:<20} {lineno:<4} {message:<80} {name}',
+    if developing:
+        fmt = '{asctime:<18} {levelname:<10} {filename:<20} {lineno:<4} {message:<80} {name}'
+    else:
+        fmt = '{levelname:<10} {message:<80}'
+    formatter = logging.Formatter(fmt=fmt,
                                   datefmt='%Y-%m-%d %H:%M',
                                   style='{')
     # set StreamHandler
@@ -35,7 +39,8 @@ def _set_logger(name: str, ch_level=logging.INFO):
 
 
 r"""Set LOGGER for global, use it by from utils.log import LOGGER, add_log_file"""
-LOGGER = _set_logger(__name__, ch_level=logging.INFO)
+# todo: args can change
+LOGGER = _set_logger(__name__, ch_level=logging.INFO, developing=False)
 
 
 # TODO: The way to setting filepath need to design in the future

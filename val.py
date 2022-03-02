@@ -18,8 +18,8 @@ class ValDetectDetect(
         super(ValDetectDetect, self).__init__()
         self.training = model is not None
 
-        # val during training
         if self.training:
+            # val during training
             self.device = next(model.parameters()).device
             self.half = half
             self.loss_fn = loss_fn
@@ -28,9 +28,13 @@ class ValDetectDetect(
                 LOGGER.warning(f'The device is {self.device}, half precision only supported on CUDA')
                 self.half = False
             self.model = model.half() if self.half else model.float()
+        else:
+            # val alone
+            pass
 
     def val(self):
         self.model.eval()
+        # TODO maybe save something or plot images below
         loss_all, loss_name, stats = self.val_once()
-        # TODO finish it 2022.3.2
-        x = self.compute_metrics(stats)
+        LOGGER.debug(f'Validating: {loss_name} is {loss_all}')
+        ap_all, f1_all, p_all, r_all, cls_name_number = self.compute_metrics(stats)

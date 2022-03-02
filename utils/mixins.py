@@ -14,6 +14,7 @@ import numpy as np
 import torch.nn as nn
 
 from tqdm import tqdm
+from copy import deepcopy
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 
@@ -628,17 +629,33 @@ class ValDetectMixin(object):
                 # get metrics data
                 _stats = self._get_metrics_stats(predictions, labels, shape_converts, iou_vector)
                 stats.extend(_stats)
-                # TODO maybe save something or plot images
         return loss_all_mean, loss_name, stats
 
-    @staticmethod
-    def compute_metrics(stats):
+    def compute_metrics(self, stats):
         stats = [np.concatenate(x, 0) for x in zip(*stats)]  # all of pred_iou_level, pred cls_conf, pred cls, label cls
+        # cls count
+        cls_number = np.bincount(stats[3], minlength=self.model.nc)
+
         if stats and stats[0].any():
             # consist of all iou 0.50:0.95 metrics
             ap, f1, p, r, cls = compute_metrics_per_class(*stats)
-        # TODO finish it 2022.3.2
-        return 1
+
+            # deal metrics
+            ap_mean, f1_mean, p_mean, r_mean = deepcopy(ap), deepcopy(f1), deepcopy(p), deepcopy(r)
+            ap50, ap75, ap50_95 = ap_mean[:, 0].mean(), ap_mean[:, 5].mean(), ap_mean.mean(axis=1).mean()
+            mf1 = f1_mean.mean(axis=0)
+            mp, mr = p_mean.mean(axis=0), r_mean.mean(axis=0)
+
+            # return
+            ap_all = (ap50_95, ap50, ap75, ap)
+            f1_all = (mf1, f1)
+            p_all = (mp, p)
+            r_all = (mr, r)
+        else:
+            ap_all, f1_all, p_all, r_all, cls = (None,) * 5
+
+        cls_name_number = (cls, cls_number)
+        return ap_all, f1_all, p_all, r_all, cls_name_number
 
     def _parse_outputs(self, outputs):
         outputs = parse_outputs_yolov5(outputs, self.model.anchors, self.model.scalings)  # bbox is xyxy
@@ -676,7 +693,4 @@ class ValDetectMixin(object):
 
 
 if __name__ == '__main__':
-    a = [(1, 5), (2, 3)]
-    b = [(0, 0)]
-    b.extend(a)
-    print(b)
+    pass

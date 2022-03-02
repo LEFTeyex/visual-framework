@@ -132,6 +132,4 @@ def compute_ap(recall, precision):
 
 
 if __name__ == '__main__':
-    a = np.unique([1, 1, 2, 5, 8, 9, 3, 3])
-    a = a[:, None]
-    print(a)
+    pass

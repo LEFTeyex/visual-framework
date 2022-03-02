@@ -132,7 +132,7 @@ class TrainDetect(
         LOGGER.info('Start training')
         for self.epoch in range(self.start_epoch, self.epochs):
             loss_all, loss_name = self.train_one_epoch()
-            LOGGER.debug(f'{loss_name} is {loss_all}')
+            LOGGER.debug(f'Training: {loss_name} is {loss_all}')
 
 
 class TrainClassify(SetSavePathMixin):
