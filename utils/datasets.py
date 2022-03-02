@@ -124,9 +124,10 @@ class DatasetDetect(Dataset):
         """
         labels = []  # save labels
         channel = cv2.imread(images_files[0]).shape[-1]
+        space = ' ' * 11
         with tqdm(zip(images_files, labels_files),
                   bar_format='{l_bar}{bar:20}{r_bar}',
-                  desc=f'{prefix}: checking image and label',
+                  desc=f'{space}{prefix}: checking image and label',
                   total=len(images_files)) as pbar:
             for ip, lp in pbar:  # image path, label path
                 # check image

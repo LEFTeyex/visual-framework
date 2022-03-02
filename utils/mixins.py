@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
-from utils.general import delete_list_indices
+from utils.general import delete_list_indices, time_sync
 from utils.bbox import xywh2xyxy, rescale_xyxy
 from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
 from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class
@@ -509,7 +509,7 @@ class TrainDetectMixin(object):
         loss_all_mean = torch.zeros(4, device=self.device)
 
         with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
-                  bar_format='{l_bar:>35}{bar:10}{r_bar}') as pbar:
+                  bar_format='{l_bar}{bar:10}{r_bar}') as pbar:
             for index, (images, labels, _) in pbar:
                 images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
                 labels = labels.to(self.device)
@@ -537,16 +537,16 @@ class TrainDetectMixin(object):
 
             # lr_scheduler
             self.lr_scheduler.step()
-        return loss_all_mean, loss_name
+        return loss_all_mean.tolist(), loss_name
 
     def _show_loss_in_pbar_training(self, loss, pbar):
-        loss = tuple(loss)
         # GPU memory used
         # TODO check whether the cuda memory is right to compute below
-        memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}GB'
+        memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3f}GB'
 
         # show in pbar
-        pbar.set_description_str(f'epoch: {self.epoch}/{self.epochs - 1}, {memory_cuda}')
+        space = ' ' * 11
+        pbar.set_description_str(f'{space}epoch: {self.epoch}/{self.epochs - 1}, {memory_cuda}')
         pbar.set_postfix_str(f'total loss: {loss[0]:.3f}, '
                              f'bbox loss: {loss[1]:.3f}, '
                              f'class loss: {loss[2]:.3f}, '
@@ -588,6 +588,8 @@ class FreezeLayersMixin(object):
 
 class ValDetectMixin(object):
     def __init__(self):
+        self.time = None
+        self.seen = None
         self.half = None
         self.model = None
         self.device = None
@@ -600,8 +602,10 @@ class ValDetectMixin(object):
         iou_vector = torch.linspace(0.5, 0.95, 10, device=self.device)
         stats = []  # statistics to save tuple(pred_iou_level, pred conf, pred cls, label cls)
         with tqdm(enumerate(self.dataloader), total=len(self.dataloader),
-                  bar_format='{l_bar:>35}{bar:10}{r_bar}') as pbar:
+                  bar_format='{l_bar:>42}{bar:10}{r_bar}') as pbar:
             for index, (images, labels, shape_converts) in pbar:
+                # get current for computing FPs but maybe not accurate maybe
+                t0 = time_sync()
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
@@ -616,6 +620,7 @@ class ValDetectMixin(object):
                 # mean total loss and loss items
                 loss_all = torch.cat((loss, loss_items), dim=0).detach()
                 loss_all_mean = TrainDetectMixin.loss_mean(index, loss_all_mean, loss_all)
+                self._show_loss_in_pbar_validating(loss_all_mean, pbar)
 
                 # convert labels
                 labels[:, 2:] *= torch.tensor([w, h, w, h], device=self.device)  # pixel scale
@@ -623,36 +628,54 @@ class ValDetectMixin(object):
                 # parse outputs to predictions
                 predictions = self._parse_outputs(outputs)
 
+                self.time += time_sync() - t0
+
                 # nms
                 predictions = non_max_suppression(predictions, 0.5, 300)  # list which len is batch size
 
                 # get metrics data
                 _stats = self._get_metrics_stats(predictions, labels, shape_converts, iou_vector)
                 stats.extend(_stats)
-        return loss_all_mean, loss_name, stats
+        return loss_all_mean.tolist(), loss_name, stats
 
     def compute_metrics(self, stats):
         stats = [np.concatenate(x, 0) for x in zip(*stats)]  # all of pred_iou_level, pred cls_conf, pred cls, label cls
         # cls count
-        cls_number = np.bincount(stats[3], minlength=self.model.nc)
+        cls_number = np.bincount(stats[3].astype(np.int64), minlength=self.model.nc)
+        cls_number.tolist()
+        fmt = '<10.3f'
+        space = ' ' * 50
 
         if stats and stats[0].any():
-            # consist of all iou 0.50:0.95 metrics
+            # consist of all IoU 0.50:0.95 metrics
             ap, f1, p, r, cls = compute_metrics_per_class(*stats)
+            cls = cls.tolist()
 
             # deal metrics
             ap_mean, f1_mean, p_mean, r_mean = deepcopy(ap), deepcopy(f1), deepcopy(p), deepcopy(r)
             ap50, ap75, ap50_95 = ap_mean[:, 0].mean(), ap_mean[:, 5].mean(), ap_mean.mean(axis=1).mean()
-            mf1 = f1_mean.mean(axis=0)
-            mp, mr = p_mean.mean(axis=0), r_mean.mean(axis=0)
+            mf1, mp, mr = f1_mean.mean(axis=0), p_mean.mean(axis=0), r_mean.mean(axis=0)
 
             # return
-            ap_all = (ap50_95, ap50, ap75, ap)
-            f1_all = (mf1, f1)
-            p_all = (mp, p)
-            r_all = (mr, r)
+            ap_all = (ap50_95.tolist(), ap50.tolist(), ap75.tolist(), ap.tolist())
+            f1_all = (mf1.tolist(), f1.tolist())
+            p_all = (mp.tolist(), p.tolist())
+            r_all = (mr.tolist(), r.tolist())
+            # the F1, P, R when IoU=0.50
+            LOGGER.info(f'{space}P_50: {mp[0]:{fmt}}'
+                        f'R_50: {mr[0]:{fmt}}'
+                        f'F1_50: {mf1[0]:{fmt}}'
+                        f'AP50: {ap50:{fmt}}'
+                        f'AP75: {ap75:{fmt}}'
+                        f'AP/AP5095: {ap50_95:{fmt}}')
         else:
             ap_all, f1_all, p_all, r_all, cls = (None,) * 5
+            LOGGER.info(f'{space}P_50: {0:{fmt}}'
+                        f'R_50: {0:{fmt}}'
+                        f'F1_50: {0:{fmt}}'
+                        f'AP50: {0:{fmt}}'
+                        f'AP75: {0:{fmt}}'
+                        f'AP/AP5095: {0:{fmt}}')
 
         cls_name_number = (cls, cls_number)
         return ap_all, f1_all, p_all, r_all, cls_name_number
@@ -664,11 +687,11 @@ class ValDetectMixin(object):
         outputs = filter_outputs2predictions(outputs, 0.25)  # list which len is bs
         return outputs
 
-    @staticmethod
-    def _get_metrics_stats(predictions, labels, shape_converts, iou_vector):
+    def _get_metrics_stats(self, predictions, labels, shape_converts, iou_vector):
         # save tuple(pred_iou_level, pred conf, pred cls, label cls)
         stats = []  # save temporarily
         for index, pred in enumerate(predictions):
+            self.seen += 1
             label = labels[labels[:, 0] == index, 1:]  # one image label
             nl = label.shape[0]  # number of label
             label_cls = label[:, 0].tolist() if nl else []
@@ -690,6 +713,20 @@ class ValDetectMixin(object):
                 pred_iou_level = torch.zeros((pred.shape[0], iou_vector.shape[0]), dtype=torch.bool)
             stats.append((pred_iou_level.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), label_cls))
         return stats
+
+    @staticmethod
+    def _show_loss_in_pbar_validating(loss, pbar):
+        # GPU memory used
+        # TODO check whether the cuda memory is right to compute below
+        memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3f}GB'
+
+        # show in pbar
+        space = ' ' * 11
+        pbar.set_description_str(f'{space}validating: {memory_cuda}')
+        pbar.set_postfix_str(f'total loss: {loss[0]:.3f}, '
+                             f'bbox loss: {loss[1]:.3f}, '
+                             f'class loss: {loss[2]:.3f}, '
+                             f'object loss: {loss[3]:.3f}')
 
 
 if __name__ == '__main__':

@@ -144,8 +144,8 @@ def non_max_suppression(predictions: list, iou_threshold: float = 0.5, max_detec
 
         outputs[index] = pre[filter_pre]
 
-        t = time.time()
-        if (t - t0) > time_limit:
+        t = time.time() - t0
+        if t > time_limit:
             LOGGER.warning(f'NMS time limit {time_limit:.2f}s exceeded')
 
     return outputs

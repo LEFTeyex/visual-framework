@@ -8,6 +8,7 @@ from utils.loss import *
 from utils.metrics import *
 from utils.mixins import *
 from utils.units_utils import *
+from val import *
 
 __all__ = [
     # bbox
@@ -20,7 +21,7 @@ __all__ = [
     'parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
     'non_max_suppression',
     # general
-    'timer', 'to_tuplex', 'delete_list_indices',
+    'timer', 'time_sync', 'to_tuplex', 'delete_list_indices',
     'load_all_yaml', 'save_all_yaml', 'init_seed', 'select_one_device',
     # log
     'LOGGER', 'add_log_file',
@@ -33,4 +34,6 @@ __all__ = [
     'ValDetectMixin',
     # units_utils
     'auto_pad', 'select_act',
+    # val
+    'ValDetect'
 ]

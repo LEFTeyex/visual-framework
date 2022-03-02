@@ -4,6 +4,8 @@ Consist of some Trainers.
 """
 
 import argparse
+
+import torch
 import torch.nn as nn
 
 from pathlib import Path
@@ -19,7 +21,8 @@ from utils import \
     load_all_yaml, save_all_yaml, init_seed, select_one_device, get_and_check_datasets_yaml, \
     DatasetDetect, \
     LossDetectYolov5, \
-    SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainDetectMixin
+    SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainDetectMixin, \
+    ValDetect
 
 r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
@@ -119,7 +122,7 @@ class TrainDetect(
 
         # Get dataloader for training testing
         self.train_dataloader = self.get_dataloader(DatasetDetect, 'train')
-        # self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
+        self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
         # self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
 
         # TODO upgrade warmup
@@ -132,7 +135,23 @@ class TrainDetect(
         LOGGER.info('Start training')
         for self.epoch in range(self.start_epoch, self.epochs):
             loss_all, loss_name = self.train_one_epoch()
-            LOGGER.debug(f'Training: {loss_name} is {loss_all}')
+            self._log_results(loss_all, loss_name)
+            results = self._val_training()
+            # TODO 2022.3.3
+
+    @torch.no_grad()
+    def _val_training(self):
+        valer = ValDetect(last=False, model=self.model, half=True, dataloader=self.val_dataloader,
+                          loss_fn=self.loss_fn, cls_names=self.datasets['names'], epoch=self.epoch)
+        results = valer.val()
+        return results
+
+    @torch.inference_mode()
+    def _val_trained(self):
+        pass
+
+    def _log_results(self, loss_all, loss_name):
+        LOGGER.debug(f'Training epoch{self.epoch}: {loss_name} is {loss_all}')
 
 
 class TrainClassify(SetSavePathMixin):
@@ -153,7 +172,7 @@ def parse_args(known: bool = False):
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
+    parser.add_argument('--epochs', type=int, default=5, help='epochs for training')
     parser.add_argument('--batch_size', type=int, default=2, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')

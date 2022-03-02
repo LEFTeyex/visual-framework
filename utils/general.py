@@ -14,7 +14,7 @@ from functools import wraps
 from utils.log import LOGGER
 from utils.typeslib import _int_or_None, _strpath
 
-__all__ = ['timer', 'to_tuplex', 'delete_list_indices', 'load_all_yaml', 'save_all_yaml', 'init_seed',
+__all__ = ['timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'load_all_yaml', 'save_all_yaml', 'init_seed',
            'select_one_device']
 
 
@@ -23,12 +23,22 @@ def timer(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        t1 = time.time()
+        t0 = time.time()
         func(*args, **kwargs)
-        t = time.time() - t1
+        t = time.time() - t0
         LOGGER.info(f'function: {func.__name__} took {t:.2f} s')
 
     return wrapper
+
+
+def time_sync():
+    r"""
+    Get pytorch-accurate time
+    Return time now of current system
+    """
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    return time.time()
 
 
 def to_tuplex(value, n: int):

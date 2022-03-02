@@ -62,7 +62,6 @@ class ModelDetect(nn.Module):
         self.scalings = torch.tensor([1, 1, 1])
 
         self.nc = nc
-
         LOGGER.info('Initialize model successfully')
 
     def forward(self, x):
