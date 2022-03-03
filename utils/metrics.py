@@ -1,6 +1,6 @@
 r"""
 Metrics utils.
-Consist of all metrics function.
+Consist of all metrics function for evaluating model.
 """
 
 import torch
@@ -8,7 +8,7 @@ import numpy as np
 
 from torchvision.ops import box_iou
 
-__all__ = ['match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap']
+__all__ = ['match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap', 'compute_fitness']
 
 
 def match_pred_label_iou_vector(pred, label, iou_vector):
@@ -129,6 +129,17 @@ def compute_ap(recall, precision):
     # index = np.where(r[1:] != r[:-1])[0]
     # ap = np.sum((r[index + 1] - r[index]) * p[index + 1])
     return ap, r, p
+
+
+def compute_fitness(results, weights):
+    if sum(weights) != 1:
+        raise ValueError(f'The sum of weights must be 1 but got {weights}')
+    weights = np.asarray(weights).reshape(-1)
+    results = np.asarray(results).reshape(-1)
+    if results.shape != weights.shape:
+        raise ValueError(f'The shape is not equal results shape {results.shape} and weights shape {weights.shape}')
+    fitness = (results * weights).sum().tolist()
+    return fitness
 
 
 if __name__ == '__main__':

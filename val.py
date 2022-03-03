@@ -47,7 +47,7 @@ class ValDetect(
         self._log_results(loss_all, loss_name, metrics, fps_time)
         if not self.last:
             self.model.float()
-        return loss_all, loss_name, metrics, fps_time
+        return (loss_all, loss_name), metrics, fps_time
 
     def compute_fps(self):
         r"""
@@ -72,15 +72,16 @@ class ValDetect(
         separate = '-' * 60
         t_fmt = '<15'
         fmt = t_fmt + '.3f'
+        space = ' ' * 50
+
         # speed
         if self.last:
-            LOGGER.info(f'Speed {fps_time[1]:.2f} ms per image, FPs: {fps_time[0]:.1f}')
+            LOGGER.info(f'{space}Speed {fps_time[1]:.2f} ms per image, FPs: {fps_time[0]:.1f}, accuracy')
         else:
-            LOGGER.info(f'Speed {fps_time[1]:.2f} ms per image, FPs: {fps_time[0]:.1f}')
+            LOGGER.info(f'{space}Speed {fps_time[1]:.2f} ms per image, FPs: {fps_time[0]:.1f}, no accuracy')
 
-        if metrics[0] is not None:
-            (ap50_95, ap50, ap75, ap), (mf1, f1), (mp, p), (mr, r), (cls, cls_number) = metrics
-
+        (ap50_95, ap50, ap75, ap), (mf1, f1), (mp, p), (mr, r), (cls, cls_number) = metrics
+        if ap is not None:
             LOGGER.debug(f'{separate}')
             LOGGER.debug(f'Validating epoch{self.epoch}: {loss_name} is {loss_all}')
             LOGGER.debug(f'P_50: {mp[0]}, R_50: {mr[0]}, F1_50: {mf1[0]}, '
@@ -117,7 +118,8 @@ class ValDetect(
                                 f'{sum(ap_c) / len(ap_c):{fmt}}')
         else:
             LOGGER.debug(f'{separate}')
-            LOGGER.debug('None')
+            LOGGER.debug(f'Validating epoch{self.epoch}: {loss_name} is {loss_all}')
+            LOGGER.debug(f'others is None, cls number is {cls_number}')
             LOGGER.debug(f'{separate}')
 
 

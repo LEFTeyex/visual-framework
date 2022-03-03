@@ -15,3 +15,5 @@ cls_pw: 0.631
 obj_pw: 0.911
 
 anchor_threshold: 4.0
+
+fit_weights: [0.0, 0.0, 0.0, 0.1, 0.9]  # for [IoU 0.5 for(P, R, F1,) AP50, AP5095]

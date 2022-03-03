@@ -21,8 +21,8 @@ from utils import \
     load_all_yaml, save_all_yaml, init_seed, select_one_device, get_and_check_datasets_yaml, \
     DatasetDetect, \
     LossDetectYolov5, \
-    SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainDetectMixin, \
-    ValDetect
+    SetSavePathMixin, SaveCheckPointMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainDetectMixin, \
+    ValDetect, ResultsDealDetectMixin
 
 r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
@@ -34,6 +34,8 @@ class TrainDetect(
     DataLoaderMixin,  # get dataloader
     LossMixin,
     TrainDetectMixin,  # for training
+    ResultsDealDetectMixin,
+    SaveCheckPointMixin,
 ):
     r"""Trainer for detection, built by mixins"""
 
@@ -69,7 +71,8 @@ class TrainDetect(
         self.save_dict = self.get_save_path(('hyp', 'hyp.yaml'),
                                             ('args', 'args.yaml'),
                                             ('datasets', 'datasets.yaml'),
-                                            ('results', 'results.txt'),
+                                            ('train_val_results', 'train_val_results.txt'),
+                                            ('all_class_results', 'all_class_results.txt'),
                                             ('last', 'weights/last.pt'),
                                             ('best', 'weights/best.pt'),
                                             logfile='logger.log')
@@ -83,7 +86,7 @@ class TrainDetect(
         save_all_yaml((vars(args), self.save_dict['args']),
                       (self.hyp, self.save_dict['hyp']),
                       (self.datasets, self.save_dict['datasets']))
-        del args
+        args = None
 
         # Load checkpoint(has to self.device)
         self.checkpoint = self.load_checkpoint()
@@ -117,8 +120,8 @@ class TrainDetect(
         # Initialize or load best_fitness
         self.best_fitness = self.load_best_fitness(load=False)
 
-        # Delete self.checkpoint when load finished
-        del self.checkpoint
+        # self.checkpoint to None when load finished
+        self.checkpoint = None
 
         # Get dataloader for training testing
         self.train_dataloader = self.get_dataloader(DatasetDetect, 'train')
@@ -129,6 +132,11 @@ class TrainDetect(
 
         # Get loss function
         self.loss_fn = self.get_loss_fn(LossDetectYolov5)
+
+        # To save results of training and validating
+        self.results = self.get_results_dict(('train_val_results', []),
+                                             ('all_class_results', []))
+
         LOGGER.info('Initialize trainer successfully')
 
     def train(self):
@@ -136,8 +144,11 @@ class TrainDetect(
         for self.epoch in range(self.start_epoch, self.epochs):
             loss_all, loss_name = self.train_one_epoch()
             self._log_results(loss_all, loss_name)
-            results = self._val_training()
-            # TODO 2022.3.3
+            results_val = self._val_training()
+            results_for_best = self.deal_results_memory((loss_all, loss_name), results_val)
+            self.save_checkpoint(results_for_best)
+            # TODO maybe need a auto-stop function for bad training in the future
+        self.save_all_results()
 
     @torch.no_grad()
     def _val_training(self):

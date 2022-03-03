@@ -21,17 +21,17 @@ __all__ = [
     'parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
     'non_max_suppression',
     # general
-    'timer', 'time_sync', 'to_tuplex', 'delete_list_indices',
+    'timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'save_all_txt',
     'load_all_yaml', 'save_all_yaml', 'init_seed', 'select_one_device',
     # log
     'LOGGER', 'add_log_file',
     # loss
     'LossDetectYolov5',
     # metrics
-    'match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap',
+    'match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap', 'compute_fitness',
     # mixins
-    'SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainDetectMixin',
-    'ValDetectMixin',
+    'SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin',
+    'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin',
     # units_utils
     'auto_pad', 'select_act',
     # val

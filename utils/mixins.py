@@ -20,18 +20,18 @@ from torch.utils.data import DataLoader
 
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
-from utils.general import delete_list_indices, time_sync
+from utils.general import delete_list_indices, time_sync, save_all_txt
 from utils.bbox import xywh2xyxy, rescale_xyxy
 from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
-from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class
+from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class, compute_fitness
 from utils.typeslib import \
     _str_or_None, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler, \
     _dataset_c, _instance_c, \
     _pkt_or_None
 
-__all__ = ['SetSavePathMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin', 'TrainDetectMixin',
-           'ValDetectMixin']
+__all__ = ['SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin',
+           'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin']
 
 
 class SetSavePathMixin(object):
@@ -95,6 +95,49 @@ class SetSavePathMixin(object):
             self.name += '1'  # set name exp1
 
 
+class SaveCheckPointMixin(object):
+    def __init__(self):
+        self.hyp = None
+        self.model = None
+        self.epoch = None
+        self.epochs = None
+        self.scaler = None
+        self.save_dict = None
+        self.optimizer = None
+        self.lr_scheduler = None
+        self.best_fitness = None
+        self.checkpoint = None
+
+    def get_checkpoint(self):
+        LOGGER.debug('Getting checkpoint...')
+        checkpoint = {'model': self.model,  # TODO de_parallel model in the future
+                      'optimizer_state_dict': self.optimizer.state_dict(),
+                      'lr_scheduler_state_dict': self.lr_scheduler.state_dict(),
+                      'gradscaler_state_dict': self.scaler.state_dict(),
+                      'epoch': self.epoch,
+                      'best_fitness': self.best_fitness
+                      }
+        LOGGER.debug('Get checkpoint successfully')
+        return checkpoint
+
+    def save_checkpoint(self, results):
+        # save the best checkpoint
+        fitness = compute_fitness(results, self.hyp['fit_weights'])  # compute fitness for best save
+        if fitness > self.best_fitness:
+            LOGGER.debug(f'Saving last checkpoint in epoch{self.epoch}...')
+            checkpoint = self.get_checkpoint()
+            self.best_fitness = fitness
+            torch.save(checkpoint, self.save_dict['best'])
+            LOGGER.debug(f'Save last checkpoint in epoch{self.epoch} successfully')
+
+        # save the last checkpoint
+        if self.epoch + 1 == self.epochs:
+            LOGGER.info('Saving last checkpoint')
+            checkpoint = self.get_checkpoint()
+            torch.save(checkpoint, self.save_dict['last'])
+            LOGGER.info('Save last checkpoint successfully')
+
+
 class LoadAllCheckPointMixin(object):
     r"""
     Need self.model, self.device, self.weights, self.checkpoint, self.param_groups, self.epochs
@@ -123,7 +166,7 @@ class LoadAllCheckPointMixin(object):
         Request:
             checkpoint = {'model':                    model,
                           'optimizer_state_dict':     optimizer.state_dict(),
-                          'lr_scheduler_state_dict':  scheduler.state_dict(),
+                          'lr_scheduler_state_dict':  lr_scheduler.state_dict(),
                           'gradscaler_state_dict':    scaler.state_dict(),
                           'epoch':                    epoch,
                           'best_fitness':             best_fitness}
@@ -227,11 +270,11 @@ class LoadAllCheckPointMixin(object):
             LOGGER.info('Do not load optimizer state_dict')
         return optim_instance
 
-    def load_lr_scheduler(self, scheduler_instance: _lr_scheduler, load: bool = True):
+    def load_lr_scheduler(self, lr_scheduler_instance: _lr_scheduler, load: bool = True):
         r"""
         Load lr_scheduler from state_dict.
         Args:
-            scheduler_instance: _lr_scheduler = StepLR(self.optimizer, 30) etc. the instance of lr_scheduler
+            lr_scheduler_instance: _lr_scheduler = StepLR(self.optimizer, 30) etc. the instance of lr_scheduler
             load: bool = True / False, Default=True(load lr_scheduler state_dict)
 
         Return scheduler_instance
@@ -241,12 +284,12 @@ class LoadAllCheckPointMixin(object):
             # load lr_scheduler
             LOGGER.info('Loading lr_scheduler state_dict...')
             self._check_checkpoint_not_none()
-            scheduler_instance.load_state_dict(self.checkpoint['lr_scheduler_state_dict'])
+            lr_scheduler_instance.load_state_dict(self.checkpoint['lr_scheduler_state_dict'])
             LOGGER.info('Load lr_scheduler state_dict successfully...')
 
         else:
             LOGGER.info('Do not load lr_scheduler state_dict')
-        return scheduler_instance
+        return lr_scheduler_instance
 
     def load_gradscaler(self, gradscaler_instance: _gradscaler, load: bool = True):
         r"""
@@ -419,7 +462,7 @@ class LoadAllCheckPointMixin(object):
 
     def _check_checkpoint_not_none(self):
         r"""Check whether self.checkpoint exists"""
-        if self.checkpoint is None:
+        if not self.checkpoint:
             raise ValueError('The self.checkpoint is None, please load checkpoint')
 
 
@@ -669,7 +712,7 @@ class ValDetectMixin(object):
                         f'AP75: {ap75:{fmt}}'
                         f'AP/AP5095: {ap50_95:{fmt}}')
         else:
-            ap_all, f1_all, p_all, r_all, cls = (None,) * 5
+            ap_all, f1_all, p_all, r_all, cls = ((None,) * 4), ((None,) * 2), ((None,) * 2), ((None,) * 2), None
             LOGGER.info(f'{space}P_50: {0:{fmt}}'
                         f'R_50: {0:{fmt}}'
                         f'F1_50: {0:{fmt}}'
@@ -727,6 +770,81 @@ class ValDetectMixin(object):
                              f'bbox loss: {loss[1]:.3f}, '
                              f'class loss: {loss[2]:.3f}, '
                              f'object loss: {loss[3]:.3f}')
+
+
+class ResultsDealDetectMixin(object):
+    def __init__(self):
+        self.epoch = None
+        self.results = None
+        self.datasets = None
+        self.save_dict = None
+
+    @staticmethod
+    def get_results_dict(*args: tuple):
+        r"""
+        Get dict of results for saving.
+        Args:
+            *args: (name, type to save)
+
+        Return results dict(for self.results)
+        """
+        results = {}
+        for name, value in args:
+            results[name] = value
+        return results
+
+    def add_results_dict(self, *args: tuple):
+        if self.results is None:
+            raise AttributeError('Not find self.results, add failed')
+        assert isinstance(self.results, dict), f'Except the type of self.results is dict but got {type(self.results)}'
+        for name, value in args:
+            self.results[name] = value
+
+    def deal_results_memory(self, results_train, results_val):
+        train_loss = results_train
+        val_loss, metrics, fps_time = results_val
+        (ap50_95, ap50, ap75, ap), (mf1, f1), (mp, p), (mr, r), (cls, cls_number) = metrics
+
+        # train_val
+        if self.epoch == 0:
+            title_train_val = ['train:', *train_loss[1], 'val:', *val_loss[1],
+                               'ap50', 'ap75', 'ap50_95', 'mf1', 'mp', 'mr']
+            self.results['train_val_results'].append(title_train_val)
+        data_train_val = [*train_loss[0], *val_loss[0], ap50, ap75, ap50_95, mf1, mp, mr]
+        self.results['train_val_results'].append(data_train_val)
+
+        # all class
+        title_all_class = ['cls_name', 'cls_number', '(IoU=0.50:0.95):', 'AP', 'F1', 'P', 'R']
+        if ap is not None:
+            rest = (cls, ap, f1, p, r)
+            self.results['all_class_results'].append(title_all_class)
+            for c, ap_c, f1_c, p_c, r_c in zip(*rest):
+                name_c = self.datasets['names'][c]
+                number_c = cls_number[c]
+                data_all_class = [name_c, number_c, ap_c, f1_c, p_c, r_c]
+                self.results['all_class_results'].append(data_all_class)
+        else:
+            nc = cls_number.shape[0]
+            self.results['all_class_results'].append(title_all_class)
+            for c in range(nc):
+                name_c = self.datasets['names'][c]
+                number_c = cls_number[c]
+                data_all_class = [name_c, number_c, None, None, None, None]
+                self.results['all_class_results'].append(data_all_class)
+
+        # return for computing best_fitness
+        return (mp[0], mr[0], mf1[0], ap50, ap50_95) if ap50 is not None else (0,) * 5
+
+    def save_all_results(self):
+        r"""Save all content in results then empty self.results"""
+        if self.results:
+            to_save = []
+            for k, v in self.results.items():
+                to_save.append((v, self.save_dict[k]))
+            save_all_txt(*to_save)
+            self.results = {}
+        else:
+            LOGGER.warning('The self.results is empty, save nothing')
 
 
 if __name__ == '__main__':

@@ -14,8 +14,8 @@ from functools import wraps
 from utils.log import LOGGER
 from utils.typeslib import _int_or_None, _strpath
 
-__all__ = ['timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'load_all_yaml', 'save_all_yaml', 'init_seed',
-           'select_one_device']
+__all__ = ['timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'save_all_txt', 'load_all_yaml', 'save_all_yaml',
+           'init_seed', 'select_one_device']
 
 
 def timer(func):
@@ -72,6 +72,23 @@ def delete_list_indices(list_delete: list, indices_delete: list):
     return list_delete
 
 
+def save_all_txt(*args):
+    r"""
+    Save all list or tuple to *.txt in the path.
+    Args:
+        args: = (content_txt, path), ...
+    """
+    LOGGER.debug('Saving all txt...')
+    for content_txt, path in args:
+        with open(path, 'a') as f:  # todo: args can change
+            content_txt = content_txt if isinstance(content_txt[0], (list, tuple)) else [content_txt]
+            txt = ''
+            for content in content_txt:
+                txt += ' '.join(f'{x}' for x in content) + '\n'
+            f.write(txt)
+    LOGGER.debug('Save all txt successfully')
+
+
 def load_all_yaml(*args: _strpath):
     r"""
     Load all *.yaml to dict from the path.
@@ -80,7 +97,7 @@ def load_all_yaml(*args: _strpath):
 
     Return tuple(dict, ...) or dict(when only one yaml to load)
     """
-    LOGGER.info('Loading all yaml dict...')
+    LOGGER.debug('Loading all yaml dict...')
     yaml_list = []
     for path in args:
         with open(path, 'r') as f:  # todo: args can change
@@ -91,7 +108,7 @@ def load_all_yaml(*args: _strpath):
         yaml_list = yaml_list[0]
     else:
         yaml_list = tuple(yaml_list)
-    LOGGER.info('Load all yaml dict successfully')
+    LOGGER.debug('Load all yaml dict successfully')
     return yaml_list
 
 
@@ -101,12 +118,12 @@ def save_all_yaml(*args):
     Args:
         args: = (dict_yaml, path), ...
     """
-    LOGGER.info('Saving all dict yaml...')
+    LOGGER.debug('Saving all dict yaml...')
     for dict_yaml, path in args:
         with open(path, 'w') as f:  # todo: args can change
             # save yaml dict without sorting
             yaml.safe_dump(dict_yaml, f, sort_keys=False)
-    LOGGER.info('Save all dict yaml successfully')
+    LOGGER.debug('Save all dict yaml successfully')
 
 
 def init_seed(seed: _int_or_None = None):
