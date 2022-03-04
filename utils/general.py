@@ -131,6 +131,7 @@ def init_seed(seed: _int_or_None = None):
     Initialize the seed of torch(CPU), torch(GPU), random, numpy by manual or auto(seed=None).
     Args:
         seed: _int_or_None =  integral number less than 32 bit better, Default=None(auto)
+    Return seed
     """
     if seed is None:
         LOGGER.info('Setting seed(auto get) for all generator...')
@@ -144,6 +145,7 @@ def init_seed(seed: _int_or_None = None):
         random.seed(seed)
         np.random.seed(deal_seed_by_bit(seed))
     LOGGER.info(f'Set seed: {seed} successfully')
+    return seed
 
 
 def select_one_device(device_name: str):

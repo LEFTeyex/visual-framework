@@ -4,7 +4,9 @@ Consist of some Valers.
 """
 
 from utils import \
-    LOGGER, ValDetectMixin
+    LOGGER, \
+    compute_fps, \
+    ValDetectMixin
 
 __all__ = ['ValDetect']
 
@@ -41,23 +43,13 @@ class ValDetect(
         # TODO maybe save something or plot images below
         loss_all, loss_name, stats = self.val_once()
         metrics = self.compute_metrics(stats)
-        fps_time = self.compute_fps()
+        fps_time = compute_fps(self.seen, self.time)
         # TODO confusion matrix needed
         # TODO get the stats of the target number per class which detected correspond to label correctly
         self._log_results(loss_all, loss_name, metrics, fps_time)
         if not self.last:
             self.model.float()
         return (loss_all, loss_name), metrics, fps_time
-
-    def compute_fps(self):
-        r"""
-        Compute fps and time per image.
-        ***** exclude image preprocessing time *****
-        Return fps, time_per_image
-        """
-        time_per_image = self.time / self.seen
-        fps = 1 / time_per_image
-        return fps, time_per_image * 1000  # the unit is ms
 
     def _log_results(self, loss_all, loss_name, metrics, fps_time):
         """

@@ -279,7 +279,12 @@ def get_and_check_datasets_yaml(path: _strpath):
             raise TypeError(f'The type of {file} is wrong, '
                             f'please reset in the {path}')
     # get the value dealt
-    train, val, test = tvt
+    try:
+        train, val, test = tvt
+    except ValueError:
+        LOGGER.debug('No datasets test')
+        train, val = tvt
+
     del tvt
 
     # train must exist
@@ -290,7 +295,9 @@ def get_and_check_datasets_yaml(path: _strpath):
     # check whether train, val, test exist
     for path in (train, val, test):
         for p in path if isinstance(path, list) else [path]:
-            if not p.exists():
+            if p is None:
+                pass
+            elif not p.exists():
                 raise FileExistsError(f'The path {path} do not exists, '
                                       f'please reset in the {path}')
 
@@ -304,7 +311,8 @@ def get_and_check_datasets_yaml(path: _strpath):
     # convert pathlike to str type
     train = to_str(train)
     val = to_str(val)
-    test = to_str(test)
+    if test is not None:
+        test = to_str(test)
 
     datasets['train'], datasets['val'], datasets['test'] = train, val, test
 

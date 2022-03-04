@@ -28,7 +28,7 @@ __all__ = [
     # loss
     'LossDetectYolov5',
     # metrics
-    'match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap', 'compute_fitness',
+    'match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap', 'compute_fps', 'compute_fitness',
     # mixins
     'SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin',
     'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin',

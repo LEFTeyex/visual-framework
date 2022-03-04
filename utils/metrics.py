@@ -8,7 +8,7 @@ import numpy as np
 
 from torchvision.ops import box_iou
 
-__all__ = ['match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap', 'compute_fitness']
+__all__ = ['match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap', 'compute_fps', 'compute_fitness']
 
 
 def match_pred_label_iou_vector(pred, label, iou_vector):
@@ -129,6 +129,17 @@ def compute_ap(recall, precision):
     # index = np.where(r[1:] != r[:-1])[0]
     # ap = np.sum((r[index + 1] - r[index]) * p[index + 1])
     return ap, r, p
+
+
+def compute_fps(seen: int, time: float):
+    r"""
+    Compute fps and time per image.
+    ***** exclude image preprocessing time *****
+    Return fps, time_per_image
+    """
+    time_per_image = time / seen
+    fps = 1 / time_per_image
+    return fps, time_per_image * 1000  # the unit is ms
 
 
 def compute_fitness(results, weights):

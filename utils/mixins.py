@@ -15,6 +15,7 @@ import torch.nn as nn
 
 from tqdm import tqdm
 from copy import deepcopy
+from pathlib import Path
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 
@@ -28,7 +29,7 @@ from utils.typeslib import \
     _str_or_None, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler, \
     _dataset_c, _instance_c, \
-    _pkt_or_None
+    _pkt_or_None, _strpath
 
 __all__ = ['SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin',
            'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin']
@@ -110,7 +111,7 @@ class SaveCheckPointMixin(object):
 
     def get_checkpoint(self):
         LOGGER.debug('Getting checkpoint...')
-        checkpoint = {'model': self.model,  # TODO de_parallel model in the future
+        checkpoint = {'model': deepcopy(self.model),  # TODO de_parallel model in the future
                       'optimizer_state_dict': self.optimizer.state_dict(),
                       'lr_scheduler_state_dict': self.lr_scheduler.state_dict(),
                       'gradscaler_state_dict': self.scaler.state_dict(),
@@ -140,9 +141,9 @@ class SaveCheckPointMixin(object):
 
 class LoadAllCheckPointMixin(object):
     r"""
-    Need self.model, self.device, self.weights, self.checkpoint, self.param_groups, self.epochs
+    Need self.model, self.device, self.checkpoint, self.param_groups, self.epochs
     The function in the Mixin below.
-    1. Load checkpoint from self.weights '*.pt' or '*.pth' file. ---------- ues self.device, self.weights
+    1. Load checkpoint from self.weights '*.pt' or '*.pth' file. ---------- ues self.device
     2. Load model from 'model' or 'state_dict' or initialize model. ------- ues self.device, self.checkpoint
     3. Load optimizer from state_dict and add param_groups first. --------- ues self.checkpoint, self.param_groups
     4. Load lr_scheduler from state_dict. --------------------------------- ues self.checkpoint
@@ -156,13 +157,12 @@ class LoadAllCheckPointMixin(object):
         self.model = None
         self.device = None
         self.epochs = None
-        self.weights = None
         self.checkpoint = None
         self.param_groups = None
 
-    def load_checkpoint(self, suffix=('.pt', '.pth')):
+    def load_checkpoint(self, path: _strpath, suffix=('.pt', '.pth')):
         r"""
-        Load checkpoint from self.weights '*.pt' or '*.pth' file.
+        Load checkpoint from path '*.pt' or '*.pth' file.
         Request:
             checkpoint = {'model':                    model,
                           'optimizer_state_dict':     optimizer.state_dict(),
@@ -171,19 +171,21 @@ class LoadAllCheckPointMixin(object):
                           'epoch':                    epoch,
                           'best_fitness':             best_fitness}
         Args:
+            path: _strpath = StrPath
             suffix: tuple = ('.pt', '.pth', ...) the suffix of weight file, Default=('.pt', '.pth')
 
         Return checkpoint or None(when no file endwith the suffix)
         """
         LOGGER.info('Loading checkpoint...')
-        if self.weights.is_file() and (self.weights.suffix in suffix):
+        path = Path(path)
+        if path.is_file() and (path.suffix in suffix):
             # load checkpoint to self.device
-            checkpoint = torch.load(self.weights, map_location=self.device)
+            checkpoint = torch.load(path, map_location=self.device)
             LOGGER.info('Load checkpoint successfully')
             return checkpoint
         else:
             LOGGER.warning('There is no checkpoint to load. '
-                           'Check the weights args, if checkpoint wanted.')
+                           'Check the path, if checkpoint wanted.')
             return None
 
     def load_model(self, model_instance: _module_or_None = None, load: _str_or_None = 'state_dict'):
@@ -196,13 +198,13 @@ class LoadAllCheckPointMixin(object):
         Return model_instance
         """
         # check whether model_instance and load is conflict
-        if load == 'model' and check_only_one_set(model_instance, load):
-            raise ValueError(f'Only one of {model_instance} '
-                             f'and {load} can be set, please reset them')
-        else:
-            if model_instance is None:
-                raise ValueError("The model_instance can not be None,"
-                                 " if load = None or 'state_dict'")
+        if load == 'model':
+            if not check_only_one_set(model_instance, load):
+                raise ValueError(f'Only one of {model_instance} '
+                                 f'and {load} can be set, please reset them')
+        elif model_instance is None:
+            raise ValueError("The model_instance can not be None,"
+                             " if load = None or 'state_dict'")
 
         if load is None:
             # TODO: initialize model weights by new way
@@ -224,7 +226,7 @@ class LoadAllCheckPointMixin(object):
         elif load == 'model':
             LOGGER.info('Loading total model from checkpoint...')
             self._check_checkpoint_not_none()
-            model_instance = self.checkpoint.get['model']
+            model_instance = self.checkpoint['model']
             LOGGER.info('Load total model successfully')
 
         else:
@@ -462,7 +464,7 @@ class LoadAllCheckPointMixin(object):
 
     def _check_checkpoint_not_none(self):
         r"""Check whether self.checkpoint exists"""
-        if not self.checkpoint:
+        if self.checkpoint is None:
             raise ValueError('The self.checkpoint is None, please load checkpoint')
 
 
@@ -490,20 +492,24 @@ class DataLoaderMixin(object):
 
         Return dataloader instance
         """
-        LOGGER.info('Initializing Dataloader...')
-        # set dataset
-        LOGGER.info('Initializing Dataset...')
-        dataset = dataset(self.datasets[name], self.image_size, name)
-        LOGGER.info('Initialize Dataset successfully')
+        if self.datasets.get(name, None) is None:
+            dataloader = None
+            LOGGER.warning(f'The datasets {name} do not exist, got Dataloader {name} is None')
+        else:
+            LOGGER.info(f'Initializing Dataloader {name}...')
+            # set dataset
+            LOGGER.info(f'Initializing Dataset {name}...')
+            dataset = dataset(self.datasets[name], self.image_size, name)
+            LOGGER.info(f'Initialize Dataset {name} successfully')
 
-        # set dataloader
-        # TODO upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
-        batch_size = min(self.batch_size, len(dataset))
-        dataloader = DataLoader(dataset, batch_size, self.shuffle,
-                                num_workers=self.workers,
-                                pin_memory=self.pin_memory,
-                                collate_fn=dataset.collate_fn)
-        LOGGER.info('Initialize Dataloader successfully')
+            # set dataloader
+            # TODO upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
+            batch_size = min(self.batch_size, len(dataset))
+            dataloader = DataLoader(dataset, batch_size, self.shuffle,
+                                    num_workers=self.workers,
+                                    pin_memory=self.pin_memory,
+                                    collate_fn=dataset.collate_fn)
+            LOGGER.info(f'Initialize Dataloader {name} successfully')
         return dataloader
 
 
@@ -568,7 +574,7 @@ class TrainDetectMixin(object):
                 self.scaler.scale(loss).backward()
 
                 # optimize
-                # maybe accumulating gradient will be better (if index...: ...)
+                # todo maybe accumulating gradient will be better (if index...: ...)
                 self.scaler.step(self.optimizer)  # optimizer.step()
                 self.scaler.update()
                 self.optimizer.zero_grad()
@@ -794,57 +800,73 @@ class ResultsDealDetectMixin(object):
         return results
 
     def add_results_dict(self, *args: tuple):
-        if self.results is None:
-            raise AttributeError('Not find self.results, add failed')
-        assert isinstance(self.results, dict), f'Except the type of self.results is dict but got {type(self.results)}'
+        self._check_results_exists_dict()
+
         for name, value in args:
             self.results[name] = value
+
+    def add_data_results(self, *arg: tuple):
+        r"""
+        Add data to self.results in name.
+        Args:
+            *arg: tuple = (name, data(tuple or list))
+        """
+        self._check_results_exists_dict()
+        for name, data in arg:
+            self.results[name].extend(data)
 
     def deal_results_memory(self, results_train, results_val):
         train_loss = results_train
         val_loss, metrics, fps_time = results_val
         (ap50_95, ap50, ap75, ap), (mf1, f1), (mp, p), (mr, r), (cls, cls_number) = metrics
+        all_results = []
+        all_class_results = []
 
         # train_val
         if self.epoch == 0:
-            title_train_val = ['train:', *train_loss[1], 'val:', *val_loss[1],
+            title_train_val = ['epoch', 'train:', train_loss[1], 'val:', val_loss[1],
                                'ap50', 'ap75', 'ap50_95', 'mf1', 'mp', 'mr']
-            self.results['train_val_results'].append(title_train_val)
-        data_train_val = [*train_loss[0], *val_loss[0], ap50, ap75, ap50_95, mf1, mp, mr]
-        self.results['train_val_results'].append(data_train_val)
+            all_results.append(title_train_val)
+        data_train_val = [self.epoch, train_loss[0], val_loss[0], ap50, ap75, ap50_95, mf1, mp, mr]
+        all_results.append(data_train_val)
 
         # all class
-        title_all_class = ['cls_name', 'cls_number', '(IoU=0.50:0.95):', 'AP', 'F1', 'P', 'R']
+        title_all_class = [f'epoch{self.epoch}', 'cls_name', 'cls_number', '(IoU=0.50:0.95):', 'AP', 'F1', 'P', 'R']
         if ap is not None:
             rest = (cls, ap, f1, p, r)
-            self.results['all_class_results'].append(title_all_class)
+            all_class_results.append(title_all_class)
             for c, ap_c, f1_c, p_c, r_c in zip(*rest):
                 name_c = self.datasets['names'][c]
                 number_c = cls_number[c]
                 data_all_class = [name_c, number_c, ap_c, f1_c, p_c, r_c]
-                self.results['all_class_results'].append(data_all_class)
+                all_class_results.append(data_all_class)
         else:
             nc = cls_number.shape[0]
-            self.results['all_class_results'].append(title_all_class)
+            all_class_results.append(title_all_class)
             for c in range(nc):
                 name_c = self.datasets['names'][c]
                 number_c = cls_number[c]
                 data_all_class = [name_c, number_c, None, None, None, None]
-                self.results['all_class_results'].append(data_all_class)
+                all_class_results.append(data_all_class)
 
-        # return for computing best_fitness
-        return (mp[0], mr[0], mf1[0], ap50, ap50_95) if ap50 is not None else (0,) * 5
+        # return for saving and computing best_fitness
+        return (all_results, all_class_results), \
+               (mp[0], mr[0], mf1[0], ap50, ap50_95) if ap50 is not None else (0,) * 5
 
     def save_all_results(self):
         r"""Save all content in results then empty self.results"""
-        if self.results:
-            to_save = []
-            for k, v in self.results.items():
-                to_save.append((v, self.save_dict[k]))
-            save_all_txt(*to_save)
-            self.results = {}
-        else:
-            LOGGER.warning('The self.results is empty, save nothing')
+        self._check_results_exists_dict()
+        to_save = []
+        for k, v in self.results.items():
+            to_save.append((v, self.save_dict[k]))
+        save_all_txt(*to_save)
+        self.results = {}
+
+    def _check_results_exists_dict(self):
+        r"""Check whether self.results exists"""
+        if not self.results:
+            raise ValueError('The self.results do not exist, please set it')
+        assert isinstance(self.results, dict), f'Except the type of self.results is dict but got {type(self.results)}'
 
 
 if __name__ == '__main__':

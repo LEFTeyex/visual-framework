@@ -18,13 +18,13 @@
 path: f:/datasets/Codinguse
 
 # the train image path(or train.txt which the image path is relative to 'path') in the path
-train: images
+train: images  # must exists
 
 # the val image path(or val.txt) in the path
-val: images
+val: images  # must exists
 
 # the test image path(or test.txt) in the path
-test: images
+#test: images
 
 # number of classes
 nc: 19
