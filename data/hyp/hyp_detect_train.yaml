@@ -3,7 +3,7 @@
 # Parameters
 seed: null  # null is None in yaml
 
-lr0: 0.01
+lr0: 0.1
 momentum: 0.9
 weight_decay: 0.005
 label_smoothing: 0.1

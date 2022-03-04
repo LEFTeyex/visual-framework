@@ -168,8 +168,8 @@ def load_image_resize(img_path: _strpath, img_size: int):
     h1, w1 = round(w0 * r), round(h0 * r)
 
     if r != 1:
-        # todo: args can change
-        image = cv2.resize(image, dsize=(w1, h1),  # cv2.resize dsize need (w, h)
+        # todo args can change
+        image = cv2.resize(image, dsize=(w1, h1),  # conv2.resize dsize need (w, h)
                            interpolation=cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR)
     return image, (h0, w0), (h1, w1), r
 

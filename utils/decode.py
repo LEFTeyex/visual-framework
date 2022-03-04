@@ -114,7 +114,7 @@ def non_max_suppression(predictions: list, iou_threshold: float = 0.5, max_detec
     # check
     assert check_between_0_1(iou_threshold), f'Except iou_threshold value is in interval (0, 1), but got {iou_threshold}'
 
-    # todo: args can change
+    # todo args can change
     # min_wh, max_wh = 2, 7680  # min and max bbox wh
     max_nms = 30000  # max number of bbox for nms
     time_limit = 10.0  # seconds to quit after

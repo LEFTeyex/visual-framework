@@ -1,6 +1,6 @@
 # <center>Visual Framework</center>
 
-[![](https://img.shields.io/badge/developed-80%25-bluegreen.svg)]()
+[![](https://img.shields.io/badge/developed-60%25-bluegreen.svg)]()
 [![](https://img.shields.io/badge/coverage-0%25-red.svg)]()
 [![](https://img.shields.io/badge/license-MIT-black.svg)](https://choosealicense.com/licenses/mit/)
 [![](https://img.shields.io/badge/version-v0.0-blue.svg)]()

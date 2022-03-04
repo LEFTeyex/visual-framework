@@ -87,10 +87,10 @@ def compute_metrics_per_class(tp, conf, pred_cls, label_cls, eps=1e-16):
             # AP
             pry = np.zeros((niou, 1000))
             for index_iou in range(niou):
-                ap[index_unique, index_iou], recall, precision = compute_ap(recall[:, index_iou],
-                                                                            precision[:, index_iou])
-                pry[index_iou] = np.interp(prx, recall, precision)
+                ap[index_unique, index_iou], _r, _p = compute_ap(recall[:, index_iou], precision[:, index_iou])
+                pry[index_iou] = np.interp(prx, _r, _p)
             pr_curve[index_unique].append(pry)
+            # TODO plot P-R curve by pr_curve
 
     # do not consist of f1/r/p---confidence curve
 
@@ -99,7 +99,7 @@ def compute_metrics_per_class(tp, conf, pred_cls, label_cls, eps=1e-16):
     # n_fp = (n_tp / (p + eps) - tp).round()
 
     # F1
-    f1 = 2 * (r * p) / (r + p)
+    f1 = 2 * (r * p) / (r + p + eps)
     index_cls = unique_cls  # corresponding to the position of result index
     return ap, f1, p, r, index_cls
 

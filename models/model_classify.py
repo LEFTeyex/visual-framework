@@ -12,7 +12,7 @@ __all__ = ['ModelClassify']
 
 
 class ModelClassify(nn.Module):
-    # TODO: Upgrade for somewhere in the future
+    # TODO Upgrade for somewhere in the future
     r"""
     Model of Classify which is a custom model.
     """

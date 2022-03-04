@@ -50,6 +50,8 @@ class TrainDetect(
         self.datasets_path = args.datasets_path
         self.hyp = args.hyp
         self.inc = args.inc
+        self.nl = args.nl
+        self.na = args.na
         self.image_size = args.image_size
         self.epochs = args.epochs
         self.batch_size = args.batch_size
@@ -78,14 +80,16 @@ class TrainDetect(
         # Initialize or auto seed manual and save in self.hyp
         self.hyp['seed'] = init_seed(self.hyp['seed'])
 
+        # Get datasets path dict
+        self.datasets = get_and_check_datasets_yaml(self.datasets_path)
+
         # Save yaml dict
         save_all_yaml((vars(args), self.save_dict['args']),
                       (self.hyp, self.save_dict['hyp']),
                       (self.datasets, self.save_dict['datasets']))
         args = self._empty_none()
 
-        # Get datasets path dict
-        self.datasets = get_and_check_datasets_yaml(self.datasets_path)
+        # TODO auto compute anchors when anchors is None in self.datasets
 
         # Load checkpoint(has to self.device)
         self.checkpoint = self.load_checkpoint(self.weights)
@@ -93,7 +97,8 @@ class TrainDetect(
         # TODO upgrade DP DDP
 
         # Initialize or load model(has to self.device)
-        self.model = self.load_model(ModelDetect(self.inc, self.datasets['nc']), load=None)
+        self.model = self.load_model(ModelDetect(self.inc, self.datasets['nc'], self.datasets['anchors'],
+                                                 image_size=self.image_size), load=None)
 
         # Set parameter groups to add to the optimizer
         self.param_groups = self.set_param_groups((('bias', nn.Parameter, {}),
@@ -147,7 +152,7 @@ class TrainDetect(
             self.add_data_results(('all_results', results[0]),
                                   ('all_class_results', results[1]))
             self.save_checkpoint(results_for_best)
-            # TODO maybe need a auto-stop function for bad training in the future
+            # TODO maybe need a auto stop function for bad training
 
         self.model = self._empty_none()
         test_results = self._test_trained()
@@ -211,8 +216,8 @@ def parse_args(known: bool = False):
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=5, help='epochs for training')
-    parser.add_argument('--batch_size', type=int, default=2, help='')
+    parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
+    parser.add_argument('--batch_size', type=int, default=16, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
     parser.add_argument('--pin_memory', type=bool, default=True, help='')
@@ -221,6 +226,8 @@ def parse_args(known: bool = False):
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
     parser.add_argument('--inc', type=int, default=3, help='')
+    parser.add_argument('--nl', type=int, default=3, help='number of output layer in the last')
+    parser.add_argument('--na', type=int, default=3, help='number of anchor per layer')
     parser.add_argument('--image_size', type=int, default=640, help='')
     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
     return namespace

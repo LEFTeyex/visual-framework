@@ -22,7 +22,7 @@ def _set_logger(name: str, ch_level=logging.INFO, developing=True):
     logger.setLevel(logging.DEBUG)
 
     # create formatter for handler
-    # todo: args can change
+    # todo args can change
     if developing:
         fmt = '{asctime:<18} {levelname:<10} {filename:<20} {lineno:<4} {message:<80} {name}'
     else:
@@ -39,11 +39,11 @@ def _set_logger(name: str, ch_level=logging.INFO, developing=True):
 
 
 r"""Set LOGGER for global, use it by from utils.log import LOGGER, add_log_file"""
-# todo: args can change
+# todo args can change
 LOGGER = _set_logger(__name__, ch_level=logging.INFO, developing=False)
 
 
-# TODO: The way to setting filepath need to design in the future
+# TODO The way to setting filepath need to design in the future
 def add_log_file(filepath, fh_level=logging.DEBUG, mode: str = 'a'):
     r"""
     Add FileHandler for logger to write in *.txt
@@ -53,7 +53,7 @@ def add_log_file(filepath, fh_level=logging.DEBUG, mode: str = 'a'):
         mode: str = 'a', 'w' etc.
     """
     # create formatter for handler
-    # todo: args can change
+    # todo args can change
     formatter = logging.Formatter(fmt='{asctime:<18} {levelname:<10} {filename:<20} {lineno:<4} {message:<80} {name}',
                                   datefmt='%Y-%m-%d %H:%M',
                                   style='{')

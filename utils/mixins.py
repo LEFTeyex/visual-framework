@@ -207,13 +207,13 @@ class LoadAllCheckPointMixin(object):
                              " if load = None or 'state_dict'")
 
         if load is None:
-            # TODO: initialize model weights by new way
+            # TODO initialize model weights by new way
             pass
 
         elif load == 'state_dict':
             LOGGER.info('Loading model state_dict...')
             self._check_checkpoint_not_none()
-            # TODO: Upgrade for somewhere in the future for Transfer Learning
+            # TODO Upgrade for somewhere in the future for Transfer Learning
             # load model and get the rest of (0, missing_keys) and (1, unexpected_keys)
             rest = model_instance.load_state_dict(self.checkpoint['model'].state_dict(), strict=False)
             if rest[0] or rest[1]:
@@ -375,7 +375,7 @@ class LoadAllCheckPointMixin(object):
         else:
             # initialize best_fitness
             LOGGER.info('Initializing best_fitness...')
-            # todo: args can change
+            # todo args can change
             best_fitness = 0.0
             LOGGER.info(f'Initialize best_fitness={best_fitness} successfully')
         return best_fitness
@@ -398,14 +398,14 @@ class LoadAllCheckPointMixin(object):
             return None
         # set param_groups
         LOGGER.info('Setting param_groups...')
-        # TODO: Upgrade the algorithm in the future for filtering parameters from model.modules() better
+        # TODO Upgrade the algorithm in the future for filtering parameters from model.modules() better
         param_groups = []
         rest = []  # save_params the rest parameters that are not filtered
         indices = []  # save_params parameters (index, name) temporarily to delete
 
         # get all parameters from model and set one of ('weightbias', 'weight', 'bias') to its indices
         for element in self.model.modules():
-            # todo: args can change
+            # todo args can change
             if hasattr(element, 'weight') or hasattr(element, 'bias'):
                 rest.append(element)
                 if element.weight is not None:
@@ -743,7 +743,7 @@ class ValDetectMixin(object):
             self.seen += 1
             label = labels[labels[:, 0] == index, 1:]  # one image label
             nl = label.shape[0]  # number of label
-            label_cls = label[:, 0].tolist() if nl else []
+            label_cls = label[:, 0].long().tolist() if nl else []
 
             if not pred.shape[0]:
                 if nl:

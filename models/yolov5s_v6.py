@@ -1,15 +1,15 @@
 r"""
-Detection Model.
-It is built by units.py or torch.nn Module.
+YOLOv5 v6.0.
+Add in 2022.03.04.
 """
 
 import torch
 import torch.nn as nn
 
-from models.units import *
+from models.units import Conv, C3, SPPF
 from utils.log import LOGGER
 
-__all__ = ['ModelDetect']
+__all__ = ['Yolov5sV6']
 
 
 class Backbone(nn.Module):
@@ -67,17 +67,14 @@ class Head(nn.Module):
         return out17, out20, out23
 
 
-class ModelDetect(nn.Module):
-    # TODO Upgrade for args got in train.py in the future
-    r"""
-    Model of Detection which is a custom model.
-    Can be defined by changing Backbone and Head.
-    """
+class Yolov5sV6(nn.Module):
+    # TODO Upgrade for somewhere in the future
+    r"""YOLOv5 v6.0"""
 
     def __init__(self, inc: int, nc: int, anchors: list, num_bbox: int = 5, image_size: int = 640,
                  g=1, act='silu', bn=True, bias=True):
-        super(ModelDetect, self).__init__()
-        LOGGER.info('Initializing the model...')
+        super(Yolov5sV6, self).__init__()
+        LOGGER.info('Initializing the model YOLOv5 v6.0...')
 
         # todo args can change
         c = [32, 64, 64, 128, 128, 256, 256, 512, 512, 512, 256]  # channels from 1 to -1
@@ -101,7 +98,7 @@ class ModelDetect(nn.Module):
         self.register_buffer('scalings', scalings)
         self.register_buffer('anchors', anchors)
 
-        LOGGER.info('Initialize model successfully')
+        LOGGER.info('Initialize model YOLOv5 v6.0 successfully')
 
     def forward(self, x):
         x = self.backbone(x)
@@ -132,26 +129,6 @@ class ModelDetect(nn.Module):
 
     @staticmethod
     def _tensor_anchors(anchors):
-        # need to scale to output size
         anchors = torch.tensor(anchors).float()  # shape (3, 3, 2) for (nl, na, wh)
         nl, na = anchors.shape[0:2]
         return anchors, nl, na
-
-
-def _test():
-    r"""test Model in model_detect.py"""
-    image_size = 640
-    anchors = [[[10, 13], [16, 30], [33, 23]],
-               [[30, 61], [62, 45], [59, 119]],
-               [[116, 90], [156, 198], [373, 326]]]
-    model = ModelDetect(3, 80, anchors, act='relu', image_size=image_size)
-    image = torch.rand(1, 3, image_size, image_size)
-    outputs = model(image)
-    print(model.anchors)
-    print(model.scalings)
-    for x in outputs:
-        print(x.shape)
-
-
-if __name__ == '__main__':
-    _test()

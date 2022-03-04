@@ -80,7 +80,7 @@ def save_all_txt(*args):
     """
     LOGGER.debug('Saving all txt...')
     for content_txt, path in args:
-        with open(path, 'a') as f:  # todo: args can change
+        with open(path, 'a') as f:  # todo args can change
             content_txt = content_txt if isinstance(content_txt[0], (list, tuple)) else [content_txt]
             txt = ''
             for content in content_txt:
@@ -100,7 +100,7 @@ def load_all_yaml(*args: _strpath):
     LOGGER.debug('Loading all yaml dict...')
     yaml_list = []
     for path in args:
-        with open(path, 'r') as f:  # todo: args can change
+        with open(path, 'r') as f:  # todo args can change
             yaml_dict = yaml.safe_load(f)  # load yaml dict
             yaml_list.append(yaml_dict)
     # return dict or tuple(dict, dict, ...)
@@ -120,7 +120,7 @@ def save_all_yaml(*args):
     """
     LOGGER.debug('Saving all dict yaml...')
     for dict_yaml, path in args:
-        with open(path, 'w') as f:  # todo: args can change
+        with open(path, 'w') as f:  # todo args can change
             # save yaml dict without sorting
             yaml.safe_dump(dict_yaml, f, sort_keys=False)
     LOGGER.debug('Save all dict yaml successfully')
@@ -159,9 +159,9 @@ def select_one_device(device_name: str):
     LOGGER.info('Selecting device...')
     device_name = device_name.lower().replace('cuda', '').replace('CUDA', '').replace(' ', '').replace(':', '')
     if device_name == 'cpu':
-        # TODO: Upgrade for somewhere in the future
+        # TODO Upgrade for somewhere in the future
         # for multi cpu
-        device = torch.device(device_name, index=0)  # todo: args can change
+        device = torch.device(device_name, index=0)  # todo args can change
         LOGGER.info(f'{torch.__version__} CPU:{device.index}')
     elif isinstance(int(device_name), int):
         assert torch.cuda.is_available(), f'CUDA unavailable, invalid device {device_name} requested'
@@ -189,7 +189,7 @@ def deal_seed_by_bit(seed: int, bit: int = 32):
     """
     seed = abs(seed)  # get positive number
     if seed.bit_length() > bit:
-        # todo: args can change
+        # todo args can change
         seed = int(str(seed)[0:9])  # [0:9] is for 32 bit
     return seed
 

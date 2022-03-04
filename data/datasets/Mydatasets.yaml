@@ -26,8 +26,15 @@ val: images  # must exists
 # the test image path(or test.txt) in the path
 #test: images
 
+# anchors is wh
+anchors:
+  - [[10,13], [16,30], [33,23]]
+  - [[30,61], [62,45], [59,119]]
+  - [[116,90], [156,198], [373,326]]
+
 # number of classes
-nc: 19
+nc: 20
 
 # name of classes corresponding to 0, 1, 2, ...
-names: [ '0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0','0' ]
+names: ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog',
+        'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
