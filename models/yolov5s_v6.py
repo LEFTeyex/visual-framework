@@ -73,7 +73,7 @@ class Yolov5sV6(MetaModelDetect):
     r"""YOLOv5 v6.0"""
 
     def __init__(self, inc: int, nc: int, anchors: list, num_bbox: int = 5, image_size: int = 640,
-                 g=1, act='silu', bn=True, bias=True):
+                 g=1, act='silu', bn=True, bias=False):
         super(Yolov5sV6, self).__init__()
         LOGGER.info(f'Initializing the {type(self).__name__}...')
         # todo args can change

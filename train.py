@@ -4,15 +4,14 @@ Consist of some Trainers.
 """
 
 import argparse
-
 import torch
 import torch.nn as nn
 
 from pathlib import Path
-
 from torch.optim import SGD
 from torch.optim.lr_scheduler import StepLR
 from torch.cuda.amp import GradScaler
+from typing import Optional
 
 # import from mylib below
 from models import ModelDetect
@@ -28,6 +27,7 @@ r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
 
 
+# TODO design a meta class for training of detection
 class TrainDetect(
     SetSavePathMixin,  # set and get the paths for saving file of training
     LoadAllCheckPointMixin,  # load the config of the model trained before and others for training
@@ -41,25 +41,30 @@ class TrainDetect(
 
     def __init__(self, args):
         super(TrainDetect, self).__init__()
-        # Get args
         LOGGER.info('Initializing trainer for detection')
-        self.device = args.device
-        self.save_path = Path(args.save_path)
-        self.weights = Path(args.weights)
-        self.name = args.name
-        self.datasets_path = args.datasets_path
         self.hyp = args.hyp
         self.inc = args.inc
-        self.nl = args.nl
-        self.na = args.na
-        self.image_size = args.image_size
+        self.name = args.name
+        self.device = args.device
         self.epochs = args.epochs
-        self.batch_size = args.batch_size
         self.workers = args.workers
         self.shuffle = args.shuffle
+        self.weights = Path(args.weights)
+        self.image_size = args.image_size
+        self.batch_size = args.batch_size
         self.pin_memory = args.pin_memory
-        # TODO set hyp['load'] for model, optimizer, lr_scheduler etc. in the future
-        # TODO design a way to get all parameters in train setting for research
+        self.save_path = Path(args.save_path)
+        self.datasets_path = args.datasets_path
+
+        # for load way
+        self._load_model = args.load_model
+        self._load_optimizer = args.load_optimizer
+        self._load_gradscaler = args.load_gradscaler
+        self._load_start_epoch = args.load_start_epoch
+        self._load_best_fitness = args.load_best_fitness
+        self._load_lr_scheduler = args.load_lr_scheduler
+
+        # TODO design a way to get all parameters in train setting for research if possible
 
         # Set one device
         self.device = select_one_device(self.device)  # requires model, images, labels .to(self.device)
@@ -98,7 +103,7 @@ class TrainDetect(
 
         # Initialize or load model(has to self.device)
         self.model = self.load_model(ModelDetect(self.inc, self.datasets['nc'], self.datasets['anchors'],
-                                                 image_size=self.image_size), load=None)
+                                                 image_size=self.image_size), load=self._load_model)
 
         # Set parameter groups to add to the optimizer
         self.param_groups = self.set_param_groups((('bias', nn.Parameter, {}),
@@ -109,19 +114,20 @@ class TrainDetect(
         # Initialize and load optimizer
         self.optimizer = self.load_optimizer(SGD(self.param_groups.pop(1)['params'],
                                                  lr=self.hyp['lr0'], momentum=self.hyp['momentum'], nesterov=True),
-                                             load=False)
+                                             load=self._load_optimizer)
 
         # Initialize and load lr_scheduler
-        self.lr_scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 30), load=False)
+        self.lr_scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 30), load=self._load_lr_scheduler)
+        # TODO set lr_scheduler args to self.hyp
 
         # Initialize and load GradScaler
-        self.scaler = self.load_gradscaler(GradScaler(enabled=self.cuda), load=False)
+        self.scaler = self.load_gradscaler(GradScaler(enabled=self.cuda), load=self._load_gradscaler)
 
         # Initialize or load start_epoch
-        self.start_epoch = self.load_start_epoch(load=None)
+        self.start_epoch = self.load_start_epoch(load=self._load_start_epoch)
 
         # Initialize or load best_fitness
-        self.best_fitness = self.load_best_fitness(load=False)
+        self.best_fitness = self.load_best_fitness(load=self._load_best_fitness)
 
         # self.checkpoint to None when load finished
         self.checkpoint = self._empty_none()
@@ -213,6 +219,7 @@ def parse_args(known: bool = False):
 
     Return namespace(for setting args)
     """
+    _str_or_None = Optional[str]
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
@@ -226,9 +233,13 @@ def parse_args(known: bool = False):
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
     parser.add_argument('--inc', type=int, default=3, help='')
-    parser.add_argument('--nl', type=int, default=3, help='number of output layer in the last')
-    parser.add_argument('--na', type=int, default=3, help='number of anchor per layer')
     parser.add_argument('--image_size', type=int, default=640, help='')
+    parser.add_argument('--load_model', type=_str_or_None, default=None, help='')
+    parser.add_argument('--load_optimizer', type=bool, default=False, help='')
+    parser.add_argument('--load_lr_scheduler', type=bool, default=False, help='')
+    parser.add_argument('--load_gradscaler', type=bool, default=False, help='')
+    parser.add_argument('--load_start_epoch', type=_str_or_None, default=None, help='')
+    parser.add_argument('--load_best_fitness', type=bool, default=False, help='')
     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
     return namespace
 
@@ -242,8 +253,10 @@ def train_detection():
 
 if __name__ == '__main__':
     train_detection()
-    # TODO 2022.03.04
-    # TODO train args to save for loading
+    # TODO in the future
+    # TODO colour str
     # TODO datasets augment
+
+    # TODO 2022.03.04
     # TODO auto compute anchors
     # TODO add tensorboard and research
