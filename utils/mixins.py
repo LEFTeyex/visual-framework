@@ -207,8 +207,9 @@ class LoadAllCheckPointMixin(object):
                              " if load = None or 'state_dict'")
 
         if load is None:
-            # TODO initialize model weights by new way
-            pass
+            LOGGER.info('Initializing model weights...')
+            model_instance.initialize_weights()
+            LOGGER.info('Initialize model weights successfully')
 
         elif load == 'state_dict':
             LOGGER.info('Loading model state_dict...')

@@ -6,6 +6,7 @@ Add in 2022.03.04.
 import torch
 import torch.nn as nn
 
+from models.metamodel import MetaModelDetect, init_weights
 from models.units import Conv, C3, SPPF
 from utils.log import LOGGER
 
@@ -67,25 +68,24 @@ class Head(nn.Module):
         return out17, out20, out23
 
 
-class Yolov5sV6(nn.Module):
+class Yolov5sV6(MetaModelDetect):
     # TODO Upgrade for somewhere in the future
     r"""YOLOv5 v6.0"""
 
     def __init__(self, inc: int, nc: int, anchors: list, num_bbox: int = 5, image_size: int = 640,
                  g=1, act='silu', bn=True, bias=True):
         super(Yolov5sV6, self).__init__()
-        LOGGER.info('Initializing the model YOLOv5 v6.0...')
-
+        LOGGER.info(f'Initializing the {type(self).__name__}...')
         # todo args can change
         c = [32, 64, 64, 128, 128, 256, 256, 512, 512, 512, 256]  # channels from 1 to -1
         n = [1, 2, 3, 1, 1, 1, 1]  # number of layers for C3
 
-        self.image_size = image_size
         self.inc = inc
         self.nc = nc
         self.no = nc + num_bbox
         self.ch = [c[4], c[4] * 2, c[10] * 2]
-        anchors, self.nl, self.na = self._tensor_anchors(anchors)
+
+        self.anchors, self.nl, self.na = self.get_register_anchors(anchors)
         self._check_ch_nl()
 
         self.backbone = Backbone(inc, c, n[:4], g=g, act=act, bn=bn, bias=bias, shortcut=True)
@@ -93,12 +93,10 @@ class Yolov5sV6(nn.Module):
         k, s = (1, 1), (1, 1)
         self.m = nn.ModuleList([nn.Conv2d(x, self.no * self.na, k, s) for x in self.ch])
 
-        scalings = self._compute_scaling()
-        anchors = self._scale_anchors(anchors, scalings)
-        self.register_buffer('scalings', scalings)
-        self.register_buffer('anchors', anchors)
+        self.scalings, self.image_size = self.get_register_scalings(image_size)
+        self.scale_anchors()
 
-        LOGGER.info('Initialize model YOLOv5 v6.0 successfully')
+        LOGGER.info(f'Initialize {type(self).__name__} successfully')
 
     def forward(self, x):
         x = self.backbone(x)
@@ -112,23 +110,9 @@ class Yolov5sV6(nn.Module):
             y.append(tensor)
         return y
 
+    def initialize_weights(self):
+        self.apply(init_weights)
+
     def _check_ch_nl(self):
         if len(self.ch) != self.nl:
             raise ValueError(f'The length of self.ch {len(self.ch)} do not match self.nl')
-
-    def _compute_scaling(self):
-        image = torch.zeros(1, self.inc, self.image_size, self.image_size)
-        outputs = self.forward(image)
-        scalings = torch.tensor([self.image_size / x.shape[-2] for x in outputs])
-        return scalings
-
-    @staticmethod
-    def _scale_anchors(anchors, scalings):
-        anchors /= scalings.view(-1, 1, 1)
-        return anchors
-
-    @staticmethod
-    def _tensor_anchors(anchors):
-        anchors = torch.tensor(anchors).float()  # shape (3, 3, 2) for (nl, na, wh)
-        nl, na = anchors.shape[0:2]
-        return anchors, nl, na

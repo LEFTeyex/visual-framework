@@ -242,3 +242,8 @@ def train_detection():
 
 if __name__ == '__main__':
     train_detection()
+    # TODO 2022.03.04
+    # TODO train args to save for loading
+    # TODO datasets augment
+    # TODO auto compute anchors
+    # TODO add tensorboard and research

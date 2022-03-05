@@ -89,7 +89,7 @@ def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, cla
         # output not empty
         if not output.shape[0]:
             continue
-        # TODO maybe need apriori label to cat
+        # TODO maybe need apriori label to cat by yolov5
 
         # compute  confidence = obj_conf * class_conf
         output[:, 5:] *= output[:, 4:5]

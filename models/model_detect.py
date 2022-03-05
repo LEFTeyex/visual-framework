@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 
 from models.units import *
+from models.metamodel import MetaModelDetect, init_weights
 from utils.log import LOGGER
 
 __all__ = ['ModelDetect']
@@ -67,7 +68,7 @@ class Head(nn.Module):
         return out17, out20, out23
 
 
-class ModelDetect(nn.Module):
+class ModelDetect(MetaModelDetect):
     # TODO Upgrade for args got in train.py in the future
     r"""
     Model of Detection which is a custom model.
@@ -77,18 +78,18 @@ class ModelDetect(nn.Module):
     def __init__(self, inc: int, nc: int, anchors: list, num_bbox: int = 5, image_size: int = 640,
                  g=1, act='silu', bn=True, bias=True):
         super(ModelDetect, self).__init__()
-        LOGGER.info('Initializing the model...')
+        LOGGER.info(f'Initializing the {type(self).__name__}...')
 
         # todo args can change
         c = [32, 64, 64, 128, 128, 256, 256, 512, 512, 512, 256]  # channels from 1 to -1
         n = [1, 2, 3, 1, 1, 1, 1]  # number of layers for C3
 
-        self.image_size = image_size
         self.inc = inc
         self.nc = nc
         self.no = nc + num_bbox
         self.ch = [c[4], c[4] * 2, c[10] * 2]
-        anchors, self.nl, self.na = self._tensor_anchors(anchors)
+
+        self.anchors, self.nl, self.na = self.get_register_anchors(anchors)
         self._check_ch_nl()
 
         self.backbone = Backbone(inc, c, n[:4], g=g, act=act, bn=bn, bias=bias, shortcut=True)
@@ -96,12 +97,10 @@ class ModelDetect(nn.Module):
         k, s = (1, 1), (1, 1)
         self.m = nn.ModuleList([nn.Conv2d(x, self.no * self.na, k, s) for x in self.ch])
 
-        scalings = self._compute_scaling()
-        anchors = self._scale_anchors(anchors, scalings)
-        self.register_buffer('scalings', scalings)
-        self.register_buffer('anchors', anchors)
+        self.scalings, self.image_size = self.get_register_scalings(image_size)
+        self.scale_anchors()
 
-        LOGGER.info('Initialize model successfully')
+        LOGGER.info(f'Initialize {type(self).__name__} successfully')
 
     def forward(self, x):
         x = self.backbone(x)
@@ -115,27 +114,12 @@ class ModelDetect(nn.Module):
             y.append(tensor)
         return y
 
+    def initialize_weights(self):
+        self.apply(init_weights)
+
     def _check_ch_nl(self):
         if len(self.ch) != self.nl:
             raise ValueError(f'The length of self.ch {len(self.ch)} do not match self.nl')
-
-    def _compute_scaling(self):
-        image = torch.zeros(1, self.inc, self.image_size, self.image_size)
-        outputs = self.forward(image)
-        scalings = torch.tensor([self.image_size / x.shape[-2] for x in outputs])
-        return scalings
-
-    @staticmethod
-    def _scale_anchors(anchors, scalings):
-        anchors /= scalings.view(-1, 1, 1)
-        return anchors
-
-    @staticmethod
-    def _tensor_anchors(anchors):
-        # need to scale to output size
-        anchors = torch.tensor(anchors).float()  # shape (3, 3, 2) for (nl, na, wh)
-        nl, na = anchors.shape[0:2]
-        return anchors, nl, na
 
 
 def _test():
@@ -149,6 +133,7 @@ def _test():
     outputs = model(image)
     print(model.anchors)
     print(model.scalings)
+    print(model.image_size)
     for x in outputs:
         print(x.shape)
 
