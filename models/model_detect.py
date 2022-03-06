@@ -131,6 +131,7 @@ def _test():
     model = ModelDetect(3, 80, anchors, act='relu', image_size=image_size)
     image = torch.rand(1, 3, image_size, image_size)
     outputs = model(image)
+    print(next(model.parameters()).device)
     print(model.anchors)
     print(model.scalings)
     print(model.image_size)

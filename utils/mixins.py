@@ -18,8 +18,10 @@ from copy import deepcopy
 from pathlib import Path
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from utils.log import LOGGER, add_log_file
+from utils import WRITER
 from utils.check import check_only_one_set
 from utils.general import delete_list_indices, time_sync, save_all_txt
 from utils.bbox import xywh2xyxy, rescale_xyxy
@@ -45,10 +47,11 @@ class SetSavePathMixin(object):
     def __init__(self):
         self.name = None
         self.save_path = None
+        self.tensorboard = None
 
     def get_save_path(self, *args, logfile: _str_or_None = None):
         r"""
-        Set save path (then get them in dict) and add FileHandler for LOGGER.
+        Set save path (then get them in dict) and add FileHandler for LOGGER or add writer of tensorboard.
         Args:
             args: = (name, path), ...
             logfile: _str_or_None = 'logger.log' or '*/others.log', Default=None(logger.log file will not be created)
@@ -64,6 +67,17 @@ class SetSavePathMixin(object):
             add_log_file(self.save_path / logfile)
         LOGGER.info('Setting save path...')
 
+        # set tensorboard for self.writer
+        if self.tensorboard:
+            LOGGER.info('Setting tensorboard...')
+            writer = SummaryWriter(self.save_path / 'tensorboard')
+            LOGGER.info('Setting tensorboard successfully')
+            LOGGER.info(f"See tensorboard results please run "
+                        f"'tensorboard --logdir=runs/train/{self.name}/tensorboard' in Terminal")
+        else:
+            LOGGER.info('No tensorboard')
+            writer = None
+
         # set save path for args(name, path) to dict
         save_dict = dict()
         for k, v in args:
@@ -71,10 +85,10 @@ class SetSavePathMixin(object):
             path.parent.mkdir(parents=True, exist_ok=True)
             save_dict[k] = path
         LOGGER.info('Set save path successfully')
-        return save_dict
+        return save_dict, writer
 
     def _set_name(self):
-        r"""Set name for save file without repeating, runs/*/464, runs/*/456456"""
+        r"""Set name for save file without repeating, runs/*/exp1, runs/*/exp2"""
         if self.save_path.exists():
             # to save number of exp
             list_num = []
@@ -245,22 +259,6 @@ class LoadAllCheckPointMixin(object):
         Return optim_instance
         """
         LOGGER.info('Initialize optimizer successfully')
-        # add param_groups
-        LOGGER.info('Adding param_groups...')
-        if self.param_groups is None:
-            LOGGER.info('Add no additional param_groups')
-
-        elif isinstance(self.param_groups, list):
-            if not self.param_groups:
-                LOGGER.info('Add no additional param_groups ')
-            else:
-                for param_group in self.param_groups:
-                    optim_instance.add_param_group(param_group)
-                LOGGER.info('Add param_groups successfully')
-
-        else:
-            raise TypeError(f'The self.param_groups: '
-                            f'{type(self.param_groups)} must be list or None')
 
         if load:
             # load optimizer
@@ -454,6 +452,7 @@ class LoadAllCheckPointMixin(object):
 
             # add params to dict and add param_dict to param_groups
             param_dict['params'] = save_params
+            param_dict['name'] = f'{kind.__name__}.{name}'
             param_groups.append(param_dict)
 
         # check whether rest is empty
@@ -471,25 +470,26 @@ class LoadAllCheckPointMixin(object):
 
 class DataLoaderMixin(object):
     r"""
-    Need self.datasets, self.image_size, self.batch_size, self.shuffle, self.workers, self.pin_memory
+    Need self.datasets, self.image_size, self.batch_size, self.workers, self.pin_memory
     The function in the Mixin below.
     1. Set dataset and get dataloader. --- all self.*
     """
 
     def __init__(self):
-        self.shuffle = None
+        self.writer = None
         self.workers = None
         self.datasets = None
         self.image_size = None
         self.batch_size = None
         self.pin_memory = None
 
-    def get_dataloader(self, dataset: _dataset_c, name: str):
+    def get_dataloader(self, dataset: _dataset_c, name: str, shuffle: bool = False):
         r"""
         Set dataset and get dataloader.
         Args:
             dataset: _dataset = dataset class
             name: str = 'train' / 'val' / 'test'
+            shuffle: bool = False/True
 
         Return dataloader instance
         """
@@ -503,10 +503,15 @@ class DataLoaderMixin(object):
             dataset = dataset(self.datasets[name], self.image_size, name)
             LOGGER.info(f'Initialize Dataset {name} successfully')
 
+            # visualizing
+            LOGGER.info(f'Visualizing Dataset {name}...')
+            WRITER.add_datasets_images_labels(self.writer, dataset, name)
+            LOGGER.info(f'Visualize Dataset {name} successfully')
+
             # set dataloader
             # TODO upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
             batch_size = min(self.batch_size, len(dataset))
-            dataloader = DataLoader(dataset, batch_size, self.shuffle,
+            dataloader = DataLoader(dataset, batch_size, shuffle,
                                     num_workers=self.workers,
                                     pin_memory=self.pin_memory,
                                     collate_fn=dataset.collate_fn)
@@ -541,21 +546,25 @@ class LossMixin(object):
 
 class TrainDetectMixin(object):
     def __init__(self):
+        self.inc = None
         self.cuda = None
         self.epoch = None
         self.model = None
         self.epochs = None
         self.device = None
         self.scaler = None
+        self.writer = None
         self.loss_fn = None
         self.optimizer = None
+        self.image_size = None
         self.lr_scheduler = None
         self.train_dataloader = None
 
     def train_one_epoch(self):
         self.model.train()
+        WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
         self.optimizer.zero_grad()
-        loss_name = ('total loss', 'bbox loss', 'class loss', 'object loss')
+        loss_name = ('total_loss', 'bbox_loss', 'class_loss', 'object_loss')
         loss_all_mean = torch.zeros(4, device=self.device)
 
         with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
@@ -585,6 +594,9 @@ class TrainDetectMixin(object):
                 loss_all_mean = self.loss_mean(index, loss_all_mean, loss_all)
                 self._show_loss_in_pbar_training(loss_all_mean, pbar)
 
+            WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
+            WRITER.add_epoch_curve(self.writer, 'train_loss', loss_all_mean, loss_name, self.epoch)
+
             # lr_scheduler
             self.lr_scheduler.step()
         return loss_all_mean.tolist(), loss_name
@@ -597,10 +609,10 @@ class TrainDetectMixin(object):
         # show in pbar
         space = ' ' * 11
         pbar.set_description_str(f'{space}epoch: {self.epoch}/{self.epochs - 1}, {memory_cuda}')
-        pbar.set_postfix_str(f'total loss: {loss[0]:.3f}, '
-                             f'bbox loss: {loss[1]:.3f}, '
-                             f'class loss: {loss[2]:.3f}, '
-                             f'object loss: {loss[3]:.3f}')
+        pbar.set_postfix_str(f'total_loss: {loss[0]:.3f}, '
+                             f'bbox_loss: {loss[1]:.3f}, '
+                             f'class_loss: {loss[2]:.3f}, '
+                             f'object_loss: {loss[3]:.3f}')
 
     @staticmethod
     def loss_mean(index, loss_all_mean, loss_all):
@@ -642,12 +654,14 @@ class ValDetectMixin(object):
         self.seen = None
         self.half = None
         self.model = None
+        self.epoch = None
+        self.writer = None
         self.device = None
         self.loss_fn = None
         self.dataloader = None
 
     def val_once(self):
-        loss_name = ('total loss', 'bbox loss', 'class loss', 'object loss')
+        loss_name = ('total_loss', 'bbox_loss', 'class_oss', 'object_loss')
         loss_all_mean = torch.zeros(4, device=self.device).half() if self.half else torch.zeros(4, device=self.device)
         iou_vector = torch.linspace(0.5, 0.95, 10, device=self.device)
         stats = []  # statistics to save tuple(pred_iou_level, pred conf, pred cls, label cls)
@@ -683,9 +697,13 @@ class ValDetectMixin(object):
                 # nms
                 predictions = non_max_suppression(predictions, 0.5, 300)  # list which len is batch size
 
+                WRITER.add_batch_images_predictions(self.writer, 'test_pred', index,
+                                                    images, predictions, self.epoch)
+
                 # get metrics data
                 _stats = self._get_metrics_stats(predictions, labels, shape_converts, iou_vector)
                 stats.extend(_stats)
+            WRITER.add_epoch_curve(self.writer, 'val_loss', loss_all_mean, loss_name, self.epoch)
         return loss_all_mean.tolist(), loss_name, stats
 
     def compute_metrics(self, stats):
@@ -773,10 +791,10 @@ class ValDetectMixin(object):
         # show in pbar
         space = ' ' * 11
         pbar.set_description_str(f'{space}validating: {memory_cuda}')
-        pbar.set_postfix_str(f'total loss: {loss[0]:.3f}, '
-                             f'bbox loss: {loss[1]:.3f}, '
-                             f'class loss: {loss[2]:.3f}, '
-                             f'object loss: {loss[3]:.3f}')
+        pbar.set_postfix_str(f'total_loss: {loss[0]:.3f}, '
+                             f'bbox_loss: {loss[1]:.3f}, '
+                             f'class_loss: {loss[2]:.3f}, '
+                             f'object_loss: {loss[3]:.3f}')
 
 
 class ResultsDealDetectMixin(object):

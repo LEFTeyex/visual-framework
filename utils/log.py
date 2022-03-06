@@ -8,6 +8,8 @@ import logging
 __all__ = ['LOGGER', 'add_log_file']
 
 
+# TODO add log functions for log everything everywhere (deal results)
+
 def _set_logger(name: str, ch_level=logging.INFO, developing=True):
     r"""
     Set LOGGER with StreamHandler.

@@ -79,11 +79,11 @@ class DatasetDetect(Dataset):
         if nl:
             index_label = torch.zeros((nl, 1))
             label = torch.from_numpy(label)
-            label = torch.cat((index_label, label), dim=1)  # label shape is (nl, nlabel + 1)
+            label = torch.cat((index_label, label), dim=1)  # label shape is (nl, 1 + nlabel)
         else:
             label = torch.empty((0, self.nlabel + 1))  # empty
 
-        return image, label, shape_convert  # only one image(h,w,c), label(nl, nlabel + 1)
+        return image, label, shape_convert  # only one image(c,h,w), label(nl, 1 + nlabel)
 
     def __len__(self):
         r"""Return len of all data"""
@@ -104,7 +104,7 @@ class DatasetDetect(Dataset):
         for index, label in enumerate(labels):
             label[:, 0] = index
 
-        labels = torch.cat(labels, dim=0)  # shape (n, nlabel + 1)
+        labels = torch.cat(labels, dim=0)  # shape (n, 1 + nlabel)
         images = torch.stack(images, dim=0)  # shape (bs, c, h, w)
         # shape_converts is tuple
         return images, labels, shape_converts
@@ -165,7 +165,7 @@ def load_image_resize(img_path: _strpath, img_size: int):
     # TODO the process(or rect) may be faster for training in __init__ in the future
     h0, w0 = image.shape[:2]  # original hw
     r = img_size / max(h0, w0)  # ratio for resize
-    h1, w1 = round(w0 * r), round(h0 * r)
+    h1, w1 = round(h0 * r), round(w0 * r)
 
     if r != 1:
         # todo args can change

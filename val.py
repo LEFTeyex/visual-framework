@@ -4,7 +4,7 @@ Consist of some Valers.
 """
 
 from utils import \
-    LOGGER, \
+    LOGGER, WRITER, \
     compute_fps, \
     ValDetectMixin
 
@@ -15,12 +15,13 @@ class ValDetect(
     ValDetectMixin  # for validating
 ):
     def __init__(self, args=None, last=True,
-                 model=None, half=True, dataloader=None, loss_fn=None, cls_names=None, epoch=None):
+                 model=None, half=True, dataloader=None, loss_fn=None, cls_names=None, epoch=None, writer=None):
         super(ValDetect, self).__init__()
         self.last = last
         self.training = model is not None
         self.time = 0.0
         self.seen = 0
+        self.writer = writer
 
         if self.training:
             # val during training
@@ -42,6 +43,7 @@ class ValDetect(
         self.model.eval()
         # TODO maybe save something or plot images below
         loss_all, loss_name, stats = self.val_once()
+        # TODO move the compute_metrics and compute_fps to Mixin in the future for upgrading
         metrics = self.compute_metrics(stats)
         fps_time = compute_fps(self.seen, self.time)
         # TODO confusion matrix needed
@@ -62,7 +64,7 @@ class ValDetect(
         cls_name_number = (cls, cls_number)
         """
         separate = '-' * 60
-        t_fmt = '<15'
+        t_fmt = '<15'  # title format
         fmt = t_fmt + '.3f'
         space = ' ' * 50
 
@@ -74,6 +76,10 @@ class ValDetect(
 
         (ap50_95, ap50, ap75, ap), (mf1, f1), (mp, p), (mr, r), (cls, cls_number) = metrics
         if ap is not None:
+            name_writer = ('P_50', 'R_50', 'F1_50', 'AP50', 'AP75', 'AP5095')
+            value_writer = (mp[0], mr[0], mf1[0], ap50, ap75, ap50_95)
+            WRITER.add_epoch_curve(self.writer, 'val_metrics', value_writer, name_writer, self.epoch)
+
             LOGGER.debug(f'{separate}')
             LOGGER.debug(f'Validating epoch{self.epoch}: {loss_name} is {loss_all}')
             LOGGER.debug(f'P_50: {mp[0]}, R_50: {mr[0]}, F1_50: {mf1[0]}, '
@@ -81,7 +87,7 @@ class ValDetect(
             LOGGER.debug(f'P_5095: {mp}, R_5095: {mr}, F1_5095: {mf1}')
 
             rest = (cls, ap, f1, p, r)
-            LOGGER.debug(f'cls name, cls number, (IoU=0.50:0.95) AP, F1, P, R')
+            LOGGER.debug(f'cls_name, cls_number, (IoU=0.50:0.95) AP, F1, P, R')
             for c, ap_c, f1_c, p_c, r_c in zip(*rest):
                 name_c = self.cls_names[c]
                 number_c = cls_number[c]
@@ -89,8 +95,8 @@ class ValDetect(
             LOGGER.debug(f'{separate}')
 
             if self.last:
-                LOGGER.info(f"{'class name':{t_fmt}}"
-                            f"{'class number':{t_fmt}}"
+                LOGGER.info(f"{'class_name':{t_fmt}}"
+                            f"{'class_number':{t_fmt}}"
                             f"{'R':{t_fmt}}"
                             f"{'P':{t_fmt}}"
                             f"{'F1':{t_fmt}}"
@@ -109,6 +115,9 @@ class ValDetect(
                                 f'{ap_c[5]:{fmt}}'
                                 f'{sum(ap_c) / len(ap_c):{fmt}}')
         else:
+            name_writer = ('P_50', 'R_50', 'F1_50', 'AP50', 'AP75', 'AP5095')
+            value_writer = (0,) * 6
+            WRITER.add_epoch_curve(self.writer, 'val_metrics', value_writer, name_writer, self.epoch)
             LOGGER.debug(f'{separate}')
             LOGGER.debug(f'Validating epoch{self.epoch}: {loss_name} is {loss_all}')
             LOGGER.debug(f'others is None, cls number is {cls_number}')

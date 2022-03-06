@@ -15,13 +15,14 @@ from typing import Optional
 
 # import from mylib below
 from models import ModelDetect
+from val import ValDetect
 from utils import \
     LOGGER, timer, \
     load_all_yaml, save_all_yaml, init_seed, select_one_device, get_and_check_datasets_yaml, \
     DatasetDetect, \
     LossDetectYolov5, \
     SetSavePathMixin, SaveCheckPointMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, TrainDetectMixin, \
-    ValDetect, ResultsDealDetectMixin
+    ResultsDealDetectMixin
 
 r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
@@ -45,15 +46,17 @@ class TrainDetect(
         self.hyp = args.hyp
         self.inc = args.inc
         self.name = args.name
+        self.epoch = None
         self.device = args.device
         self.epochs = args.epochs
         self.workers = args.workers
         self.shuffle = args.shuffle
         self.weights = Path(args.weights)
+        self.save_path = Path(args.save_path)
         self.image_size = args.image_size
         self.batch_size = args.batch_size
         self.pin_memory = args.pin_memory
-        self.save_path = Path(args.save_path)
+        self.tensorboard = args.tensorboard
         self.datasets_path = args.datasets_path
 
         # for load way
@@ -64,21 +67,24 @@ class TrainDetect(
         self._load_best_fitness = args.load_best_fitness
         self._load_lr_scheduler = args.load_lr_scheduler
 
+        self.writer = None  # TODO it must be existed in MetaTrainer
+
         # TODO design a way to get all parameters in train setting for research if possible
+
+        # Get save_dict
+        self.save_dict, self.writer = self.get_save_path(('hyp', 'hyp.yaml'),
+                                                         ('args', 'args.yaml'),
+                                                         ('datasets', 'datasets.yaml'),
+                                                         ('all_results', 'all_results.txt'),
+                                                         ('all_class_results', 'all_class_results.txt'),
+                                                         ('last', 'weights/last.pt'),
+                                                         ('best', 'weights/best.pt'),
+                                                         logfile='logger.log')
 
         # Set one device
         self.device = select_one_device(self.device)  # requires model, images, labels .to(self.device)
         self.cuda = (self.device != 'cpu')
 
-        # Get save_dict
-        self.save_dict = self.get_save_path(('hyp', 'hyp.yaml'),
-                                            ('args', 'args.yaml'),
-                                            ('datasets', 'datasets.yaml'),
-                                            ('all_results', 'all_results.txt'),
-                                            ('all_class_results', 'all_class_results.txt'),
-                                            ('last', 'weights/last.pt'),
-                                            ('best', 'weights/best.pt'),
-                                            logfile='logger.log')
         # Load hyp yaml
         self.hyp = load_all_yaml(self.hyp)
 
@@ -112,9 +118,10 @@ class TrainDetect(
                                                    ))
 
         # Initialize and load optimizer
-        self.optimizer = self.load_optimizer(SGD(self.param_groups.pop(1)['params'],
+        self.optimizer = self.load_optimizer(SGD(self.param_groups,
                                                  lr=self.hyp['lr0'], momentum=self.hyp['momentum'], nesterov=True),
                                              load=self._load_optimizer)
+        self.param_groups = self._empty_none()
 
         # Initialize and load lr_scheduler
         self.lr_scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 30), load=self._load_lr_scheduler)
@@ -133,7 +140,7 @@ class TrainDetect(
         self.checkpoint = self._empty_none()
 
         # Get dataloader for training testing
-        self.train_dataloader = self.get_dataloader(DatasetDetect, 'train')
+        self.train_dataloader = self.get_dataloader(DatasetDetect, 'train', shuffle=self.shuffle)
         self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
         self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
 
@@ -166,13 +173,15 @@ class TrainDetect(
         self.add_data_results(('all_results', results[0]),
                               ('all_class_results', results[1]))
         self.save_all_results()
+        self.writer.flush()
+        self.writer.close()
         torch.cuda.empty_cache()
         LOGGER.info('Finished training')
 
     @torch.no_grad()
     def _val_training(self):
         valer = ValDetect(last=False, model=self.model, half=True, dataloader=self.val_dataloader,
-                          loss_fn=self.loss_fn, cls_names=self.datasets['names'], epoch=self.epoch)
+                          loss_fn=self.loss_fn, cls_names=self.datasets['names'], epoch=self.epoch, writer=self.writer)
         results = valer.val()
         return results
 
@@ -192,7 +201,7 @@ class TrainDetect(
         else:
             dataloader = self.val_dataloader
         valer = ValDetect(last=True, model=self.model, half=False, dataloader=dataloader,
-                          loss_fn=self.loss_fn, cls_names=self.datasets['names'], epoch=self.epoch)
+                          loss_fn=self.loss_fn, cls_names=self.datasets['names'], epoch=self.epoch, writer=self.writer)
         results = valer.val()
         return results
 
@@ -221,9 +230,10 @@ def parse_args(known: bool = False):
     """
     _str_or_None = Optional[str]
     parser = argparse.ArgumentParser()
+    parser.add_argument('--tensorboard', type=bool, default=True, help='')
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
+    parser.add_argument('--epochs', type=int, default=10, help='epochs for training')
     parser.add_argument('--batch_size', type=int, default=16, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
@@ -253,10 +263,14 @@ def train_detection():
 
 if __name__ == '__main__':
     train_detection()
-    # TODO in the future
+
+    # in the future
     # TODO colour str
     # TODO datasets augment
+    # TODO learn moviepy sometimes
 
-    # TODO 2022.03.04
+    # when need because it is complex
     # TODO auto compute anchors
-    # TODO add tensorboard and research
+
+    # TODO 2022.03.05
+    # TODO add tensorboard explain and image to change

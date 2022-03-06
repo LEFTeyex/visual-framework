@@ -5,6 +5,7 @@
 
 torch>=1.10.1
 torchvision>=0.11.2
+tensorboard>=2.7.0
 numpy>=1.21.5
 opencv-python>=4.5.1.48
 matplotlib>=3.5.1

@@ -8,7 +8,8 @@ from utils.loss import *
 from utils.metrics import *
 from utils.mixins import *
 from utils.units_utils import *
-from val import *
+
+from utils import WRITER
 
 __all__ = [
     # bbox
@@ -34,6 +35,6 @@ __all__ = [
     'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin',
     # units_utils
     'auto_pad', 'select_act',
-    # val
-    'ValDetect'
+    # tensorboard
+    'WRITER'
 ]
