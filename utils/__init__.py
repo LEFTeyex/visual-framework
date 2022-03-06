@@ -5,10 +5,11 @@ from utils.decode import *
 from utils.general import *
 from utils.log import *
 from utils.loss import *
+from utils.metatrainer import *
 from utils.metrics import *
 from utils.mixins import *
+from utils.model_utils import *
 from utils.units_utils import *
-
 from utils import WRITER
 
 __all__ = [
@@ -33,6 +34,8 @@ __all__ = [
     # mixins
     'SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin',
     'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin',
+    # model_utils
+    'init_weights',
     # units_utils
     'auto_pad', 'select_act',
     # tensorboard

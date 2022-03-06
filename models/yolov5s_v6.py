@@ -6,8 +6,9 @@ Add in 2022.03.04.
 import torch
 import torch.nn as nn
 
-from models.metamodel import MetaModelDetect, init_weights
+from models.metamodel import MetaModelDetect
 from models.units import Conv, C3, SPPF
+from utils.model_utils import init_weights
 from utils.log import LOGGER
 
 __all__ = ['Yolov5sV6']

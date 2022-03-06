@@ -7,7 +7,8 @@ import torch
 import torch.nn as nn
 
 from models.units import *
-from models.metamodel import MetaModelDetect, init_weights
+from models.metamodel import MetaModelDetect
+from utils.model_utils import init_weights
 from utils.log import LOGGER
 
 __all__ = ['ModelDetect']

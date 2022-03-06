@@ -1,6 +1,5 @@
 r"""
-Meta Model for all visual model.
-And some utils of model.
+Meta Model module for building all visual model.
 """
 
 import torch
@@ -8,7 +7,7 @@ import torch.nn as nn
 
 from torch import Tensor
 
-__all__ = ['MetaModelDetect', 'init_weights']
+__all__ = ['MetaModelDetect']
 
 
 class MetaModelDetect(nn.Module):
@@ -45,11 +44,3 @@ class MetaModelDetect(nn.Module):
 
     def initialize_weights(self):
         raise NotImplementedError
-
-
-@torch.no_grad()
-def init_weights(m):
-    if isinstance(m, (nn.Conv2d, nn.Linear)):
-        # TODO design a better initialize-weight way
-        # nn.init.kaiming_normal_(m.weight, mode='fan_out')
-        nn.init.zeros_(m.bias)

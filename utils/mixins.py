@@ -505,7 +505,7 @@ class DataLoaderMixin(object):
 
             # visualizing
             LOGGER.info(f'Visualizing Dataset {name}...')
-            WRITER.add_datasets_images_labels(self.writer, dataset, name)
+            WRITER.add_datasets_images_labels_detect(self.writer, dataset, name)
             LOGGER.info(f'Visualize Dataset {name} successfully')
 
             # set dataloader
@@ -697,8 +697,8 @@ class ValDetectMixin(object):
                 # nms
                 predictions = non_max_suppression(predictions, 0.5, 300)  # list which len is batch size
 
-                WRITER.add_batch_images_predictions(self.writer, 'test_pred', index,
-                                                    images, predictions, self.epoch)
+                WRITER.add_batch_images_predictions_detect(self.writer, 'test_pred', index, images, predictions,
+                                                           self.epoch)
 
                 # get metrics data
                 _stats = self._get_metrics_stats(predictions, labels, shape_converts, iou_vector)

@@ -9,6 +9,9 @@ from tqdm import tqdm
 
 from utils.bbox import xywh2xyxy
 
+__all__ = ['add_model_graph', 'add_optimizer_lr', 'add_epoch_curve', 'add_datasets_images_labels_detect',
+           'add_batch_images_predictions_detect']
+
 
 @torch.no_grad()
 def add_model_graph(writer, model, inc, image_size, epoch=0, verbose=False):
@@ -45,8 +48,24 @@ def add_optimizer_lr(writer, optimizer, epoch, new_style=True):
             writer.add_scalar(f'train_optimizer_lr/{name}', lr, epoch, new_style=new_style)
 
 
+def add_epoch_curve(writer, title, value, value_name, epoch, new_style=True):
+    r"""
+    Add all train loss with name.
+    Args:
+        writer:
+        title:
+        value:
+        value_name:
+        epoch:
+        new_style:
+    """
+    if writer is not None:
+        for v, v_name in zip(value, value_name):
+            writer.add_scalar(f'{title}/{v_name}', v, epoch, new_style=new_style)
+
+
 @torch.no_grad()
-def add_datasets_images_labels(writer, datasets, title, dfmt='CHW'):
+def add_datasets_images_labels_detect(writer, datasets, title, dfmt='CHW'):
     r"""
     Add batch size images with labels and bboxes.
     Args:
@@ -68,7 +87,7 @@ def add_datasets_images_labels(writer, datasets, title, dfmt='CHW'):
 
 
 @torch.no_grad()
-def add_batch_images_predictions(writer, title, bs_index, images, predictions, epoch=-1, dfmt='CHW'):
+def add_batch_images_predictions_detect(writer, title, bs_index, images, predictions, epoch=-1, dfmt='CHW'):
     r"""
     Add batch size images with labels and bboxes.
     Args:
@@ -90,19 +109,3 @@ def add_batch_images_predictions(writer, title, bs_index, images, predictions, e
                                             images[index], pred[:, :4], index, dataformats=dfmt, labels=classes)
             else:
                 writer.add_image(f'{title}_image/{bs_index}', images[index], index, dataformats=dfmt)
-
-
-def add_epoch_curve(writer, title, value, value_name, epoch, new_style=True):
-    r"""
-    Add all train loss with name.
-    Args:
-        writer:
-        title:
-        value:
-        value_name:
-        epoch:
-        new_style:
-    """
-    if writer is not None:
-        for v, v_name in zip(value, value_name):
-            writer.add_scalar(f'{title}/{v_name}', v, epoch, new_style=new_style)

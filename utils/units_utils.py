@@ -1,6 +1,6 @@
 r"""
 Units utils.
-Consist of the special util for units.
+Consist of the special util only for units.
 """
 
 import torch.nn as nn

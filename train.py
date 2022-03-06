@@ -272,5 +272,5 @@ if __name__ == '__main__':
     # when need because it is complex
     # TODO auto compute anchors
 
-    # TODO 2022.03.05
-    # TODO add tensorboard explain and image to change
+    # TODO next work
+    # TODO Meta Trainer Module

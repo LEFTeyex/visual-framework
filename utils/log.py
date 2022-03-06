@@ -30,7 +30,7 @@ def _set_logger(name: str, ch_level=logging.INFO, developing=True):
     else:
         fmt = '{levelname:<10} {message:<80}'
     formatter = logging.Formatter(fmt=fmt,
-                                  datefmt='%Y-%m-%d %H:%M',
+                                  datefmt='%Y-%m-%d %H:%M:%S',
                                   style='{')
     # set StreamHandler
     ch = logging.StreamHandler()
@@ -57,7 +57,7 @@ def add_log_file(filepath, fh_level=logging.DEBUG, mode: str = 'a'):
     # create formatter for handler
     # todo args can change
     formatter = logging.Formatter(fmt='{asctime:<18} {levelname:<10} {filename:<20} {lineno:<4} {message:<80} {name}',
-                                  datefmt='%Y-%m-%d %H:%M',
+                                  datefmt='%Y-%m-%d %H:%M:%S',
                                   style='{')
     # set FileHandler
     fh = logging.FileHandler(filepath, mode=mode)
