@@ -804,6 +804,9 @@ class ResultsDealDetectMixin(object):
         self.datasets = None
         self.save_dict = None
 
+        # itself
+        self.saved = False
+
     @staticmethod
     def get_results_dict(*args: tuple):
         r"""
@@ -834,7 +837,8 @@ class ResultsDealDetectMixin(object):
         for name, data in arg:
             self.results[name].extend(data)
 
-    def deal_results_memory(self, results_train, results_val):
+    def deal_results_memory(self, results_train, results_val, max_row: int = 1024):
+        self.saved = False
         train_loss = results_train
         val_loss, metrics, fps_time = results_val
         (ap50_95, ap50, ap75, ap), (mf1, f1), (mp, p), (mr, r), (cls, cls_number) = metrics
@@ -868,18 +872,31 @@ class ResultsDealDetectMixin(object):
                 data_all_class = [name_c, number_c, None, None, None, None]
                 all_class_results.append(data_all_class)
 
+        # auto save
+        self._auto_save(max_row)
+
         # return for saving and computing best_fitness
         return (all_results, all_class_results), \
                (mp[0], mr[0], mf1[0], ap50, ap50_95) if ap50 is not None else (0,) * 5
 
     def save_all_results(self):
         r"""Save all content in results then empty self.results"""
+        if self.saved:
+            return None
         self._check_results_exists_dict()
         to_save = []
         for k, v in self.results.items():
             to_save.append((v, self.save_dict[k]))
-        save_all_txt(*to_save)
+        save_all_txt(*to_save, mode='a')
         self.results = {}
+
+    def _auto_save(self, max_row):
+        r"""Auto save self.results if any len(list) is more than max_row"""
+        for v in self.results.values():
+            if len(v) > max_row:
+                self.save_all_results()
+                self.saved = True
+                break
 
     def _check_results_exists_dict(self):
         r"""Check whether self.results exists"""

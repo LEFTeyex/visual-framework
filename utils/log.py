@@ -5,11 +5,17 @@ Only for logging to set LOGGER in global.
 
 import logging
 
-__all__ = ['LOGGER', 'add_log_file']
+from functools import wraps
+
+from utils.typeslib import _str_or_None
+
+__all__ = ['LOGGER', 'add_log_file',
+           'log_loss',
+           'logging_initialize', 'logging_start_finish'
+           ]
 
 
 # TODO add log functions for log everything everywhere (deal results)
-
 def _set_logger(name: str, ch_level=logging.INFO, developing=True):
     r"""
     Set LOGGER with StreamHandler.
@@ -45,7 +51,6 @@ r"""Set LOGGER for global, use it by from utils.log import LOGGER, add_log_file"
 LOGGER = _set_logger(__name__, ch_level=logging.INFO, developing=False)
 
 
-# TODO The way to setting filepath need to design in the future
 def add_log_file(filepath, fh_level=logging.DEBUG, mode: str = 'a'):
     r"""
     Add FileHandler for logger to write in *.txt
@@ -54,6 +59,7 @@ def add_log_file(filepath, fh_level=logging.DEBUG, mode: str = 'a'):
         fh_level: = logging.DEBUG, logging.INFO etc.
         mode: str = 'a', 'w' etc.
     """
+    # TODO The way to setting filepath need to design in the future
     # create formatter for handler
     # todo args can change
     formatter = logging.Formatter(fmt='{asctime:<18} {levelname:<10} {filename:<20} {lineno:<4} {message:<80} {name}',
@@ -66,6 +72,66 @@ def add_log_file(filepath, fh_level=logging.DEBUG, mode: str = 'a'):
     LOGGER.addHandler(fh)
 
 
+def log_loss(when: str, epoch, name, loss):
+    when = when.title()
+    LOGGER.debug(f'{when} epoch{epoch}: {name} is {loss}')
+
+
+def logging_initialize(name: _str_or_None = None):
+    r"""
+    Decorator with parameter name.
+    Add LOGGER.info(f'Initialize {...}') in the beginning and end of func.
+
+    Examples:
+        @logging_initialize('test')
+        def test(): ...
+
+    Args:
+        name: _str_or_None = the func name for logging message
+    """
+
+    def get_function(func):
+        log_name = name if name is not None else func.__name__
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            LOGGER.info(f'Initializing {log_name}...')
+            func(*args, **kwargs)
+            LOGGER.info(f'Initialize {log_name} successfully')
+
+        return wrapper
+
+    return get_function
+
+
+def logging_start_finish(name: _str_or_None = None):
+    r"""
+    Decorator with parameter name.
+    Add LOGGER.info(f'Start {...}') in the beginning and end of func.
+
+    Examples:
+        @logging_start_finish('testing')
+        def test(): ...
+
+    Args:
+        name: _str_or_None = the func name for logging message
+    """
+
+    def get_function(func):
+        log_name = name if name is not None else func.__name__
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            LOGGER.info(f'Start {log_name}')
+            func(*args, **kwargs)
+            LOGGER.info(f'Finished {log_name}')
+
+        return wrapper
+
+    return get_function
+
+
+@logging_initialize('test')
 def _test():
     r"""test LOGGER"""
     add_log_file(filepath='logger.log')
@@ -82,3 +148,6 @@ def _test():
 
 if __name__ == '__main__':
     _test()
+    import functools
+
+    functools.lru_cache()

@@ -6,6 +6,7 @@ from utils.general import *
 from utils.log import *
 from utils.loss import *
 from utils.metatrainer import *
+from utils.metavaler import *
 from utils.metrics import *
 from utils.mixins import *
 from utils.model_utils import *
@@ -29,6 +30,10 @@ __all__ = [
     'LOGGER', 'add_log_file',
     # loss
     'LossDetectYolov5',
+    # meta trainer
+    'MetaTrainDetect',
+    # meta valer
+    'MetaValDetect',
     # metrics
     'match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap', 'compute_fps', 'compute_fitness',
     # mixins

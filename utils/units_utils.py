@@ -12,7 +12,8 @@ __all__ = ['auto_pad', 'select_act']
 
 def auto_pad(k: int):
     r"""
-    Pad the feature map to keep the size of input and output same while kernel must is odd and stride is 1.
+    Pad the feature map to keep the size of input and output same while kernel must be odd and stride is 1.
+    Only for convolution with dilation 1.
     Args:
         k: int = integral number
 
@@ -23,7 +24,7 @@ def auto_pad(k: int):
 
 
 def select_act(act_name_or_module):
-    # ---------Upgrade for somewhere in the future---------
+    # TODO Upgrade for somewhere in the future
     r"""
     Select activation function.
     Args:
@@ -38,16 +39,16 @@ def select_act(act_name_or_module):
         elif act_name_or_module == 'silu':
             act = nn.SiLU()
         elif act_name_or_module == 'leakyrelu':
-            act = nn.LeakyReLU(0.1)  # ---------Set the hyperparameter, if it is needed---------
+            act = nn.LeakyReLU(0.1)  # todo args can change
         elif act_name_or_module == 'sigmoid':
             act = nn.Sigmoid()
         elif act_name_or_module == 'softmax':
-            act = nn.Softmax(dim=1)  # ---------Set the hyperparameter, if it is needed---------
+            act = nn.Softmax(dim=1)  # todo args can change
         else:
             raise ValueError(f'There is no {act_name_or_module} in select_act, please correct it or add it')
 
     elif isinstance(act_name_or_module, nn.Module):
-        # ---------There may be wrong sometimes---------
+        # TODO There may be wrong sometimes
         act = act_name_or_module
 
     elif act_name_or_module is None:

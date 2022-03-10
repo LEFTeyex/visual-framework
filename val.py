@@ -39,7 +39,7 @@ class ValDetect(
             # val alone
             pass
 
-    def val(self):
+    def val_training(self):
         self.model.eval()
         # TODO maybe save something or plot images below
         loss_all, loss_name, stats = self.val_once()

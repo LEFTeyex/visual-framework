@@ -72,15 +72,16 @@ def delete_list_indices(list_delete: list, indices_delete: list):
     return list_delete
 
 
-def save_all_txt(*args):
+def save_all_txt(*args, mode='w'):
     r"""
     Save all list or tuple to *.txt in the path.
     Args:
         args: = (content_txt, path), ...
+        mode: = 'w' / 'a'
     """
     LOGGER.debug('Saving all txt...')
     for content_txt, path in args:
-        with open(path, 'a') as f:  # todo args can change
+        with open(path, mode) as f:  # todo args can change
             content_txt = content_txt if isinstance(content_txt[0], (list, tuple)) else [content_txt]
             txt = ''
             for content in content_txt:
@@ -112,15 +113,16 @@ def load_all_yaml(*args: _strpath):
     return yaml_list
 
 
-def save_all_yaml(*args):
+def save_all_yaml(*args, mode='w'):
     r"""
     Save all dict to *.yaml in the path.
     Args:
         args: = (dict_yaml, path), ...
+        mode: = 'w' / 'a'
     """
     LOGGER.debug('Saving all dict yaml...')
     for dict_yaml, path in args:
-        with open(path, 'w') as f:  # todo args can change
+        with open(path, mode) as f:  # todo args can change
             # save yaml dict without sorting
             yaml.safe_dump(dict_yaml, f, sort_keys=False)
     LOGGER.debug('Save all dict yaml successfully')
