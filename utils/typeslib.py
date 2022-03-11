@@ -11,6 +11,8 @@ from torch.cuda.amp import GradScaler
 from torch.nn import Module, Parameter
 from torch.optim.lr_scheduler import _LRScheduler  # ignore _LRScheduler, no problem
 
+# from utils.metavaler import MetaValDetect
+
 __all__ = ['_strpath',
            # builtin type
            '_int_or_tuple',
@@ -19,9 +21,9 @@ __all__ = ['_strpath',
            '_Tensor_or_None',
            # instance
            '_instance', '_module', '_optimizer', '_lr_scheduler', '_gradscaler', '_parameter',
-           '_module_or_parameter', '_module_or_None',
+           '_module_or_parameter', '_module_or_None', '_val',
            # class
-           '_dataset_c', '_instance_c',
+           '_dataset_c', '_instance_c', '_val_c',
            # special design
            '_pkt_or_None',
            '_int_or_Tensor', '_Tensor_or_ndarray']
@@ -70,3 +72,6 @@ _pkt_or_None = Optional[_param_kind_tuple_any]
 
 _int_or_Tensor = Union[int, Tensor]
 _Tensor_or_ndarray = Union[Tensor, ndarray]
+
+# _val = TypeVar('_val', bound=MetaValDetect)
+# _val_c = Type[_val]

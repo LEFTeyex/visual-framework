@@ -4,10 +4,11 @@ Meta Trainer module for building all trainer class.
 
 import torch
 
-from val import ValDetect
 from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
 from utils.mixins import LossMixin, DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
     SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin
+
+# from utils.typeslib import _val_c
 
 __all__ = ['MetaTrainDetect']
 
@@ -76,6 +77,8 @@ class MetaTrainDetect(
         self.loss_fn = None  # Get loss function
         self.results = None  # To save results of training and validating
 
+        self.val_class = None  # Must Need
+
     @logging_start_finish('Training')
     def train(self):
         for self.epoch in range(self.start_epoch, self.epochs):
@@ -99,9 +102,9 @@ class MetaTrainDetect(
 
     @torch.no_grad()
     def val_training(self):
-        valer = ValDetect(last=False, model=self.model, half=True, dataloader=self.val_dataloader,
-                          loss_fn=self.loss_fn, cls_names=self.datasets['names'],
-                          epoch=self.epoch, writer=self.writer)
+        valer = self.val_class(last=False, model=self.model, half=True, dataloader=self.val_dataloader,
+                               loss_fn=self.loss_fn, cls_names=self.datasets['names'],
+                               epoch=self.epoch, writer=self.writer)
         results = valer.val_training()
         return results
 
@@ -120,9 +123,9 @@ class MetaTrainDetect(
             dataloader = self.test_dataloader
         else:
             dataloader = self.val_dataloader
-        tester = ValDetect(last=True, model=self.model, half=False, dataloader=dataloader,
-                           loss_fn=self.loss_fn, cls_names=self.datasets['names'],
-                           epoch=self.epoch, writer=self.writer)
+        tester = self.val_class(last=True, model=self.model, half=False, dataloader=dataloader,
+                                loss_fn=self.loss_fn, cls_names=self.datasets['names'],
+                                epoch=self.epoch, writer=self.writer)
         results = tester.val_training()
         return results
 

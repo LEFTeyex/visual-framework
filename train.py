@@ -16,12 +16,12 @@ from models import ModelDetect
 from utils.log import logging_initialize
 from utils import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device, \
     get_and_check_datasets_yaml, DatasetDetect, LossDetectYolov5, MetaTrainDetect
+from val import ValDetect
 
 r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
 
 
-# TODO design a meta class for training of detection
 class TrainDetect(MetaTrainDetect):
     r"""Trainer for detection, built by mixins"""
 
@@ -52,8 +52,7 @@ class TrainDetect(MetaTrainDetect):
         self._load_best_fitness = args.load_best_fitness
         self._load_lr_scheduler = args.load_lr_scheduler
 
-        # delete when finished TrainDetectMeta
-        self.writer = None  # TODO it must be existed in MetaTrainer
+        self.val_class = ValDetect
 
         # TODO design a way to get all parameters in train setting for research if possible
 
@@ -201,3 +200,4 @@ if __name__ == '__main__':
 
     # next work
     # TODO Meta Trainer Module
+    # TODO There is import error to fix 2022.3.12
