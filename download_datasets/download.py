@@ -5,13 +5,15 @@ Download datasets_path from torchvision datasets_path
 from pathlib import Path
 from torchvision import datasets
 
+PATH = 'f:/datasets'
+
 
 def path_error(pathname):
     raise Exception(f'The Path:({pathname}) is not exist')
 
 
 def download_mnist():
-    path = Path('f:/datasets')
+    path = Path(PATH)
     if path.exists():
         path = str(path)
         datasets.MNIST(root=path, download=True)
@@ -24,7 +26,7 @@ def download_mnist():
 
 
 def download_voc_detection():
-    path = Path('f:/datasets')
+    path = Path(PATH)
     if path.exists():
         path = str(path)
         datasets.VOCDetection(root=path, download=True)
@@ -33,7 +35,7 @@ def download_voc_detection():
 
 
 def download_cifar10():
-    path = Path('f:/datasets')
+    path = Path(PATH)
     if path.exists():
         path = str(path)
         datasets.CIFAR10(root=path, download=True)

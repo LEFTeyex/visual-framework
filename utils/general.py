@@ -48,7 +48,8 @@ def to_tuplex(value, n: int):
         value: = any
         n: int = integral number
 
-    Return (value, ...)
+    Returns:
+        (value, ...)
     """
     return (value,) * abs(n)
 

@@ -152,7 +152,4 @@ def non_max_suppression(predictions: list, iou_threshold: float = 0.5, max_detec
 
 
 if __name__ == '__main__':
-    x = torch.rand(64, 10000, 85)
-    print(x[0])
-    x = filter_outputs2predictions(x)
-    print(len(x))
+    pass

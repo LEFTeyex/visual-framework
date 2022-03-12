@@ -8,7 +8,7 @@ from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
 from utils.mixins import LossMixin, DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
     SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin
 
-# from utils.typeslib import _val_c
+from utils.typeslib import _val_c_or_None
 
 __all__ = ['MetaTrainDetect']
 
@@ -25,7 +25,7 @@ class MetaTrainDetect(
     @logging_initialize('trainer')
     def __init__(self):
         super(MetaTrainDetect, self).__init__()
-        # Get args for self.
+        # Get args for self.*
         self.hyp = None
         self.inc = None
         self.name = None
@@ -77,7 +77,7 @@ class MetaTrainDetect(
         self.loss_fn = None  # Get loss function
         self.results = None  # To save results of training and validating
 
-        self.val_class = None  # Must Need
+        self.val_class: _val_c_or_None = None  # Must Need
 
     @logging_start_finish('Training')
     def train(self):

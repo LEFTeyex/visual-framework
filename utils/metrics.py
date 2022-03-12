@@ -31,8 +31,11 @@ def match_pred_label_iou_vector(pred, label, iou_vector):
             # make pred and label correspond one by one
             # need to think carefully it is interesting and great
             matches = matches[np.argsort(matches[:, 2])[::-1]]  # sort large to small
-            matches = matches[np.unique(matches[:, 1], return_index=True)[1]]  # filter pred first
-            matches = matches[np.unique(matches[:, 0], return_index=True)[1]]  # filter label second
+            # filter pred first corresponding to nms and avoiding labels from losing
+            matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
+            matches = matches[np.argsort(matches[:, 2])[::-1]]
+            # filter label second
+            matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
         matches = torch.tensor(matches, device=iou_vector.device)
         pred_iou_level[matches[:, 1].long()] = matches[:, 2:3] >= iou_vector
     return pred_iou_level

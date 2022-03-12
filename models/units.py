@@ -115,7 +115,7 @@ class LargeKernelConv(nn.Module):
         d = to_tuplex(d, 2)
         s = to_tuplex(s, 2)
         self.act = select_act(act)
-        self.bn = nn.BatchNorm1d(c) if bn else nn.Identity()
+        self.bn = nn.BatchNorm2d(c) if bn else nn.Identity()
         self.dw_conv = nn.Conv2d(c, c, k1, s, p1, groups=c, bias=bias)
         self.dwd_conv = nn.Conv2d(c, c, k2, s, p2, dilation=d, groups=c, bias=bias)
         self.point_conv = nn.Conv2d(c, c, (1, 1), bias=bias)
@@ -193,7 +193,4 @@ class SPPF(nn.Module):
 
 
 if __name__ == '__main__':
-    a = torch.rand(1, 1, 64, 64)
-    conv = LargeKernelConv(1)
-    b = conv(a)
-    print(b.shape)
+    pass

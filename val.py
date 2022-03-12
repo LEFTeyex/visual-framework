@@ -3,7 +3,7 @@ For validating model.
 Consist of some Valers.
 """
 
-from utils import MetaValDetect
+from utils.metavaler import MetaValDetect
 
 __all__ = ['ValDetect']
 
