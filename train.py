@@ -170,11 +170,14 @@ if __name__ == '__main__':
 
     # in the future
     # TODO colour str
-    # TODO datasets augment
-    # TODO learn moviepy sometimes
+    # TODO learn moviepy library sometimes
 
     # when need because it is complex
     # TODO auto compute anchors
 
     # next work
-    # TODO The dir need to arrange again
+    # TODO add necessary functions
+    # TODO confusion matrix needed
+    # TODO datasets augment
+    # TODO upgrade mosaic, cutmix etc.
+    # TODO add plot curve functions for visual results

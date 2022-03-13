@@ -73,12 +73,12 @@ class DatasetDetect(Dataset):
         # deal image
         image = np.transpose(image, (2, 0, 1))  # (h,w,c) to (c,h,w)
         image = np.ascontiguousarray(image)  # make image contiguous in memory
-        image = torch.from_numpy(image)
+        image = torch.from_numpy(image)  # image to tensor
 
         # deal label
         if nl:
             index_label = torch.zeros((nl, 1))
-            label = torch.from_numpy(label)
+            label = torch.from_numpy(label)  # label to tensor
             label = torch.cat((index_label, label), dim=1)  # label shape is (nl, 1 + nlabel)
         else:
             label = torch.empty((0, self.nlabel + 1))  # empty

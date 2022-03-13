@@ -598,9 +598,11 @@ class TrainDetectMixin(object):
         return loss_all_mean.tolist(), loss_name
 
     def _show_loss_in_pbar_training(self, loss, pbar):
-        # GPU memory used
-        # TODO check whether the cuda memory is right to compute below
+        # GPU memory used which an approximate value because of 1E9
         memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3f}GB'
+
+        # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824 but slow
+        # memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1073741824 if torch.cuda.is_available() else 0:.3f}GB'
 
         # show in pbar
         space = ' ' * 11
@@ -780,9 +782,11 @@ class ValDetectMixin(object):
 
     @staticmethod
     def _show_loss_in_pbar_validating(loss, pbar):
-        # GPU memory used
-        # TODO check whether the cuda memory is right to compute below
+        # GPU memory used which an approximate value because of 1E9
         memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3f}GB'
+
+        # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824 but slow
+        # memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1073741824 if torch.cuda.is_available() else 0:.3f}GB'
 
         # show in pbar
         space = ' ' * 11

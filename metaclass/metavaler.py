@@ -30,7 +30,6 @@ class MetaValDetect(ValDetectMixin):
         self.model.eval()
         # TODO maybe save something or plot images below
         loss_all, loss_name, stats = self.val_once()
-        # TODO move the compute_metrics and compute_fps to Mixin in the future for upgrading
         metrics = self.compute_metrics(stats)
         fps_time = compute_fps(self.seen, self.time)
         # TODO confusion matrix needed
