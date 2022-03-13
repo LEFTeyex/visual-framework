@@ -8,7 +8,8 @@ import numpy as np
 
 from torchvision.ops import box_iou
 
-__all__ = ['match_pred_label_iou_vector', 'compute_metrics_per_class', 'compute_ap', 'compute_fps', 'compute_fitness']
+__all__ = ['match_pred_label_iou_vector', 'compute_metrics_per_class',
+           'compute_ap', 'compute_fps', 'compute_fitness']
 
 
 def match_pred_label_iou_vector(pred, label, iou_vector):

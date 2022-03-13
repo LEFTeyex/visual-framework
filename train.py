@@ -7,17 +7,16 @@ import argparse
 import torch.nn as nn
 
 from pathlib import Path
-from torch.optim import SGD
-from torch.optim.lr_scheduler import StepLR
-from torch.cuda.amp import GradScaler
 from typing import Optional
+from torch.optim import SGD
+from torch.cuda.amp import GradScaler
+from torch.optim.lr_scheduler import StepLR
 
-from models.model_detect import ModelDetect
-from utils.log import logging_initialize
-from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device
-from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
 from utils.loss import LossDetectYolov5
-from utils.metatrainer import MetaTrainDetect
+from models.model_detect import ModelDetect
+from metaclass.metatrainer import MetaTrainDetect
+from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
+from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device
 
 from val import ValDetect
 
@@ -28,33 +27,10 @@ ROOT = Path.cwd()  # **/visual-framework root directory
 class TrainDetect(MetaTrainDetect):
     r"""Trainer for detection, built by mixins"""
 
-    @logging_initialize('trainer')
     def __init__(self, args):
-        super(TrainDetect, self).__init__()
-        self.hyp = args.hyp
-        self.inc = args.inc
-        self.name = args.name
-        self.epoch = None
-        self.device = args.device
-        self.epochs = args.epochs
-        self.workers = args.workers
-        self.shuffle = args.shuffle
-        self.weights = Path(args.weights)
-        self.image_size = args.image_size
-        self.batch_size = args.batch_size
-        self.pin_memory = args.pin_memory
-        self.tensorboard = args.tensorboard
-        self.save_path = Path(args.save_path)
-        self.datasets = args.datasets
+        super(TrainDetect, self).__init__(args)
 
-        # set load way
-        self._load_model = args.load_model
-        self._load_optimizer = args.load_optimizer
-        self._load_gradscaler = args.load_gradscaler
-        self._load_start_epoch = args.load_start_epoch
-        self._load_best_fitness = args.load_best_fitness
-        self._load_lr_scheduler = args.load_lr_scheduler
-
+        # Set val class
         self.val_class = ValDetect
 
         # TODO design a way to get all parameters in train setting for research if possible
@@ -138,8 +114,7 @@ class TrainDetect(MetaTrainDetect):
         self.loss_fn = self.get_loss_fn(LossDetectYolov5)
 
         # To save results of training and validating
-        self.results = self.get_results_dict(('all_results', []),
-                                             ('all_class_results', []))
+        self.results = self.get_results_dict()
 
 
 class TrainClassify:
@@ -202,6 +177,4 @@ if __name__ == '__main__':
     # TODO auto compute anchors
 
     # next work
-    # TODO Meta Trainer Module
-    # TODO There is import error to fix continue to optimize 2022.3.13
     # TODO The dir need to arrange again

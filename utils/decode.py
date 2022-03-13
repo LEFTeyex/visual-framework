@@ -2,16 +2,16 @@ r"""
 Decode utils for training or detecting.
 Consist of all the solution function.
 """
-import time
 
+import time
 import torch
 
 from torch import Tensor
 from torchvision.ops import batched_nms
 
 from utils.log import LOGGER
-from utils.check import check_between_0_1
 from utils.bbox import xywh2xyxy
+from utils.check import check_between_0_1
 from utils.typeslib import _tuple_or_None, _int_or_Tensor
 
 __all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
@@ -77,7 +77,8 @@ def create_grid_tensor(nxy_grid: tuple, ndim_bbox: int, device):
 
 def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, classes: _tuple_or_None = None):
     # check
-    assert check_between_0_1(obj_threshold), f'Except obj_threshold value is in interval (0, 1), but got {obj_threshold}'
+    assert check_between_0_1(
+        obj_threshold), f'Except obj_threshold value is in interval (0, 1), but got {obj_threshold}'
     cls_threshold = obj_threshold  # equal if wanted to be not equal need to change input args
 
     filter_obj = outputs[..., 4] > obj_threshold  # object
@@ -112,7 +113,8 @@ def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, cla
 
 def non_max_suppression(predictions: list, iou_threshold: float = 0.5, max_detect: int = 300):
     # check
-    assert check_between_0_1(iou_threshold), f'Except iou_threshold value is in interval (0, 1), but got {iou_threshold}'
+    assert check_between_0_1(
+        iou_threshold), f'Except iou_threshold value is in interval (0, 1), but got {iou_threshold}'
 
     # todo args can change
     # min_wh, max_wh = 2, 7680  # min and max bbox wh

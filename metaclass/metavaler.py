@@ -10,9 +10,9 @@ __all__ = ['MetaValDetect']
 
 
 class MetaValDetect(ValDetectMixin):
-    def __init__(self, args=None,
-                 last=True, model=None, writer=None,  # need to super in subclass
-                 half=True, dataloader=None, loss_fn=None, cls_names=None, epoch=None):
+    def __init__(self, last=True, model=None, writer=None,  # need to super in subclass
+                 half=True, dataloader=None, loss_fn=None, cls_names=None, epoch=None,
+                 args=None):
         super(MetaValDetect, self).__init__()
         self.last = last
         self.seen = 0
@@ -20,6 +20,7 @@ class MetaValDetect(ValDetectMixin):
         self.writer = writer
         self.training = model is not None
         self.cls_names = None
+        self.set_self_parameters_training(model, half, loss_fn, dataloader, cls_names, epoch)
 
     def val(self):
         # TODO

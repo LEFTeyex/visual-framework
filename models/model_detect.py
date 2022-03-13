@@ -6,10 +6,10 @@ It is built by units.py or torch.nn Module.
 import torch
 import torch.nn as nn
 
-from models.units import *
-from models.metamodel import MetaModelDetect
-from utils.model_utils import init_weights
 from utils.log import LOGGER
+from models.model_utils import init_weights
+from metaclass.metamodel import MetaModelDetect
+from models.units import *
 
 __all__ = ['ModelDetect']
 

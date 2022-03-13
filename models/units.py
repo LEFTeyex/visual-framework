@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 from utils.general import to_tuplex
-from utils.units_utils import auto_pad, select_act
+from models.units_utils import auto_pad, select_act
 
 __all__ = ['Conv', 'DWConv', 'PointConv', 'Linear', 'LargeKernelConv', 'Bottleneck', 'C3', 'SPP', 'SPPF']
 

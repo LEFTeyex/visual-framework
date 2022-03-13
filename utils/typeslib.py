@@ -25,7 +25,6 @@ __all__ = [
     '_module_or_parameter', '_module_or_None',
     '_dataset_c',
     # special designed
-    '_val_c_or_None',
     '_pkt_or_None',
 ]
 
@@ -68,6 +67,5 @@ _module_or_parameter = Union[_module, _parameter]
 _dataset_c = Type[_dataset]
 
 # special designed
-_val_c_or_None = Optional[_instance_c]
 _param_kind = Tuple[str, Type[_module_or_parameter], dict]
 _pkt_or_None = Optional[Tuple[_param_kind, ...]]

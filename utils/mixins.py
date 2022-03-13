@@ -14,24 +14,20 @@ import numpy as np
 import torch.nn as nn
 
 from tqdm import tqdm
-from copy import deepcopy
 from pathlib import Path
+from copy import deepcopy
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
 
-from utils.log import LOGGER, add_log_file
 from utils import WRITER
+from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
-from utils.general import delete_list_indices, time_sync, save_all_txt
 from utils.bbox import xywh2xyxy, rescale_xyxy
+from utils.general import delete_list_indices, time_sync, save_all_txt
 from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
 from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class, compute_fitness
-from utils.typeslib import \
-    _str_or_None, \
-    _module_or_None, _optimizer, _lr_scheduler, _gradscaler, \
-    _dataset_c, _instance_c, \
-    _pkt_or_None, _strpath
+from utils.typeslib import _str_or_None, _pkt_or_None, _strpath, _dataset_c, _instance_c, \
+    _module_or_None, _optimizer, _lr_scheduler, _gradscaler
 
 __all__ = ['SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin',
            'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin']
@@ -70,7 +66,7 @@ class SetSavePathMixin(object):
         # set tensorboard for self.writer
         if self.tensorboard:
             LOGGER.info('Setting tensorboard...')
-            writer = SummaryWriter(self.save_path / 'tensorboard')
+            writer = WRITER.set_writer(self.save_path)
             LOGGER.info('Setting tensorboard successfully')
             LOGGER.info(f"See tensorboard results please run "
                         f"'tensorboard --logdir=runs/train/{self.name}/tensorboard' in Terminal")
@@ -807,19 +803,24 @@ class ResultsDealDetectMixin(object):
         # itself
         self.saved = False
 
-    @staticmethod
-    def get_results_dict(*args: tuple):
+    def get_results_dict(self, *args: tuple):
         r"""
         Get dict of results for saving.
         Args:
-            *args: (name, type to save)
+            *args: (name, type to save), if None get default setting
 
         Return results dict(for self.results)
         """
+        if not args:
+            args = self._get_results_path_type()
         results = {}
         for name, value in args:
             results[name] = value
         return results
+
+    @staticmethod
+    def _get_results_path_type():
+        return ('all_results', []), ('all_class_results', [])
 
     def add_results_dict(self, *args: tuple):
         self._check_results_exists_dict()

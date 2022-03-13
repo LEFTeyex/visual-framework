@@ -6,11 +6,28 @@ Consist of all utils of writer in tensorboard.
 import torch
 
 from tqdm import tqdm
+from pathlib import Path
+from torch.utils.tensorboard import SummaryWriter
 
 from utils.bbox import xywh2xyxy
+from utils.typeslib import _strpath
 
-__all__ = ['add_model_graph', 'add_optimizer_lr', 'add_epoch_curve', 'add_datasets_images_labels_detect',
-           'add_batch_images_predictions_detect']
+__all__ = ['set_writer', 'add_model_graph', 'add_optimizer_lr', 'add_epoch_curve',
+           'add_datasets_images_labels_detect', 'add_batch_images_predictions_detect']
+
+
+def set_writer(save_path: _strpath):
+    r"""
+    Set tensorboard writer using SummaryWriter.
+    Args:
+        save_path: _strpath = StrPath
+
+    Returns:
+        writer
+    """
+    save_path = Path(save_path) / 'tensorboard'
+    writer = SummaryWriter(str(save_path))
+    return writer
 
 
 @torch.no_grad()

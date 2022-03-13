@@ -4,11 +4,11 @@ Meta Trainer module for building all trainer class.
 
 import torch
 
+from pathlib import Path
+
 from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
 from utils.mixins import LossMixin, DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
     SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin
-
-from utils.typeslib import _val_c_or_None
 
 __all__ = ['MetaTrainDetect']
 
@@ -23,39 +23,67 @@ class MetaTrainDetect(
     ResultsDealDetectMixin,
 ):
     @logging_initialize('trainer')
-    def __init__(self):
+    def __init__(self, args):
         super(MetaTrainDetect, self).__init__()
-        # Get args for self.*
-        self.hyp = None
-        self.inc = None
-        self.name = None
+        # # example
+        # # Get args for self.*
+        # self.hyp = None
+        # self.inc = None
+        # self.name = None
+        # self.epoch = None
+        # self.device = None
+        # self.epochs = None
+        # self.workers = None
+        # self.shuffle = None
+        # self.weights = None
+        # self.datasets = None
+        # self.save_path = None
+        # self.image_size = None
+        # self.batch_size = None
+        # self.pin_memory = None
+        # self.tensorboard = None
+
+        # # Set load way
+        # self._load_model = None
+        # self._load_optimizer = None
+        # self._load_gradscaler = None
+        # self._load_start_epoch = None
+        # self._load_best_fitness = None
+        # self._load_lr_scheduler = None
+
+        self.hyp = args.hyp
+        self.inc = args.inc
+        self.name = args.name
         self.epoch = None
-        self.device = None
-        self.epochs = None
-        self.workers = None
-        self.shuffle = None
-        self.weights = None
-        self.datasets = None
-        self.save_path = None
-        self.image_size = None
-        self.batch_size = None
-        self.pin_memory = None
-        self.tensorboard = None
+        self.device = args.device
+        self.epochs = args.epochs
+        self.workers = args.workers
+        self.shuffle = args.shuffle
+        self.weights = Path(args.weights)
+        self.image_size = args.image_size
+        self.batch_size = args.batch_size
+        self.pin_memory = args.pin_memory
+        self.tensorboard = args.tensorboard
+        self.save_path = Path(args.save_path)
+        self.datasets = args.datasets
+
+        self._load_model = args.load_model
+        self._load_optimizer = args.load_optimizer
+        self._load_gradscaler = args.load_gradscaler
+        self._load_start_epoch = args.load_start_epoch
+        self._load_best_fitness = args.load_best_fitness
+        self._load_lr_scheduler = args.load_lr_scheduler
 
         # Tensorboard must exist
         self.writer = None
 
-        # Set load way
-        self._load_model = None
-        self._load_optimizer = None
-        self._load_gradscaler = None
-        self._load_start_epoch = None
-        self._load_best_fitness = None
-        self._load_lr_scheduler = None
+        # todo using Need to set in subclass __init__ below
+        # Set val class
+        self.val_class = None  # Must Need
 
         # To configure Trainer in subclass as following
         self.save_dict = None  # Get save_dict
-        self.device = None  # Set one device
+        # self.device = None  # Set one device
         self.cuda = None  # For judging whether cuda
         # Load hyp yaml
         # Initialize or auto seed manual and save in self.hyp
@@ -76,8 +104,6 @@ class MetaTrainDetect(
         self.test_dataloader = None  # Get dataloader for testing
         self.loss_fn = None  # Get loss function
         self.results = None  # To save results of training and validating
-
-        self.val_class: _val_c_or_None = None  # Must Need
 
     @logging_start_finish('Training')
     def train(self):
@@ -182,3 +208,6 @@ r"""def demo_parse_args_detect(known: bool = False):
         parser.add_argument('--load_best_fitness', type=bool, default=False, help='')
         namespace = parser.parse_known_args()[0] if known else parser.parse_args()
         return namespace"""
+
+if __name__ == '__main__':
+    pass

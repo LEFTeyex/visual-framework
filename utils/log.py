@@ -12,8 +12,7 @@ from utils.typeslib import _str_or_None
 
 __all__ = ['LOGGER', 'add_log_file',
            'log_loss', 'log_loss_and_metrics',
-           'logging_initialize', 'logging_start_finish'
-           ]
+           'logging_initialize', 'logging_start_finish']
 
 
 # TODO add log functions for log everything everywhere (deal results)
