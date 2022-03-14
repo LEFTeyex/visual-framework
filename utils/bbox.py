@@ -10,7 +10,8 @@ from torch import Tensor
 
 from utils.typeslib import _Tensor_or_ndarray
 
-__all__ = ['xywh2xyxy', 'rescale_xywhn', 'rescale_xyxy', 'clip_bbox', 'bbox_iou']
+__all__ = ['xywh2xyxy', 'xywhn2xyxy', 'xyxy2xywhn',
+           'rescale_xywhn', 'rescale_xyxy', 'clip_bbox', 'bbox_iou']
 
 
 def xywh2xyxy(bbox: _Tensor_or_ndarray):
@@ -19,13 +20,62 @@ def xywh2xyxy(bbox: _Tensor_or_ndarray):
     Args:
         bbox: _Tensor_or_ndarray = bbox shape(..., 4)
 
-    Return bbox (converted)
+    Returns:
+        bbox (converted)
     """
     y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
     y[..., 0] = bbox[..., 0] - bbox[..., 2] / 2  # top left x
     y[..., 1] = bbox[..., 1] - bbox[..., 3] / 2  # top left y
     y[..., 2] = bbox[..., 0] + bbox[..., 2] / 2  # bottom right x
     y[..., 3] = bbox[..., 1] + bbox[..., 3] / 2  # bottom right y
+    return y
+
+
+def xywhn2xyxy(bbox: _Tensor_or_ndarray, hw_nopad: tuple, pxy: tuple = (0, 0)):
+    r"""
+    Convert the center xywh normalized to the topleft and bottomright xyxy.
+    Args:
+        bbox: _Tensor_or_ndarray = bbox shape(..., 4)
+        hw_nopad: tuple = shape with no padding (h0, w0)
+        pxy: tuple = padding xy (left, top)
+
+    Returns:
+        bbox (converted)
+    """
+    y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
+    h, w = hw_nopad
+    px, py = pxy
+    y[..., 0] = w * (bbox[..., 0] - bbox[..., 2] / 2) + px  # top left x
+    y[..., 1] = h * (bbox[..., 1] - bbox[..., 3] / 2) + py  # top left y
+    y[..., 2] = w * (bbox[..., 0] + bbox[..., 2] / 2) + px  # bottom right x
+    y[..., 3] = h * (bbox[..., 1] + bbox[..., 3] / 2) + py  # bottom right y
+    return y
+
+
+def xyxy2xywhn(bbox: _Tensor_or_ndarray, hw_pad: tuple, pxy: tuple = (0, 0), clip=True):
+    r"""
+    Convert the topleft and bottomright xyxy to the center xywh normalized
+    Args:
+        bbox: _Tensor_or_ndarray = bbox shape(..., 4)
+        hw_pad: tuple = shape with padding (h, w)
+        pxy: tuple = padding xy (left, top)
+        clip: = True/False
+
+    Returns:
+        bbox (converted)
+    """
+    y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
+
+    h, w = hw_pad
+    px, py = pxy
+    y[..., 0] = (bbox[..., 0] + bbox[..., 2]) / 2 + px  # center x
+    y[..., 1] = (bbox[..., 1] + bbox[..., 3]) / 2 + py  # center y
+    y[..., 2] = bbox[..., 2] - bbox[..., 0]  # w
+    y[..., 3] = bbox[..., 3] - bbox[..., 1]  # h
+    if clip:
+        y = clip_bbox(y, hw_pad)
+    y[..., [0, 2]] /= w
+    y[..., [1, 3]] /= h
     return y
 
 
@@ -38,13 +88,15 @@ def rescale_xywhn(bbox: _Tensor_or_ndarray, hw_nopad: tuple, hw_pad: tuple, pxy:
         hw_pad: tuple = shape with padding (h, w)
         pxy: tuple = padding xy (left, top)
 
-    Return bbox (converted)
+    Returns:
+        bbox (converted)
     """
     y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
     h0, w0 = hw_nopad
     h, w = hw_pad
-    y[..., 0] = (w0 * bbox[..., 0] + pxy[0]) / w  # center x
-    y[..., 1] = (h0 * bbox[..., 1] + pxy[1]) / h  # center y
+    px, py = pxy
+    y[..., 0] = (w0 * bbox[..., 0] + px) / w  # center x
+    y[..., 1] = (h0 * bbox[..., 1] + py) / h  # center y
     y[..., 2] = (w0 * bbox[..., 2]) / w  # w
     y[..., 3] = (h0 * bbox[..., 3]) / h  # h
     return y

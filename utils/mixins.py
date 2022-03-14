@@ -466,12 +466,13 @@ class LoadAllCheckPointMixin(object):
 
 class DataLoaderMixin(object):
     r"""
-    Need self.datasets, self.image_size, self.batch_size, self.workers, self.pin_memory
+    Need self.hyp, self.datasets, self.image_size, self.batch_size, self.workers, self.pin_memory
     The function in the Mixin below.
     1. Set dataset and get dataloader. --- all self.*
     """
 
     def __init__(self):
+        self.hyp = None
         self.writer = None
         self.workers = None
         self.datasets = None
@@ -479,12 +480,13 @@ class DataLoaderMixin(object):
         self.batch_size = None
         self.pin_memory = None
 
-    def get_dataloader(self, dataset: _dataset_c, name: str, shuffle: bool = False):
+    def get_dataloader(self, dataset: _dataset_c, name: str, augment: bool = False, shuffle: bool = False):
         r"""
         Set dataset and get dataloader.
         Args:
             dataset: _dataset = dataset class
             name: str = 'train' / 'val' / 'test'
+            augment: bool = False/True
             shuffle: bool = False/True
 
         Return dataloader instance
@@ -496,7 +498,7 @@ class DataLoaderMixin(object):
             LOGGER.info(f'Initializing Dataloader {name}...')
             # set dataset
             LOGGER.info(f'Initializing Dataset {name}...')
-            dataset = dataset(self.datasets[name], self.image_size, name)
+            dataset = dataset(self.datasets[name], self.image_size, augment, self.hyp, name)
             LOGGER.info(f'Initialize Dataset {name} successfully')
 
             # visualizing

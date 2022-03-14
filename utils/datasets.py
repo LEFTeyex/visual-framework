@@ -12,8 +12,9 @@ from pathlib import Path
 from torch.utils.data import Dataset
 
 from utils.log import LOGGER
-from utils.bbox import rescale_xywhn
+from utils.bbox import xywhn2xyxy, xyxy2xywhn
 from utils.general import load_all_yaml, to_tuplex
+from utils.augmentation import random_affine_or_perspective
 from utils.typeslib import _strpath, _int_or_tuple
 
 __all__ = ['DatasetDetect', 'get_and_check_datasets_yaml']
@@ -29,15 +30,19 @@ class DatasetDetect(Dataset):
     Args:
         path: = path or [path, ...] for images
         img_size: int = the largest edge of image size
+        augment: = False/True whether data augment
+        hyp: = self.hyp in train hyperparameter augmentation
         prefix: str = the prefix for tqdm.tqdm
     """
 
     # TODO upgrade val_from_train, test_from_train function in the future reference to random_split
     # TODO upgrade rectangular train shape for image model in the future reference to yolov5 rect=True
     # TODO upgrade .cache file in memory for faster training
-    def __init__(self, path, img_size: int, prefix: str = ''):
+    def __init__(self, path, img_size: int, augment=False, hyp=None, prefix: str = ''):
 
         self.img_size = img_size
+        self.augment = augment
+        self.hyp = hyp
         self.img_files = get_img_files(path)  # get the path tuple of image files
         # check img suffix and sort img_files(to str)
         self.img_files = sorted(str(x) for x in self.img_files if x.suffix.replace('.', '').lower() in IMAGE_FORMATS)
@@ -59,17 +64,30 @@ class DatasetDetect(Dataset):
         label = self.label_files[index].copy()  # label ndarray [[class,x,y,w,h], ...] when nlabel=5
         nl = len(label)  # number of label
 
+        # TODO --------------------------------------- need to design for using all the data augmentation convenient
         # load image and resize it
         # TODO maybe the shape computed in __init__ and save will be better
         image, hw0, hw_nopad, ratio = load_image_resize(img_path, self.img_size)
         image, hw_pad, padxy = letterbox(image, self.img_size)  # pad image to shape or img_size
         shape_convert = hw0, ratio, padxy  # for convert coordinate from hw_pad to hw0
 
-        # convert label normalized to match the image resized and padded
+        # convert label xywh normalized to xyxy (padded)
         if nl:
-            label[:, 1:] = rescale_xywhn(label[:, 1:], hw_nopad, hw_pad, padxy)
+            label[:, 1:] = xywhn2xyxy(label[:, 1:], hw_nopad, padxy)
 
-        # TODO upgrade augment
+        if self.augment:
+            image, label = random_affine_or_perspective(image, label, self.hyp['filter_bbox'],
+                                                        perspective=self.hyp['perspective'],
+                                                        angle=self.hyp['angle'],
+                                                        scale=self.hyp['scale'],
+                                                        shear=self.hyp['shear'],
+                                                        translate=self.hyp['translate'],
+                                                        flip=self.hyp['flip'])
+        # convert label xyxy to xywh normalized (hw_pad)
+        if nl:
+            label[:, 1:] = xyxy2xywhn(label[:, 1:], hw_pad)
+            # TODO ---------------------------------------
+
         # deal image
         image = np.transpose(image, (2, 0, 1))  # (h,w,c) to (c,h,w)
         image = np.ascontiguousarray(image)  # make image contiguous in memory

@@ -1,4 +1,4 @@
-# Training hyper-parameters yaml
+# Training hyperparameter yaml
 
 # Parameters
 seed: null  # null is None in yaml
@@ -19,3 +19,12 @@ obj_pw: 0.911
 anchor_threshold: 4.0
 
 fit_weights: [0.0, 0.0, 0.0, 0.1, 0.9]  # for [(IoU 0.5 for) P, R, F1, AP50, AP5095]
+
+# augmentation
+filter_bbox: True
+perspective: 0.0
+angle: 0.0
+scale: 0.0
+shear: 0.0
+translate: 0.0
+flip: 0.0

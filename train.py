@@ -104,7 +104,7 @@ class TrainDetect(MetaTrainDetect):
         self.checkpoint = self.empty()
 
         # Get dataloader for training testing
-        self.train_dataloader = self.get_dataloader(DatasetDetect, 'train', shuffle=self.shuffle)
+        self.train_dataloader = self.get_dataloader(DatasetDetect, 'train', augment=self.augment, shuffle=self.shuffle)
         self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
         self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
 
@@ -146,6 +146,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--name', type=str, default='exp', help='')
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
+    parser.add_argument('--augment', type=bool, default=True, help='whether random augment image')
     parser.add_argument('--inc', type=int, default=3, help='')
     parser.add_argument('--image_size', type=int, default=640, help='')
     parser.add_argument('--load_model', type=_str_or_None, default=None, help='')
@@ -178,6 +179,5 @@ if __name__ == '__main__':
     # next work
     # TODO add necessary functions
     # TODO confusion matrix needed
-    # TODO datasets augment
-    # TODO upgrade mosaic, cutmix etc.
     # TODO add plot curve functions for visual results
+    # TODO upgrade mosaic first
