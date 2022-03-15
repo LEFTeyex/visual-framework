@@ -64,9 +64,9 @@ class DatasetDetect(Dataset):
         label = self.label_files[index].copy()  # label ndarray [[class,x,y,w,h], ...] when nlabel=5
         nl = len(label)  # number of label
 
-        # TODO --------------------------------------- need to design for using all the data augmentation convenient
+        # TODO load one image-------------------------- need to design for using all the data augmentation convenient
         # load image and resize it
-        # TODO maybe the shape computed in __init__ and save will be better
+        # TODO maybe the shape computed in __init__ and save will be better and faster
         image, hw0, hw_nopad, ratio = load_image_resize(img_path, self.img_size)
         image, hw_pad, padxy = letterbox(image, self.img_size)  # pad image to shape or img_size
         shape_convert = hw0, ratio, padxy  # for convert coordinate from hw_pad to hw0
@@ -86,7 +86,7 @@ class DatasetDetect(Dataset):
         # convert label xyxy to xywh normalized (hw_pad)
         if nl:
             label[:, 1:] = xyxy2xywhn(label[:, 1:], hw_pad)
-            # TODO ---------------------------------------
+        # TODO ---------------------------------------
 
         # deal image
         image = np.transpose(image, (2, 0, 1))  # (h,w,c) to (c,h,w)
