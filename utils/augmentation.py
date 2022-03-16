@@ -8,7 +8,7 @@ import math
 import random
 import numpy as np
 
-from bbox import xywhn2xyxy
+from utils.bbox import xywhn2xyxy
 
 __all__ = ['random_affine_or_perspective', 'cutout', 'mixup', 'mosaic']
 
@@ -183,7 +183,6 @@ def mosaic(img4, label4, shape4, s):
     Returns:
         img_out, label_out
     """
-    label4 = np.copy(label4) if isinstance(label4, np.ndarray) else label4.clone()
     s_s = s * 2
     img_out = np.zeros((s_s, s_s, img4[0].shape[2]), dtype=np.uint8)
     label_out = []
@@ -209,16 +208,20 @@ def mosaic(img4, label4, shape4, s):
             x1m, y1m, x2m, y2m = xc, yc, min(xc + w, s_s), min(yc + h, s_s)
             x1, y1, x2, y2 = 0, 0, min(w, x2m - x1m), min(h, y2m - y1m)
 
-        img_out[x1m:x2m, y1m:y2m] = img[x1:x2, y1:y2]
+        img_out[y1m:y2m, x1m:x2m] = img[y1:y2, x1:x2]
         pxy = x1m - x1, y1m - y1  # for transforming label
 
         # transform label
         if label.size:
+            label = np.copy(label) if isinstance(label, np.ndarray) else label.clone()
             label[:, 1:] = xywhn2xyxy(label[:, 1:], shape, pxy)
         label_out.append(label)
 
+    # resize image
+    img_out = cv2.resize(img_out, (s, s))
+    # clip xyxy in mosaic image
     label_out = np.concatenate(label_out, axis=0)
-    label_out[:, 1:].clip(0, s_s)  # clip xyxy in mosaic image
+    label_out[:, 1:].clip(0, s_s)
     return img_out, label_out
 
 
