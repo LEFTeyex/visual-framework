@@ -26,7 +26,7 @@ from utils.bbox import xywh2xyxy, rescale_xyxy
 from utils.general import delete_list_indices, time_sync, save_all_txt
 from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
 from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class, compute_fitness
-from utils.typeslib import _str_or_None, _pkt_or_None, _strpath, _dataset_c, _instance_c, \
+from utils.typeslib import _str_or_None, _pkt_or_None, _path, _dataset_c, _instance_c, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler
 
 __all__ = ['SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin',
@@ -170,7 +170,7 @@ class LoadAllCheckPointMixin(object):
         self.checkpoint = None
         self.param_groups = None
 
-    def load_checkpoint(self, path: _strpath, suffix=('.pt', '.pth')):
+    def load_checkpoint(self, path: _path, suffix=('.pt', '.pth')):
         r"""
         Load checkpoint from path '*.pt' or '*.pth' file.
         Request:
@@ -181,7 +181,7 @@ class LoadAllCheckPointMixin(object):
                           'epoch':                    epoch,
                           'best_fitness':             best_fitness}
         Args:
-            path: _strpath = StrPath
+            path: _path = Path
             suffix: tuple = ('.pt', '.pth', ...) the suffix of weight file, Default=('.pt', '.pth')
 
         Return checkpoint or None(when no file endwith the suffix)

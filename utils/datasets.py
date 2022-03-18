@@ -16,7 +16,7 @@ from utils.log import LOGGER
 from utils.bbox import xywhn2xyxy, xyxy2xywhn, rescale_xywhn
 from utils.general import load_all_yaml, to_tuplex
 from utils.augmentation import random_affine_or_perspective, cutout, mixup, mosaic
-from utils.typeslib import _strpath, _int_or_tuple
+from utils.typeslib import _path, _int_or_tuple
 
 __all__ = ['DatasetDetect', 'get_and_check_datasets_yaml']
 
@@ -219,11 +219,11 @@ class DatasetDetect(Dataset):
         return tuple(labels), nlabel
 
 
-def load_image_resize(img_path: _strpath, img_size: int):
+def load_image_resize(img_path: _path, img_size: int):
     r"""
     Load image and resize it which the largest edge is img_size.
     Args:
-        img_path: _strpath = StrPath
+        img_path: _path = Path
         img_size: int = img_size for the largest edge
 
     Return image, (h0, w0), (h1, w1), r
@@ -323,11 +323,11 @@ def img2label_files(img_files):
     return tuple(label_files)  # to save memory
 
 
-def get_and_check_datasets_yaml(path: _strpath):
+def get_and_check_datasets_yaml(path: _path):
     r"""
     Get path and other data of datasets yaml for training and check datasets yaml.
     Args:
-        path: _strpath = StrPath
+        path: _path = Path
 
     Return datasets
     """
@@ -372,8 +372,8 @@ def get_and_check_datasets_yaml(path: _strpath):
             if p is None:
                 pass
             elif not p.exists():
-                raise FileExistsError(f'The path {path} do not exists, '
-                                      f'please reset in the {path}')
+                raise FileExistsError(f'The path {p} do not exists, '
+                                      f'please reset in the {p}')
 
     def to_str(obj):
         if isinstance(obj, list):

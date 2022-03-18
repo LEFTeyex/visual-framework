@@ -13,7 +13,7 @@ from torch.optim.lr_scheduler import _LRScheduler  # ignore _LRScheduler, no pro
 
 __all__ = [
     # strpath
-    '_strpath',
+    '_path',
     # python
     '_int_or_None', '_str_or_None', '_float_or_None', '_complex_or_None',
     '_set_or_None', '_list_or_None', '_dict_or_None', '_tuple_or_None',
@@ -29,7 +29,7 @@ __all__ = [
 ]
 
 # str pathlike
-_strpath = Union[str, PathLike[str]]
+_path = Union[str, PathLike]
 
 # python
 _int_or_None = Optional[int]

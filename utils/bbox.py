@@ -3,6 +3,7 @@ Bounding box utils.
 Consist of all the util to operate the bbox.
 """
 
+import math
 import torch
 import numpy as np
 
@@ -182,7 +183,7 @@ def bbox_iou(bbox1: Tensor, bbox2: Tensor, *, xyxy: bool = False, kind: str = 'i
             d_distance = ((b2x1 + b2x2 - b1x1 - b1x2) ** 2 + (b2y1 + b2y2 - b1y1 - b1y2) ** 2) / 4
             if kind == 'ciou':
                 # v is the consistency of aspect ratio, alpha is the trade_off parameter
-                v = (4 / torch.pi ** 2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
+                v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
                 with torch.no_grad():
                     alpha = v / (v - iou + (eps + 1))
                 iou = iou - (d_distance / c_distance + alpha + v)  # CIoU

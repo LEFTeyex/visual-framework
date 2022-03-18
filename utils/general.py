@@ -12,7 +12,7 @@ import numpy as np
 from functools import wraps
 
 from utils.log import LOGGER
-from utils.typeslib import _int_or_None, _strpath
+from utils.typeslib import _int_or_None, _path
 
 __all__ = ['timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'save_all_txt', 'load_all_yaml', 'save_all_yaml',
            'init_seed', 'select_one_device']
@@ -91,11 +91,11 @@ def save_all_txt(*args, mode='w'):
     LOGGER.debug('Save all txt successfully')
 
 
-def load_all_yaml(*args: _strpath):
+def load_all_yaml(*args: _path):
     r"""
     Load all *.yaml to dict from the path.
     Args:
-        args: _strpath = path, ...
+        args: _path = Path, ...
 
     Return tuple(dict, ...) or dict(when only one yaml to load)
     """

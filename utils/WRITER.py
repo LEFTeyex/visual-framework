@@ -10,17 +10,17 @@ from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 
 from utils.bbox import xywh2xyxy
-from utils.typeslib import _strpath
+from utils.typeslib import _path
 
 __all__ = ['set_writer', 'add_model_graph', 'add_optimizer_lr', 'add_epoch_curve',
            'add_datasets_images_labels_detect', 'add_batch_images_predictions_detect']
 
 
-def set_writer(save_path: _strpath):
+def set_writer(save_path: _path):
     r"""
     Set tensorboard writer using SummaryWriter.
     Args:
-        save_path: _strpath = StrPath
+        save_path: _path = Path
 
     Returns:
         writer
