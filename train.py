@@ -187,4 +187,3 @@ if __name__ == '__main__':
     # TODO add necessary functions
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
-    # TODO upgrade load data augmentation in datasets.py

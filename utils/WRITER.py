@@ -96,11 +96,17 @@ def add_datasets_images_labels_detect(writer, datasets, title, dfmt='CHW'):
         with tqdm(enumerate(datasets), total=len(datasets), bar_format='{l_bar}{bar:20}{r_bar}',
                   desc=f'{space}{title}: visualizing images with labels') as pbar:
             for index, (image, label, _) in pbar:
-                _, h, w = image.shape
-                wh_tensor = torch.tensor([[w, h, w, h]], device=label.device)
-                bboxes = xywh2xyxy(label[:, 2:] * wh_tensor)  # scale bbox really
-                classes = [str(int(cls.tolist())) for cls in label[:, 1]]
-                writer.add_image_with_boxes(f'{title}_image', image, bboxes, index, dataformats=dfmt, labels=classes)
+                # only consist of 10 images per plot in tensorboard
+                if index <= 9:
+                    _, h, w = image.shape
+                    wh_tensor = torch.tensor([[w, h, w, h]], device=label.device)
+                    bboxes = xywh2xyxy(label[:, 2:] * wh_tensor)  # scale bbox really
+                    classes = [str(int(cls.tolist())) for cls in label[:, 1]]
+
+                    writer.add_image_with_boxes(f'{title}_image', image, bboxes, index, dataformats=dfmt,
+                                                labels=classes)
+                else:
+                    break
 
 
 @torch.no_grad()
@@ -116,13 +122,18 @@ def add_batch_images_predictions_detect(writer, title, bs_index, images, predict
         epoch:
         dfmt:
     """
+    # TODO BUG: the step is not continue
     if (writer is not None) and epoch == -1:
         bs = images.shape[0]
         for index in range(bs):
-            pred = predictions[index]
-            if pred.shape[0]:
-                classes = [f'{int(cls.tolist())}-{conf.tolist():.3f}' for conf, cls in pred[:, 4:]]
-                writer.add_image_with_boxes(f'{title}_image/{bs_index}',
-                                            images[index], pred[:, :4], index, dataformats=dfmt, labels=classes)
+            # only consist of 10 images per plot in tensorboard
+            if index <= 9:
+                pred = predictions[index]
+                if pred.shape[0]:
+                    classes = [f'{int(cls.tolist())}-{conf.tolist():.3f}' for conf, cls in pred[:, 4:]]
+                    writer.add_image_with_boxes(f'{title}_image/{bs_index}',
+                                                images[index], pred[:, :4], index, dataformats=dfmt, labels=classes)
+                else:
+                    writer.add_image(f'{title}_image/{bs_index}', images[index], index, dataformats=dfmt)
             else:
-                writer.add_image(f'{title}_image/{bs_index}', images[index], index, dataformats=dfmt)
+                break
