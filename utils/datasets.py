@@ -87,6 +87,10 @@ class DatasetDetect(Dataset):
 
         return image, label, shape_convert  # only one image(c,h,w), label(nl, 1 + nlabel)
 
+    def __len__(self):
+        r"""Return len of all data"""
+        return len(self.img_files)
+
     def load_without_data_augment(self, index):
         # load image path and label
         img_path = self.img_files[index]  # path str
@@ -156,10 +160,6 @@ class DatasetDetect(Dataset):
 
         image4, label4 = mosaic(image4, label4, shape4, self.img_size)
         return image4, label4, None  # shape_convert
-
-    def __len__(self):
-        r"""Return len of all data"""
-        return len(self.img_files)
 
     @staticmethod
     def collate_fn(batch):

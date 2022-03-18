@@ -138,7 +138,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--tensorboard', type=bool, default=True, help='')
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=1, help='epochs for training')
+    parser.add_argument('--epochs', type=int, default=5, help='epochs for training')
     parser.add_argument('--batch_size', type=int, default=16, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
