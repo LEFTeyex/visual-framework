@@ -11,7 +11,7 @@ __all__ = ['MetaValDetect']
 
 class MetaValDetect(ValDetectMixin):
     def __init__(self, last=True, model=None, writer=None,  # need to super in subclass
-                 half=True, dataloader=None, loss_fn=None, cls_names=None, epoch=None,
+                 half=True, dataloader=None, loss_fn=None, cls_names=None, epoch=None, visual_image=None,
                  args=None):
         super(MetaValDetect, self).__init__()
         self.last = last
@@ -20,7 +20,7 @@ class MetaValDetect(ValDetectMixin):
         self.writer = writer
         self.training = model is not None
         self.cls_names = None
-        self.set_self_parameters_training(model, half, loss_fn, dataloader, cls_names, epoch)
+        self.set_self_parameters_training(model, half, loss_fn, dataloader, cls_names, epoch, visual_image)
 
     def val(self):
         # TODO
@@ -48,7 +48,7 @@ class MetaValDetect(ValDetectMixin):
         # val alone
         pass
 
-    def set_self_parameters_training(self, model, half, loss_fn, dataloader, cls_names, epoch):
+    def set_self_parameters_training(self, model, half, loss_fn, dataloader, cls_names, epoch, visual_image):
         # val during training
         if self.training:
             self.device = next(model.parameters()).device
@@ -56,6 +56,7 @@ class MetaValDetect(ValDetectMixin):
             self.epoch = epoch
             self.loss_fn = loss_fn
             self.cls_names = cls_names
+            self.visual_image = visual_image
             self.dataloader = dataloader
             if self.half and self.device.type == 'cpu':
                 LOGGER.warning(f'The device is {self.device}, half precision only supported on CUDA')

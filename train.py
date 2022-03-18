@@ -136,10 +136,14 @@ def parse_args_detect(known: bool = False):
     _str_or_None = Optional[str]
     parser = argparse.ArgumentParser()
     parser.add_argument('--tensorboard', type=bool, default=True, help='')
+    parser.add_argument('--visual_image', type=bool, default=True,
+                        help='whether make images visual in tensorboard')
+    parser.add_argument('--visual_graph', type=bool, default=False,
+                        help='whether make model graph visual in tensorboard')
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=5, help='epochs for training')
-    parser.add_argument('--batch_size', type=int, default=16, help='')
+    parser.add_argument('--epochs', type=int, default=10, help='epochs for training')
+    parser.add_argument('--batch_size', type=int, default=8, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
     parser.add_argument('--pin_memory', type=bool, default=True, help='')

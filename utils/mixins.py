@@ -479,6 +479,7 @@ class DataLoaderMixin(object):
         self.image_size = None
         self.batch_size = None
         self.pin_memory = None
+        self.visual_image = None
 
     def get_dataloader(self, dataset: _dataset_c, name: str,
                        augment: bool = False, data_augment='', shuffle: bool = False):
@@ -504,9 +505,10 @@ class DataLoaderMixin(object):
             LOGGER.info(f'Initialize Dataset {name} successfully')
 
             # visualizing
-            LOGGER.info(f'Visualizing Dataset {name}...')
-            WRITER.add_datasets_images_labels_detect(self.writer, dataset, name)
-            LOGGER.info(f'Visualize Dataset {name} successfully')
+            if self.visual_image:
+                LOGGER.info(f'Visualizing Dataset {name}...')
+                WRITER.add_datasets_images_labels_detect(self.writer, dataset, name)
+                LOGGER.info(f'Visualize Dataset {name} successfully')
 
             # set dataloader
             # TODO upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
@@ -557,12 +559,14 @@ class TrainDetectMixin(object):
         self.loss_fn = None
         self.optimizer = None
         self.image_size = None
+        self.visual_graph = None
         self.lr_scheduler = None
         self.train_dataloader = None
 
     def train_one_epoch(self):
         self.model.train()
-        WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
+        if self.visual_graph:
+            WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
         self.optimizer.zero_grad()
         loss_name = ('total_loss', 'bbox_loss', 'class_loss', 'object_loss')
         loss_all_mean = torch.zeros(4, device=self.device)
@@ -661,6 +665,7 @@ class ValDetectMixin(object):
         self.device = None
         self.loss_fn = None
         self.dataloader = None
+        self.visual_image = None
 
     def val_once(self):
         loss_name = ('total_loss', 'bbox_loss', 'class_oss', 'object_loss')
@@ -699,8 +704,9 @@ class ValDetectMixin(object):
                 # nms
                 predictions = non_max_suppression(predictions, 0.5, 300)  # list which len is batch size
 
-                WRITER.add_batch_images_predictions_detect(self.writer, 'test_pred', index, images, predictions,
-                                                           self.epoch)
+                if self.visual_image:
+                    WRITER.add_batch_images_predictions_detect(self.writer, 'test_pred', index, images, predictions,
+                                                               self.epoch)
 
                 # get metrics data
                 _stats = self._get_metrics_stats(predictions, labels, shape_converts, iou_vector)

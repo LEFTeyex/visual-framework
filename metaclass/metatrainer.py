@@ -69,6 +69,8 @@ class MetaTrainDetect(
         self.pin_memory = args.pin_memory
         self.tensorboard = args.tensorboard
         self.save_path = Path(args.save_path)
+        self.visual_image = args.visual_image
+        self.visual_graph = args.visual_graph
         self.data_augment = args.data_augment
 
         self._load_model = args.load_model
@@ -134,7 +136,7 @@ class MetaTrainDetect(
     def val_training(self):
         valer = self.val_class(last=False, model=self.model, half=True, dataloader=self.val_dataloader,
                                loss_fn=self.loss_fn, cls_names=self.datasets['names'],
-                               epoch=self.epoch, writer=self.writer)
+                               epoch=self.epoch, writer=self.writer, visual_image=self.visual_image)
         results = valer.val_training()
         return results
 
@@ -155,7 +157,7 @@ class MetaTrainDetect(
             dataloader = self.val_dataloader
         tester = self.val_class(last=True, model=self.model, half=False, dataloader=dataloader,
                                 loss_fn=self.loss_fn, cls_names=self.datasets['names'],
-                                epoch=self.epoch, writer=self.writer)
+                                epoch=self.epoch, writer=self.writer, visual_image=self.visual_image)
         results = tester.val_training()
         return results
 
@@ -191,6 +193,10 @@ r"""def demo_parse_args_detect(known: bool = False):
         _str_or_None = Optional[str]
         parser = argparse.ArgumentParser()
         parser.add_argument('--tensorboard', type=bool, default=True, help='')
+        parser.add_argument('--visual_image', type=bool, default=False,
+                        help='whether make images visual in tensorboard')
+        parser.add_argument('--visual_graph', type=bool, default=False,
+                        help='whether make model graph visual in tensorboard')
         parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
         parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
         parser.add_argument('--epochs', type=int, default=10, help='epochs for training')
