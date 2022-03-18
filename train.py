@@ -104,7 +104,8 @@ class TrainDetect(MetaTrainDetect):
         self.checkpoint = self.empty()
 
         # Get dataloader for training testing
-        self.train_dataloader = self.get_dataloader(DatasetDetect, 'train', augment=self.augment, shuffle=self.shuffle)
+        self.train_dataloader = self.get_dataloader(DatasetDetect, 'train', augment=self.augment,
+                                                    data_augment=self.data_augment, shuffle=self.shuffle)
         self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
         self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
 
@@ -137,7 +138,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--tensorboard', type=bool, default=True, help='')
     parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=10, help='epochs for training')
+    parser.add_argument('--epochs', type=int, default=1, help='epochs for training')
     parser.add_argument('--batch_size', type=int, default=16, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
@@ -147,6 +148,8 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
     parser.add_argument('--augment', type=bool, default=True, help='whether random augment image')
+    parser.add_argument('--data_augment', type=str, default='mosaic',
+                        help='the kind of data augmentation mosaic / mixup / cutout')
     parser.add_argument('--inc', type=int, default=3, help='')
     parser.add_argument('--image_size', type=int, default=640, help='')
     parser.add_argument('--load_model', type=_str_or_None, default=None, help='')

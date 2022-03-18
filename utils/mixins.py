@@ -480,13 +480,15 @@ class DataLoaderMixin(object):
         self.batch_size = None
         self.pin_memory = None
 
-    def get_dataloader(self, dataset: _dataset_c, name: str, augment: bool = False, shuffle: bool = False):
+    def get_dataloader(self, dataset: _dataset_c, name: str,
+                       augment: bool = False, data_augment='', shuffle: bool = False):
         r"""
         Set dataset and get dataloader.
         Args:
             dataset: _dataset = dataset class
             name: str = 'train' / 'val' / 'test'
             augment: bool = False/True
+            data_augment: str = 'cutout'/'mixup'/'mosaic' the kind of data augmentation
             shuffle: bool = False/True
 
         Return dataloader instance
@@ -498,7 +500,7 @@ class DataLoaderMixin(object):
             LOGGER.info(f'Initializing Dataloader {name}...')
             # set dataset
             LOGGER.info(f'Initializing Dataset {name}...')
-            dataset = dataset(self.datasets[name], self.image_size, augment, self.hyp, name)
+            dataset = dataset(self.datasets[name], self.image_size, augment, data_augment, self.hyp, name)
             LOGGER.info(f'Initialize Dataset {name} successfully')
 
             # visualizing

@@ -8,7 +8,7 @@ import math
 import random
 import numpy as np
 
-from utils.bbox import xywhn2xyxy
+from utils.bbox import rescale_xywhn
 
 __all__ = ['random_affine_or_perspective', 'cutout', 'mixup', 'mosaic']
 
@@ -71,18 +71,18 @@ def random_affine_or_perspective(img, label, filter_bbox=True,
 
     # transform label
     # TODO now only for object detection label but segmentation or instance segmentation
-    n = len(label)
-    if n:
-        xy = np.ones((n * 4, 3))
+    nl = len(label)
+    if nl:
+        xy = np.ones((nl * 4, 3))
         # notice all the four xyxy need to transform
-        xy[:, :2] = label[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)  # x1y1, x2y2, x1y2, x2y1
+        xy[:, :2] = label[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(nl * 4, 2)  # x1y1, x2y2, x1y2, x2y1
         xy = xy @ m.T  # transform
-        xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(n, 8)  # perspective rescale or
+        xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(nl, 8)  # perspective rescale or
 
         # calculate new bbox
         x = xy[:, [0, 2, 4, 6]]
         y = xy[:, [1, 3, 5, 7]]
-        bbox = np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1))).reshape(4, n).T
+        bbox = np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1))).reshape(4, nl).T
 
         # clip
         bbox[:, [0, 2]] = bbox[:, [0, 2]].clip(0, w)
@@ -121,7 +121,7 @@ def cutout(img, label, color_mask=False):
     CutOut augmentation https://arxiv.org/abs/1708.04552.
     Args:
         img: = image shape is (h, w, c)
-        label: = label shape is (n, x) which the format of bbox is xyxy
+        label: = label shape is (n, x) which the format of bbox is xywhn or xyxy
         color_mask: = False/True mask pixel is colorful
 
     Returns:
@@ -159,7 +159,7 @@ def mixup(img2, label2, beta=8.0):
     MixUp augmentation https://arxiv.org/abs/1710.09412.
     Args:
         img2: = (image1, image2) shape is (h, w, c)
-        label2: = (label1, label2) shape is (n, x) which the format of bbox is xyxy
+        label2: = (label1, label2) shape is (n, x) which the format of bbox is xywhn or xyxy
         beta: = parameter of beta distributions
 
     Returns:
@@ -171,22 +171,23 @@ def mixup(img2, label2, beta=8.0):
     return img2, label2
 
 
-def mosaic(img4, label4, shape4, s):
+def mosaic(img4, label4, shape4, img_size):
     r"""
     Mosaic augmentation https://
     Args:
         img4: = (image1, ...) shape is (h, w, c)
         label4: = (label1, ...) shape is (n, x) which the format of bbox is xywhn
         shape4: = ((h, w), ...)
-        s: = the size of mosaic image side
+        img_size: = the size of mosaic image side
 
     Returns:
-        img_out, label_out
+        img_out, label_out (format of bbox is xywhn)
     """
-    s_s = s * 2
+    s_s = img_size * 2
     img_out = np.zeros((s_s, s_s, img4[0].shape[2]), dtype=np.uint8)
     label_out = []
-    yc, xc = (int(random.uniform(s // 2, s + s // 2)) for _ in range(2))
+    # TODO the interval may be changed to small from (s // 2, s + s // 2)
+    yc, xc = (int(random.uniform(img_size // 2, img_size + img_size // 2)) for _ in range(2))
     for index, (img, label, shape) in enumerate(zip(img4, label4, shape4)):
         # make mosaic image
         h, w = shape
@@ -212,13 +213,13 @@ def mosaic(img4, label4, shape4, s):
         pxy = x1m - x1, y1m - y1  # for transforming label
 
         # transform label
-        if label.size:
-            label = np.copy(label) if isinstance(label, np.ndarray) else label.clone()
-            label[:, 1:] = xywhn2xyxy(label[:, 1:], shape, pxy)
+        if len(label):
+            label[:, 1:] = rescale_xywhn(label[:, 1:], shape, (s_s, s_s), pxy)
+
         label_out.append(label)
 
     # resize image
-    img_out = cv2.resize(img_out, (s, s))
+    img_out = cv2.resize(img_out, (img_size, img_size))
     # clip xyxy in mosaic image
     label_out = np.concatenate(label_out, axis=0)
     label_out[:, 1:].clip(0, s_s)

@@ -2,6 +2,7 @@ r"""
 Custom Dataset module.
 Consist of Dataset that designed for different tasks.
 """
+import random
 
 import cv2
 import torch
@@ -12,9 +13,9 @@ from pathlib import Path
 from torch.utils.data import Dataset
 
 from utils.log import LOGGER
-from utils.bbox import xywhn2xyxy, xyxy2xywhn
+from utils.bbox import xywhn2xyxy, xyxy2xywhn, rescale_xywhn
 from utils.general import load_all_yaml, to_tuplex
-from utils.augmentation import random_affine_or_perspective
+from utils.augmentation import random_affine_or_perspective, cutout, mixup, mosaic
 from utils.typeslib import _strpath, _int_or_tuple
 
 __all__ = ['DatasetDetect', 'get_and_check_datasets_yaml']
@@ -31,6 +32,7 @@ class DatasetDetect(Dataset):
         path: = path or [path, ...] for images
         img_size: int = the largest edge of image size
         augment: = False/True whether data augment
+        data_augment: str = 'cutout'/'mixup'/'mosaic' the kind of data augmentation
         hyp: = self.hyp in train hyperparameter augmentation
         prefix: str = the prefix for tqdm.tqdm
     """
@@ -38,12 +40,13 @@ class DatasetDetect(Dataset):
     # TODO upgrade val_from_train, test_from_train function in the future reference to random_split
     # TODO upgrade rectangular train shape for image model in the future reference to yolov5 rect=True
     # TODO upgrade .cache file in memory for faster training
-    def __init__(self, path, img_size: int, augment=False, hyp=None, prefix: str = ''):
-
+    def __init__(self, path, img_size: int, augment=False, data_augment: str = '', hyp=None, prefix: str = ''):
         self.img_size = img_size
         self.augment = augment
+        self.data_augment = data_augment.lower().replace(' ', '')
         self.hyp = hyp
         self.img_files = get_img_files(path)  # get the path tuple of image files
+        self.indices = range(len(self.img_files))  # for choices in data augmentation
         # check img suffix and sort img_files(to str)
         self.img_files = sorted(str(x) for x in self.img_files if x.suffix.replace('.', '').lower() in IMAGE_FORMATS)
         self.img_files = tuple(self.img_files)  # to save memory
@@ -57,14 +60,39 @@ class DatasetDetect(Dataset):
         LOGGER.info(f'Load {len(self.img_files)} images and {len(self.label_files)} labels')
 
     def __getitem__(self, index):
-        # TODO upgrade mosaic, cutout, cutmix, mixup etc.
         # TODO upgrade a save list for first training to improve the speed up later training
+
+        if self.data_augment == 'mosaic':
+            image, label, shape_convert = self.load_mosaic(index)
+        elif self.data_augment == 'mixup':
+            image, label, shape_convert = self.load_mixup(index)
+        elif self.data_augment == 'cutout':
+            image, label, shape_convert = self.load_cutout(index)
+        else:
+            image, label, shape_convert = self.load_without_data_augment(index)
+
+        # deal image
+        image = np.transpose(image, (2, 0, 1))  # (h,w,c) to (c,h,w)
+        image = np.ascontiguousarray(image)  # make image contiguous in memory
+        image = torch.from_numpy(image)  # image to tensor
+
+        # deal label
+        nl = len(label)
+        if nl:
+            index_label = torch.zeros((nl, 1))
+            label = torch.from_numpy(label)  # label to tensor
+            label = torch.cat((index_label, label), dim=1)  # label shape is (nl, 1 + nlabel)
+        else:
+            label = torch.empty((0, self.nlabel + 1))  # empty
+
+        return image, label, shape_convert  # only one image(c,h,w), label(nl, 1 + nlabel)
+
+    def load_without_data_augment(self, index):
         # load image path and label
         img_path = self.img_files[index]  # path str
         label = self.label_files[index].copy()  # label ndarray [[class,x,y,w,h], ...] when nlabel=5
         nl = len(label)  # number of label
 
-        # TODO load one image-------------------------- need to design for using all the data augmentation convenient
         # load image and resize it
         # TODO maybe the shape computed in __init__ and save will be better and faster
         image, hw0, hw_nopad, ratio = load_image_resize(img_path, self.img_size)
@@ -86,22 +114,48 @@ class DatasetDetect(Dataset):
         # convert label xyxy to xywh normalized (hw_pad)
         if nl:
             label[:, 1:] = xyxy2xywhn(label[:, 1:], hw_pad)
-        # TODO ---------------------------------------
 
-        # deal image
-        image = np.transpose(image, (2, 0, 1))  # (h,w,c) to (c,h,w)
-        image = np.ascontiguousarray(image)  # make image contiguous in memory
-        image = torch.from_numpy(image)  # image to tensor
+        return image, label, shape_convert
 
-        # deal label
-        if nl:
-            index_label = torch.zeros((nl, 1))
-            label = torch.from_numpy(label)  # label to tensor
-            label = torch.cat((index_label, label), dim=1)  # label shape is (nl, 1 + nlabel)
-        else:
-            label = torch.empty((0, self.nlabel + 1))  # empty
+    def load_cutout(self, index):
+        label = self.label_files[index].copy()
+        img_path = self.img_files[index]
+        image, _, hw_nopad, _ = load_image_resize(img_path, self.img_size)
+        image, label = cutout(image, label)
+        image, hw_pad, padxy = letterbox(image, self.img_size)
+        if len(label):
+            label[:, 1:] = rescale_xywhn(label[:, 1:], hw_nopad, hw_pad, padxy)
+        return image, label, None  # shape_convert
 
-        return image, label, shape_convert  # only one image(c,h,w), label(nl, 1 + nlabel)
+    def load_mixup(self, index):
+        image2, label2 = [], []
+        indices = [index] + [random.choice(self.indices)]
+        for idx in indices:
+            label = self.label_files[idx].copy()
+            img_path = self.img_files[idx]
+            image, _, hw_nopad, _ = load_image_resize(img_path, self.img_size)
+            image, hw_pad, padxy = letterbox(image, self.img_size)
+            if len(label):
+                label[:, 1:] = rescale_xywhn(label[:, 1:], hw_nopad, hw_pad, padxy)
+            image2.append(image)
+            label2.append(label)
+
+        image2, label2 = mixup(image2, label2)
+        return image2, label2, None  # shape_convert
+
+    def load_mosaic(self, index):
+        image4, label4, shape4 = [], [], []
+        indices = [index] + random.choices(self.indices, k=3)
+        for idx in indices:
+            label = self.label_files[idx].copy()
+            img_path = self.img_files[idx]
+            image, _, hw_nopad, _ = load_image_resize(img_path, self.img_size)
+            image4.append(image)
+            label4.append(label)
+            shape4.append(hw_nopad)
+
+        image4, label4 = mosaic(image4, label4, shape4, self.img_size)
+        return image4, label4, None  # shape_convert
 
     def __len__(self):
         r"""Return len of all data"""
@@ -114,9 +168,9 @@ class DatasetDetect(Dataset):
         Args:
             batch: list = [0(image, label, ...), 1, 2, 3] for batch index of data
 
-        Return images, labels
+        Return images, labels, shape_converts
         """
-        # batch is [(image, label), ...]
+        # batch is [(image, label, shape_convert), ...]
         images, labels, shape_converts = zip(*batch)
         # add index for label to image
         for index, label in enumerate(labels):
@@ -213,8 +267,10 @@ def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0,
     dh /= 2  # divide padding into 2 sides
     dw /= 2
 
+    # maybe top left paddings will be smaller than bottom right
     top, bottom = round(dh - 0.1), round(dh + 0.1)
     left, right = round(dw - 0.1), round(dw + 0.1)
+
     # add border(pad)
     image = cv2.copyMakeBorder(image, top, bottom, left, right,
                                cv2.BORDER_CONSTANT, value=color)
@@ -225,7 +281,7 @@ def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0,
 
 def get_img_files(path):
     r"""
-    Get all the image path in the path.
+    Get all the image path in the path and its dir.
     Args:
         path: = pathlike or [pathlike, ...]
 

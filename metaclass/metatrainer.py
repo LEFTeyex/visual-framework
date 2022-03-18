@@ -43,6 +43,7 @@ class MetaTrainDetect(
         # self.batch_size = None
         # self.pin_memory = None
         # self.tensorboard = None
+        # self.data_augment = None
 
         # # Set load way
         # self._load_model = None
@@ -52,22 +53,23 @@ class MetaTrainDetect(
         # self._load_best_fitness = None
         # self._load_lr_scheduler = None
 
+        self.epoch = None
         self.hyp = args.hyp
         self.inc = args.inc
         self.name = args.name
-        self.epoch = None
         self.device = args.device
         self.epochs = args.epochs
         self.augment = args.augment
         self.workers = args.workers
         self.shuffle = args.shuffle
+        self.datasets = args.datasets
         self.weights = Path(args.weights)
         self.image_size = args.image_size
         self.batch_size = args.batch_size
         self.pin_memory = args.pin_memory
         self.tensorboard = args.tensorboard
         self.save_path = Path(args.save_path)
-        self.datasets = args.datasets
+        self.data_augment = args.data_augment
 
         self._load_model = args.load_model
         self._load_optimizer = args.load_optimizer
@@ -201,6 +203,8 @@ r"""def demo_parse_args_detect(known: bool = False):
         parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
         parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
         parser.add_argument('--augment', type=bool, default=True, help='whether random augment image')
+        parser.add_argument('--data_augment', type=str, default='mosaic',
+                        help='the kind of data augmentation mosaic / mixup / cutout')
         parser.add_argument('--inc', type=int, default=3, help='')
         parser.add_argument('--image_size', type=int, default=640, help='')
         parser.add_argument('--load_model', type=_str_or_None, default=None, help='')
