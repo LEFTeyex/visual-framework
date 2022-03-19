@@ -9,6 +9,7 @@ weight_decay: 0.005
 label_smoothing: 0.1
 fl_gamma: 0.0
 
+# TODO need to scale for batch size in metaclass
 bbox: 0.0296
 cls: 0.243
 obj: 0.301

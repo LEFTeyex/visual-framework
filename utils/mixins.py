@@ -903,7 +903,8 @@ class ResultsDealDetectMixin(object):
         for k, v in self.results.items():
             to_save.append((v, self.save_dict[k]))
         save_all_txt(*to_save, mode='a')
-        self.results = {}
+        for key in self.results:
+            self.results[key] = []
 
     def _auto_save(self, max_row):
         r"""Auto save self.results if any len(list) is more than max_row"""

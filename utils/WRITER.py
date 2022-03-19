@@ -93,7 +93,7 @@ def add_datasets_images_labels_detect(writer, datasets, title, dfmt='CHW'):
     """
     if writer is not None:
         space = ' ' * 11
-        with tqdm(enumerate(datasets), total=len(datasets), bar_format='{l_bar}{bar:20}{r_bar}',
+        with tqdm(enumerate(datasets), total=10, bar_format='{l_bar}{bar:20}{r_bar}',
                   desc=f'{space}{title}: visualizing images with labels') as pbar:
             for index, (image, label, _) in pbar:
                 # only consist of 10 images per plot in tensorboard

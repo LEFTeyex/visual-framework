@@ -296,6 +296,7 @@ def get_img_files(path):
             with open(p, 'r') as f:
                 f = f.read().splitlines()
                 # local to global path
+                # TODO maybe change to get global path directly when load image path from *.txt
                 parent = p.parent
                 for element in f:
                     element = Path(element.strip())

@@ -11,7 +11,7 @@ from torchvision.ops import batched_nms
 
 from utils.log import LOGGER
 from utils.bbox import xywh2xyxy
-from utils.check import check_between_0_1
+from utils.check import check_between_0_1, check_version
 from utils.typeslib import _tuple_or_None, _int_or_Tensor
 
 __all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
@@ -59,9 +59,11 @@ def parse_bbox_yolov5(bbox: Tensor, anchor: Tensor, nxy_grid: _tuple_or_None = N
     return bbox
 
 
-def create_grid_tensor(nxy_grid: tuple, ndim_bbox: int, device):
+def create_grid_tensor(nxy_grid: tuple, ndim_bbox: int, device=None):
     assert len(nxy_grid) == 2, f'Excepted 2 element in grid for xy, but got {len(nxy_grid)} element'
     assert ndim_bbox >= 3, f'Excepted 3 dimension for bbox, but got {ndim_bbox} dimensions'
+    if device is None:
+        device = torch.device('cpu')
 
     pre_shape = [1 for _ in range(ndim_bbox - 3)]
     nx, ny = nxy_grid
@@ -69,7 +71,10 @@ def create_grid_tensor(nxy_grid: tuple, ndim_bbox: int, device):
     # create grid for xy which the shape is (..., h, w, 2(x, y))
     grid_x = torch.arange(nx, device=device)
     grid_y = torch.arange(ny, device=device)
-    grid_x, grid_y = torch.meshgrid(grid_x, grid_y, indexing='xy')
+    if check_version(torch.__version__, '1.10.0'):
+        grid_x, grid_y = torch.meshgrid(grid_x, grid_y, indexing='xy')
+    else:
+        grid_y, grid_x = torch.meshgrid(grid_y, grid_x)
     grid_hwxy = torch.stack((grid_x, grid_y), dim=2)
     grid_hwxy = grid_hwxy.view(*pre_shape, ny, nx, 2)
     return grid_hwxy

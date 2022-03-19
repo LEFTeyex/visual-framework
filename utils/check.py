@@ -3,7 +3,9 @@ Check utils.
 Consist of all check function.
 """
 
-__all__ = ['check_odd', 'check_even', 'check_between_0_1', 'check_only_one_set']
+import pkg_resources as pkg
+
+__all__ = ['check_odd', 'check_even', 'check_between_0_1', 'check_only_one_set', 'check_version']
 
 
 def check_odd(x: int):
@@ -58,6 +60,20 @@ def check_only_one_set(one, two):
         return False
     else:
         return True
+
+
+def check_version(current: str, version: str = '0.0.0'):
+    r"""
+    Check current version whether is larger than or equal to the version.
+    Args:
+        current: str = version currently
+        version:  str = version for checking
+
+    Returns:
+        True/False
+    """
+    current, version = [pkg.parse_version(x) for x in (current, version)]
+    return current >= version
 
 
 def _test():
