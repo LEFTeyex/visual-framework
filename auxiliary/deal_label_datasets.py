@@ -12,7 +12,7 @@ from tqdm import tqdm
 from pathlib import Path
 from typing import Optional
 
-from utils.general import save_all_txt
+from utils.general import save_all_txt, load_all_txt
 
 ROOT = Path.cwd()
 
@@ -40,7 +40,7 @@ def _xml2txt_yolo(path: str, classes, w: _int_or_None = None, h: _int_or_None = 
     path = Path(path)
     if not path.exists():
         raise FileExistsError(f'The path {str(path)} do not exist')
-    save_parent = path.parent / (path.name + '_yolo')
+    save_parent = path.parent / f'{path.name}_yolo'
     save_parent.mkdir(parents=True, exist_ok=True)
     with tqdm(path.glob('*.xml'), bar_format='{l_bar}{bar:20}{r_bar}',
               desc=f'{path.name} xml2txt_yolo', total=len(list(path.glob('*.xml')))) as pbar:
@@ -58,7 +58,11 @@ def _xml2txt_yolo(path: str, classes, w: _int_or_None = None, h: _int_or_None = 
             labels = []
             for obj in root.iter('object'):
                 cls = obj.find('name').text
-                difficult = obj.find('difficult').text
+                difficult = obj.find('difficult')
+                if difficult is None:
+                    difficult = 0
+                else:
+                    difficult = difficult.text
                 # the class is not for using or it is difficult
                 condition = (cls not in classes or int(difficult) == 1) if filter_difficult else (cls not in classes)
                 if condition:
@@ -147,13 +151,55 @@ def convert_xml2txt_yolo_or_classify_datasets(args):
 
     elif kind == 'classify':
         path = args.path_classify
-        save_path = args.save_path / args.dir_name
+        save_path = Path(args.save_path) / args.dir_name
         seed = args.seed
         weights = args.weights
         _classify_datasets(path, save_path, seed, weights)
 
     else:
         raise ValueError(f'The input kind {args.kind} is wrong')
+
+
+def add_prefix_suffix_for_path_txt(list_str: list, prefix: str, suffix: str):
+    for idx, x in enumerate(list_str):
+        list_str[idx] = [str(Path(prefix) / f'{x}{suffix}')]
+    return list_str
+
+
+def deal_voc(path: str):
+    r"""
+    Deal VOC datasets to yolo.
+    Path like ../VOC2012
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileExistsError(f'The path {str(path)} do not exist')
+
+    # convert labels
+    image_dir = path / 'JPEGImages'
+    label_dir = path / 'Annotations'
+    classes = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car',
+               'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
+               'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
+    _xml2txt_yolo(str(label_dir), classes, filter_difficult=False)
+    label_dir = path / 'Annotations_yolo'
+
+    # deal train and val txt
+    deal_txt = ['trainval.txt', 'train.txt', 'val.txt']
+    save_txt_path = [path / txt for txt in deal_txt]
+    deal_txt = [str(path / 'ImageSets/Main' / txt) for txt in deal_txt]
+    prefix = str(path / 'images')
+    suffix = '.jpg'
+
+    all_txt_list = load_all_txt(*deal_txt)
+    for idx, txt_list in enumerate(all_txt_list):
+        all_txt_list[idx] = add_prefix_suffix_for_path_txt(txt_list, prefix, suffix)
+    save_all_txt(*zip(all_txt_list, save_txt_path))
+
+    # reset name for JPEGImages and Annotations
+    image_dir.rename(path / 'images')
+    label_dir.rename(path / 'labels')
+    print('Done')
 
 
 def parse_args_detect(known: bool = False):
@@ -165,22 +211,14 @@ def parse_args_detect(known: bool = False):
 
     Return namespace(for setting args)
     """
-    from os import PathLike
-    _str_or_None = Optional[str]
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--kind', type=str, default='classify', help='xml2txt / classify')
     # xml2txt_yolo
     parser.add_argument('--path_parent', type=str, default='F:/datasets/VOCdevkit/VOC2012', help='')
     parser.add_argument('--dir_xml', type=list, default=['Annotations'], help='')
-    # parser.add_argument('--classes', type=list,
-    #                     default=[],
-    #                     help='Mine')
     parser.add_argument('--classes', type=list,
-                        default=['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car',
-                                 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
-                                 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor'],
-                        help='VOC')
+                        default=[],
+                        help='Mine')
     # parser.add_argument('--classes', type=list,
     #                     default=['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
     #                              'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench',
@@ -198,7 +236,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--filter_difficult', type=bool, default=False, help='')
     # classify_datasets
     parser.add_argument('--path_classify', type=str, default='F:/datasets/VOCdevkit/VOC2012/images', help='')
-    parser.add_argument('--save_path', type=PathLike, default=ROOT.parent / 'data/datasets', help='')
+    parser.add_argument('--save_path', type=str, default=str(ROOT.parent / 'data/datasets'), help='')
     parser.add_argument('--dir_name', type=str, default='VOC2012', help='')
     parser.add_argument('--seed', type=int, default=0, help='')
     parser.add_argument('--weights', type=list, default=[0.8, 0.1],
@@ -214,3 +252,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

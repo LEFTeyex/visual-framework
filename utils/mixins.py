@@ -607,7 +607,7 @@ class TrainDetectMixin(object):
 
     def _show_loss_in_pbar_training(self, loss, pbar):
         # GPU memory used which an approximate value because of 1E9
-        memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3f}GB'
+        memory_cuda = f'GPU: {torch.cuda.memory_reserved(self.device) / 1E9 if torch.cuda.is_available() else 0:.3f}GB'
 
         # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824 but slow
         # memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1073741824 if torch.cuda.is_available() else 0:.3f}GB'
@@ -790,10 +790,9 @@ class ValDetectMixin(object):
             stats.append((pred_iou_level.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), label_cls))
         return stats
 
-    @staticmethod
-    def _show_loss_in_pbar_validating(loss, pbar):
+    def _show_loss_in_pbar_validating(self, loss, pbar):
         # GPU memory used which an approximate value because of 1E9
-        memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3f}GB'
+        memory_cuda = f'GPU: {torch.cuda.memory_reserved(self.device) / 1E9 if torch.cuda.is_available() else 0:.3f}GB'
 
         # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824 but slow
         # memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1073741824 if torch.cuda.is_available() else 0:.3f}GB'

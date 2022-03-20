@@ -14,7 +14,8 @@ from functools import wraps
 from utils.log import LOGGER
 from utils.typeslib import _int_or_None, _path
 
-__all__ = ['timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'save_all_txt', 'load_all_yaml', 'save_all_yaml',
+__all__ = ['timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'save_all_txt', 'load_all_txt',
+           'load_all_yaml', 'save_all_yaml',
            'init_seed', 'select_one_device']
 
 
@@ -73,6 +74,30 @@ def delete_list_indices(list_delete: list, indices_delete: list):
     return list_delete
 
 
+def load_all_txt(*args: _path):
+    r"""
+    Load all *.txt to list from the path.
+    Args:
+        args: _path = Path, ...
+
+    Return list(list, ...) or list(when only one txt to load)
+    """
+    LOGGER.debug('Loading all txt list...')
+    txt_list = []
+    for path in args:
+        _list = []
+        with open(path, 'r') as f:  # todo args can change
+            f = f.read().splitlines()
+            for element in f:
+                _list.append(element.strip())
+            txt_list.append(_list)
+    # return list or tuple(list, list, ...)
+    if len(txt_list) == 1:
+        txt_list = txt_list[0]
+    LOGGER.debug('Load all txt list successfully')
+    return txt_list
+
+
 def save_all_txt(*args, mode='w'):
     r"""
     Save all list or tuple to *.txt in the path.
@@ -85,7 +110,11 @@ def save_all_txt(*args, mode='w'):
         assert isinstance(content_txt, (list, tuple)), \
             f'Excepted the type of content_txt to save is list or tuple but got {type(content_txt)}'
         with open(path, mode) as f:  # todo args can change
-            content_txt = content_txt if isinstance(content_txt[0], (list, tuple)) else [content_txt]
+            try:
+                content_txt = content_txt if isinstance(content_txt[0], (list, tuple)) else [content_txt]
+            except IndexError:
+                LOGGER.warning(f'Save nothing in {path}')
+                break
             txt = ''
             for content in content_txt:
                 txt += ' '.join(f'{x}' for x in content) + '\n'

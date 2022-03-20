@@ -190,17 +190,16 @@ r"""def demo_parse_args_detect(known: bool = False):
     
         Return namespace(for setting args)
         '''
-        _str_or_None = Optional[str]
         parser = argparse.ArgumentParser()
         parser.add_argument('--tensorboard', type=bool, default=True, help='')
-        parser.add_argument('--visual_image', type=bool, default=False,
-                        help='whether make images visual in tensorboard')
+        parser.add_argument('--visual_image', type=bool, default=True,
+                            help='whether make images visual in tensorboard')
         parser.add_argument('--visual_graph', type=bool, default=False,
-                        help='whether make model graph visual in tensorboard')
+                            help='whether make model graph visual in tensorboard')
         parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
         parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-        parser.add_argument('--epochs', type=int, default=10, help='epochs for training')
-        parser.add_argument('--batch_size', type=int, default=16, help='')
+        parser.add_argument('--epochs', type=int, default=300, help='epochs for training')
+        parser.add_argument('--batch_size', type=int, default=2, help='')
         parser.add_argument('--workers', type=int, default=0, help='')
         parser.add_argument('--shuffle', type=bool, default=True, help='')
         parser.add_argument('--pin_memory', type=bool, default=True, help='')
@@ -208,16 +207,16 @@ r"""def demo_parse_args_detect(known: bool = False):
         parser.add_argument('--name', type=str, default='exp', help='')
         parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
         parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
-        parser.add_argument('--augment', type=bool, default=True, help='whether random augment image')
+        parser.add_argument('--augment', type=bool, default=False, help='whether random augment image')
         parser.add_argument('--data_augment', type=str, default='mosaic',
-                        help='the kind of data augmentation mosaic / mixup / cutout')
+                            help='the kind of data augmentation mosaic / mixup / cutout')
         parser.add_argument('--inc', type=int, default=3, help='')
         parser.add_argument('--image_size', type=int, default=640, help='')
-        parser.add_argument('--load_model', type=_str_or_None, default=None, help='')
+        parser.add_argument('--load_model', type=str, default=None, help='')
         parser.add_argument('--load_optimizer', type=bool, default=False, help='')
         parser.add_argument('--load_lr_scheduler', type=bool, default=False, help='')
         parser.add_argument('--load_gradscaler', type=bool, default=False, help='')
-        parser.add_argument('--load_start_epoch', type=_str_or_None, default=None, help='')
+        parser.add_argument('--load_start_epoch', type=str, default=None, help='')
         parser.add_argument('--load_best_fitness', type=bool, default=False, help='')
         namespace = parser.parse_known_args()[0] if known else parser.parse_args()
         return namespace"""
