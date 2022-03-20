@@ -48,7 +48,7 @@ class DatasetDetect(Dataset):
         self.img_files = get_img_files(path)  # get the path tuple of image files
         self.indices = range(len(self.img_files))  # for choices in data augmentation
         # check img suffix and sort img_files(to str)
-        self.img_files = sorted(str(x) for x in self.img_files if x.suffix.replace('.', '').lower() in IMAGE_FORMATS)
+        self.img_files = sorted(str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS))
         self.img_files = tuple(self.img_files)  # to save memory
         if not self.img_files:
             raise FileNotFoundError('No images found')
@@ -279,32 +279,39 @@ def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0,
     return image, (h2, w2), padxy
 
 
-def get_img_files(path):
+def get_img_files(path, file_path_is_absolute: bool = True):
     r"""
     Get all the image path in the path and its dir.
     Args:
         path: = pathlike or [pathlike, ...]
+        file_path_is_absolute: bool = True/False whether the path in file is
 
-    Return img_files(which is absolute image paths tuple)
+    Returns:
+        img_files(which is absolute image paths tuple)
     """
     img_files = []
     for p in path if isinstance(path, list) else [path]:
         p = Path(p)
         if p.is_dir():
             img_files += [x for x in p.rglob('*.*')]
+
         elif p.is_file():
             with open(p, 'r') as f:
                 f = f.read().splitlines()
-                # local to global path
-                # TODO maybe change to get global path directly when load image path from *.txt
-                parent = p.parent
-                for element in f:
-                    element = Path(element.strip())
-                    if '\\' in element.parts:  # remove / in the front of it
-                        element = parent / Path(*element[1:])
-                        img_files.append(element)
-                    else:
-                        img_files.append(parent / element)
+                if file_path_is_absolute:
+                    # get global path directly
+                    for element in f:
+                        img_files.append(Path(element.strip()))
+                else:
+                    # local to global path from /*.jpg or *.jpg
+                    parent = p.parent  # means that the file and the image to load is in the same directory
+                    for element in f:
+                        element = Path(element.strip())
+                        if '\\' in element.parts:  # remove / in the front of it
+                            element = parent / str(element)[1:]
+                            img_files.append(element)
+                        else:
+                            img_files.append(parent / element)
         else:
             raise TypeError(f'Something wrong with {p} in the type of file')
     return tuple(img_files)  # to save memory
@@ -398,3 +405,7 @@ def get_and_check_datasets_yaml(path: _path):
 
     LOGGER.info('Get the path for training successfully')
     return datasets
+
+
+if __name__ == '__main__':
+    pass

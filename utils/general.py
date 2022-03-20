@@ -82,6 +82,8 @@ def save_all_txt(*args, mode='w'):
     """
     LOGGER.debug('Saving all txt...')
     for content_txt, path in args:
+        assert isinstance(content_txt, (list, tuple)), \
+            f'Excepted the type of content_txt to save is list or tuple but got {type(content_txt)}'
         with open(path, mode) as f:  # todo args can change
             content_txt = content_txt if isinstance(content_txt[0], (list, tuple)) else [content_txt]
             txt = ''

@@ -15,16 +15,16 @@
 #                                                        |---...
 
 # the path should better be absolute
-path: f:/datasets/Codinguse
+path: data/datasets/VOC2012
 
 # the train image path(or train.txt which the image path is relative to 'path') in the path
-train: images  # must exists
+train: train.txt  # must exists
 
 # the val image path(or val.txt) in the path
-val: images  # must exists
+val: val.txt  # must exists
 
 # the test image path(or test.txt) in the path
-#test: images
+test: test.txt
 
 # anchors is wh
 anchors:
@@ -36,5 +36,21 @@ anchors:
 nc: 20
 
 # name of classes corresponding to 0, 1, 2, ...
-names: ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog',
-        'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
+
+# VOC
+names: ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car',
+        'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
+        'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
+
+# COCO
+#names: ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
+#        'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench',
+#        'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
+#        'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis',
+#        'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard',
+#        'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife',
+#        'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
+#        'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+#        'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard',
+#        'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book',
+#        'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush']

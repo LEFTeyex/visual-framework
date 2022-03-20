@@ -85,13 +85,12 @@ def _xml2txt_yolo(path: str, classes, w: _int_or_None = None, h: _int_or_None = 
 def _classify_datasets(path: str, save_path: str, seed: int, weights=(0.8, 0.1)):
     r"""Get absolute path for training images"""
     classify_to = ('train', 'val', 'test')
-    print(save_path)
     save_path = Path(save_path)
     save_path.mkdir(parents=True, exist_ok=True)
 
-    # set seed
+    # set seed and save
     random.seed(seed)
-    save_all_txt(([[seed]], save_path / 'seed.txt'))
+    save_all_txt(([seed], save_path / 'seed.txt'))
 
     # get image paths
     image_formats = ('bmp', 'jpg', 'jpeg', 'jpe', 'png', 'tif', 'tiff', 'webp')  # acceptable image suffixes
@@ -148,7 +147,7 @@ def convert_xml2txt_yolo_or_classify_datasets(args):
 
     elif kind == 'classify':
         path = args.path_classify
-        save_path = args.save_path
+        save_path = args.save_path / args.dir_name
         seed = args.seed
         weights = args.weights
         _classify_datasets(path, save_path, seed, weights)
@@ -166,22 +165,41 @@ def parse_args_detect(known: bool = False):
 
     Return namespace(for setting args)
     """
+    from os import PathLike
     _str_or_None = Optional[str]
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--kind', type=str, default='classify', help='xml2txt / classify')
     # xml2txt_yolo
     parser.add_argument('--path_parent', type=str, default='F:/datasets/VOCdevkit/VOC2012', help='')
     parser.add_argument('--dir_xml', type=list, default=['Annotations'], help='')
+    # parser.add_argument('--classes', type=list,
+    #                     default=[],
+    #                     help='Mine')
     parser.add_argument('--classes', type=list,
                         default=['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car',
                                  'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
                                  'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor'],
-                        help='')
+                        help='VOC')
+    # parser.add_argument('--classes', type=list,
+    #                     default=['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
+    #                              'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench',
+    #                              'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
+    #                              'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis',
+    #                              'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard',
+    #                              'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife',
+    #                              'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
+    #                              'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+    #                              'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard',
+    #                              'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'book',
+    #                              'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'],
+    #                     help='COCO')
     parser.add_argument('--wh', type=tuple, default=(None, None), help='')
     parser.add_argument('--filter_difficult', type=bool, default=False, help='')
     # classify_datasets
-    parser.add_argument('--path_classify', type=str, default='F:/datasets/VOCdevkit/VOC2012/JPEGImages', help='')
-    parser.add_argument('--save_path', type=str, default=(ROOT.parent / 'data/datasets/data1'), help='')
+    parser.add_argument('--path_classify', type=str, default='F:/datasets/VOCdevkit/VOC2012/images', help='')
+    parser.add_argument('--save_path', type=PathLike, default=ROOT.parent / 'data/datasets', help='')
+    parser.add_argument('--dir_name', type=str, default='VOC2012', help='')
     parser.add_argument('--seed', type=int, default=0, help='')
     parser.add_argument('--weights', type=list, default=[0.8, 0.1],
                         help='the proportion of train and val, the rest is test')

@@ -181,6 +181,7 @@ if __name__ == '__main__':
     # TODO learn moviepy library sometimes
 
     # when need because it is complex
+    # TODO add FLOPs compute module for model
     # TODO auto compute anchors
 
     # next work
