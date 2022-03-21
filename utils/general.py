@@ -7,6 +7,7 @@ import yaml
 import time
 import torch
 import random
+import datetime
 import numpy as np
 
 from functools import wraps
@@ -27,7 +28,8 @@ def timer(func):
         t0 = time.time()
         func(*args, **kwargs)
         t = time.time() - t0
-        LOGGER.info(f'function: {func.__name__} took {t:.2f} s')
+        LOGGER.info(f'The function: {func.__name__} took {t:.2f} s')
+        LOGGER.info(f'It is finished at {datetime.datetime.now()}')
 
     return wrapper
 

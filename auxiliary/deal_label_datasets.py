@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ElementTree
 
 from tqdm import tqdm
 from pathlib import Path
+from pycocotools.coco import COCO
 from typing import Optional
 
 from utils.general import save_all_txt, load_all_txt
@@ -34,6 +35,19 @@ def _xyxy2xywhn(bbox, w: int, h: int):
     return [x, y, w, h]
 
 
+def _x1y1wh2xywhn(bbox, w: int, h: int):
+    dw = 1. / w
+    dh = 1. / h
+    x = bbox[0] + bbox[2] / 2
+    y = bbox[1] + bbox[3] / 2
+    w, h = bbox[2:]
+    x = x * dw
+    w = w * dw
+    y = y * dh
+    h = h * dh
+    return [x, y, w, h]
+
+
 def _xml2txt_yolo(path: str, classes, w: _int_or_None = None, h: _int_or_None = None,
                   filter_difficult: bool = True):
     r"""For object detection"""
@@ -45,7 +59,7 @@ def _xml2txt_yolo(path: str, classes, w: _int_or_None = None, h: _int_or_None = 
     with tqdm(path.glob('*.xml'), bar_format='{l_bar}{bar:20}{r_bar}',
               desc=f'{path.name} xml2txt_yolo', total=len(list(path.glob('*.xml')))) as pbar:
         for p in pbar:
-            save_path = save_parent / (p.stem + '.txt')
+            save_path = save_parent / f'{p.stem}.txt'
             root = ElementTree.parse(p).getroot()
             size = root.find('size')
             if size is None:
@@ -168,8 +182,19 @@ def add_prefix_suffix_for_path_txt(list_str: list, prefix: str, suffix: str):
 
 def deal_voc(path: str):
     r"""
-    Deal VOC datasets to yolo.
+    Deal VOC datasets to yolo(from xml to txt).
     Path like ../VOC2012
+    The dir structure is ../VOC2012|Annotations|2007_000027.xml
+                                   |           |    ...
+                                   |
+                                   |JPEGImages|2007_000027.jpg
+                                   |          |    ...
+                                   |
+                                   |ImageSets|Main|trainval.txt
+                                   |              |train.txt
+                                   |              |val.txt
+                                   |              | ...
+                                   |  ...
     """
     path = Path(path)
     if not path.exists():
@@ -202,6 +227,55 @@ def deal_voc(path: str):
     print('Done')
 
 
+def deal_coco(path: str):
+    r"""
+    Deal COCO datasets to yolo(from json to txt).
+    Path like ../COCO2017
+    The dir structure is ../COCO2017|annotations|instances_train2017.json
+                                    |           |instances_val2017.json
+                                    |           |       ...
+                                    |
+                                    |
+                                    |images|train2017
+                                           |val2017
+                                           |  ...
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileExistsError(f'The path {str(path)} do not exist')
+    image_dir = path / 'images'
+    label_dir = path / 'annotations'
+    deal_json = ['instances_train2017.json', 'instances_val2017.json']
+    for json_path in deal_json:
+        # get data of image from json file by pycocotools.coco.COCO
+        data = COCO(label_dir / json_path)
+        data_type = json_path[10:-5]
+        img_path_save_path = path / f'{data_type}.txt'
+
+        with tqdm(data.imgToAnns.items(), bar_format='{l_bar}{bar:20}{r_bar}',
+                  desc=f'{data_type} json2txt_yolo', total=len(data.imgToAnns.items())) as pbar:
+            # deal annotations to labels
+            for Id, annotations in pbar:
+                img_data = data.imgs[Id]
+                img_name = img_data['file_name']
+                img_path = [str(image_dir / data_type / img_name)]
+                label_name = img_name.replace('.jpg', '.txt')
+                h, w = img_data['height'], img_data['width']
+                label_save_path = path / f"labels/{data_type}/{label_name}"
+                label_save_path.parent.mkdir(parents=True, exist_ok=True)
+                labels = []
+                for ann in annotations:
+                    bbox = ann['bbox']
+                    cls_idx = [ann['category_id']]
+                    bbox = _x1y1wh2xywhn(bbox, w, h)
+                    label = cls_idx + bbox
+                    labels.append(label)
+                save_all_txt((labels, label_save_path))
+                # notice that if you run this function it will write repeat path in *.txt
+                save_all_txt((img_path, img_path_save_path), mode='a')
+    print('Done')
+
+
 def parse_args_detect(known: bool = False):
     r"""
     Parse args for training.
@@ -212,12 +286,12 @@ def parse_args_detect(known: bool = False):
     Return namespace(for setting args)
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--kind', type=str, default='classify', help='xml2txt / classify')
+    parser.add_argument('--kind', type=str, default='xml2txt', help='xml2txt / classify')
     # xml2txt_yolo
-    parser.add_argument('--path_parent', type=str, default='F:/datasets/VOCdevkit/VOC2012', help='')
-    parser.add_argument('--dir_xml', type=list, default=['Annotations'], help='')
+    parser.add_argument('--path_parent', type=str, default='F:/datasets/URPC2021/train', help='')
+    parser.add_argument('--dir_xml', type=list, default=['box'], help='')
     parser.add_argument('--classes', type=list,
-                        default=[],
+                        default=['holothurian', 'echinus', 'scallop', 'starfish'],
                         help='Mine')
     # parser.add_argument('--classes', type=list,
     #                     default=['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
@@ -252,4 +326,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

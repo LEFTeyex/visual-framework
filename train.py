@@ -187,4 +187,4 @@ if __name__ == '__main__':
     # TODO add necessary functions
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
-    # TODO add cocoAPI
+    # TODO add pycocotools

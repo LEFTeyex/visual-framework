@@ -13,6 +13,8 @@
 #               |---0002.txt                 |train2...  |---0001.txt (class,x,y,w,h)
 #               |---...                      |...        |---0002.txt
 #                                                        |---...
+# or
+# TODO train.txt val.txt test.txt
 
 # the path should better be absolute
 path: data/datasets/VOC2012
