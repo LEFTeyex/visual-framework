@@ -7,13 +7,12 @@ import argparse
 import torch.nn as nn
 
 from pathlib import Path
-from typing import Optional
 from torch.optim import SGD
 from torch.cuda.amp import GradScaler
 from torch.optim.lr_scheduler import StepLR
 
 from utils.loss import LossDetectYolov5
-from models.model_detect import ModelDetect
+from models.yolov5.yolov5_v6 import yolov5s_v6
 from metaclass.metatrainer import MetaTrainDetect
 from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
 from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device
@@ -72,8 +71,8 @@ class TrainDetect(MetaTrainDetect):
         # TODO upgrade DP DDP
 
         # Initialize or load model
-        self.model = self.load_model(ModelDetect(self.inc, self.datasets['nc'], self.datasets['anchors'],
-                                                 image_size=self.image_size), load=self._load_model)
+        self.model = self.load_model(yolov5s_v6(self.datasets['anchors'], self.inc, self.datasets['nc'],
+                                                self.image_size), load=self._load_model)
 
         # Set parameter groups to for the optimizer
         self.param_groups = self.set_param_groups((('bias', nn.Parameter, {}),

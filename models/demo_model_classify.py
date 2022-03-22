@@ -1,5 +1,5 @@
 r"""
-Classify Model.
+Demo of Classify Model.
 It is built by units.py or torch.nn Module.
 """
 
@@ -26,3 +26,7 @@ class ModelClassify(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         return x
+
+
+if __name__ == '__main__':
+    pass

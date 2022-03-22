@@ -163,13 +163,14 @@ def logging_initialize(name: _str_or_None = None):
     """
 
     def get_function(func):
-        log_name = name if name is not None else func.__name__
+        log_name = func.__name__ if name is None else name
 
         @wraps(func)
         def wrapper(*args, **kwargs):
             LOGGER.info(f'Initializing {log_name}...')
-            func(*args, **kwargs)
+            x = func(*args, **kwargs)
             LOGGER.info(f'Initialize {log_name} successfully')
+            return x
 
         return wrapper
 
@@ -195,8 +196,9 @@ def logging_start_finish(name: _str_or_None = None):
         @wraps(func)
         def wrapper(*args, **kwargs):
             LOGGER.info(f'Start {log_name}')
-            func(*args, **kwargs)
+            x = func(*args, **kwargs)
             LOGGER.info(f'Finished {log_name}')
+            return x
 
         return wrapper
 

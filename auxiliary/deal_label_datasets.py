@@ -180,7 +180,7 @@ def add_prefix_suffix_for_path_txt(list_str: list, prefix: str, suffix: str):
     return list_str
 
 
-def deal_voc(path: str):
+def deal_voc_detection(path: str):
     r"""
     Deal VOC datasets to yolo(from xml to txt).
     Path like ../VOC2012
@@ -227,7 +227,7 @@ def deal_voc(path: str):
     print('Done')
 
 
-def deal_coco(path: str):
+def deal_coco_detection(path: str):
     r"""
     Deal COCO datasets to yolo(from json to txt).
     Path like ../COCO2017

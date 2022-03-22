@@ -37,6 +37,7 @@ class MetaModelDetect(nn.Module):
         return scalings, image_size
 
     def scale_anchors(self):
+        r"""For anchor method but anchor free method"""
         self.anchors /= self.scalings.view(-1, 1, 1)
 
     def forward(self, x):
