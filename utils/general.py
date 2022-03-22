@@ -57,19 +57,27 @@ def to_tuplex(value, n: int):
     return (value,) * abs(n)
 
 
-def delete_list_indices(list_delete: list, indices_delete: list):
+def delete_list_indices(list_delete: list, indices_delete):
     r"""
     Delete list element according to its indices.
     Args:
         list_delete: list = [element, ...]
-        indices_delete: list = [int, ...], int must >= 0
+        indices_delete: list = [int, ...]
 
-    Return list_delete
+    Returns:
+        list_delete
     """
+    if not isinstance(indices_delete, (list, tuple)):
+        indices_delete = [indices_delete]
     assert len(list_delete) >= len(indices_delete), \
         f'The len of two args: {len(list_delete)} must be greater than or equal to {len(indices_delete)}'
-    if (np.asarray(indices_delete) < 0).any():
-        raise ValueError('The int in indices_delete can not be less than 0')
+
+    # make minus indices_delete to positive and sort
+    list_len = len(list_delete)
+    indices_delete = np.asarray(indices_delete)
+    filter_minus = indices_delete < 0
+    indices_delete[filter_minus] = indices_delete[filter_minus] + list_len
+    indices_delete.sort()
 
     for offset, index in enumerate(indices_delete):
         list_delete.pop(index - offset)

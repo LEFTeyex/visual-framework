@@ -90,7 +90,6 @@ class Head(nn.Module):
 
 
 class BaseYolov5V6(MetaModelDetect):
-    # TODO Upgrade for somewhere in the future
     r"""YOLOv5 v6.0"""
 
     def __init__(self, inc: int, cfg: dict, num_class: int, anchors: list, num_bbox: int = 5, img_size: int = 640,
@@ -135,6 +134,9 @@ class BaseYolov5V6(MetaModelDetect):
 cfgs = {
     'inc': 3, 'num_class': 80,
     'head_in_channels_idx_to_neck': (5, 9, 13),
+    'anchors': [[[10, 13], [16, 30], [33, 23]],
+                [[30, 61], [62, 45], [59, 119]],
+                [[116, 90], [156, 198], [373, 326]]],
 
     'yolov5n_v6': {
         'backbone_channels': [16, 32, 32, 64, 64, 128, 128, 256, 256, 256, 128],
@@ -173,61 +175,59 @@ cfgs = {
 }
 
 
-def _get_inc_and_num_class(inc, num_class):
+def _get_inc_and_num_class(inc, num_class, anchors):
     inc = cfgs['inc'] if inc is None else inc
     num_class = cfgs['num_class'] if num_class is None else num_class
-    return inc, num_class
+    anchors = cfgs['anchors'] if anchors is None else anchors
+    return inc, num_class, anchors
 
 
 @logging_initialize()
-def yolov5n_v6(anchors: list, inc: int = None, num_class: int = None,
+def yolov5n_v6(inc: int = None, num_class: int = None, anchors: list = None,
                img_size: int = 640, g=1, act='silu', bn=True, bias=False):
-    inc, num_class = _get_inc_and_num_class(inc, num_class)
+    inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5n_v6']
     return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
 
 
 @logging_initialize()
-def yolov5s_v6(anchors: list, inc: int = None, num_class: int = None,
+def yolov5s_v6(inc: int = None, num_class: int = None, anchors: list = None,
                img_size: int = 640, g=1, act='silu', bn=True, bias=False):
-    inc, num_class = _get_inc_and_num_class(inc, num_class)
+    inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5s_v6']
     return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
 
 
 @logging_initialize()
-def yolov5m_v6(anchors: list, inc: int = None, num_class: int = None,
+def yolov5m_v6(inc: int = None, num_class: int = None, anchors: list = None,
                img_size: int = 640, g=1, act='silu', bn=True, bias=False):
-    inc, num_class = _get_inc_and_num_class(inc, num_class)
+    inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5m_v6']
     return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
 
 
 @logging_initialize()
-def yolov5l_v6(anchors: list, inc: int = None, num_class: int = None,
+def yolov5l_v6(inc: int = None, num_class: int = None, anchors: list = None,
                img_size: int = 640, g=1, act='silu', bn=True, bias=False):
-    inc, num_class = _get_inc_and_num_class(inc, num_class)
+    inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5l_v6']
     return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
 
 
 @logging_initialize()
-def yolov5x_v6(anchors: list, inc: int = None, num_class: int = None,
+def yolov5x_v6(inc: int = None, num_class: int = None, anchors: list = None,
                img_size: int = 640, g=1, act='silu', bn=True, bias=False):
-    inc, num_class = _get_inc_and_num_class(inc, num_class)
+    inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5x_v6']
     return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
 
 
 def _test():
-    anchors = [[[10, 13], [16, 30], [33, 23]],
-               [[30, 61], [62, 45], [59, 119]],
-               [[116, 90], [156, 198], [373, 326]]]
-    model_list = [yolov5n_v6(anchors),
-                  yolov5s_v6(anchors),
-                  yolov5m_v6(anchors),
-                  yolov5l_v6(anchors),
-                  yolov5x_v6(anchors)]
+    model_list = [yolov5n_v6(),
+                  yolov5s_v6(),
+                  yolov5m_v6(),
+                  yolov5l_v6(),
+                  yolov5x_v6()]
     for model in model_list:
         print(model)
 

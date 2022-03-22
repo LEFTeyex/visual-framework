@@ -6,6 +6,7 @@ Consist of Conv, Linear module designed by myself.
 import torch
 import torch.nn as nn
 
+from utils.log import LOGGER
 from utils.general import to_tuplex
 from models.units_utils import auto_pad, select_act
 
@@ -26,9 +27,9 @@ class Conv(nn.Module):
         k = to_tuplex(k, 2)
         s = to_tuplex(s, 2)
 
-        self.act = select_act(act)
-        self.bn = nn.BatchNorm2d(outc) if bn else nn.Identity()  # TODO need to upgrade in the future
         self.conv = nn.Conv2d(inc, outc, k, s, p, groups=g, bias=bias)
+        self.bn = nn.BatchNorm2d(outc) if bn else nn.Identity()  # TODO need to upgrade in the future
+        self.act = select_act(act)
 
     def forward(self, x):
         x = self.act(self.bn(self.conv(x)))
@@ -52,9 +53,9 @@ class DWConv(nn.Module):
         k = to_tuplex(k, 2)
         s = to_tuplex(s, 2)
 
-        self.act = select_act(act)
-        self.bn = nn.BatchNorm2d(outc) if bn else nn.Identity()
         self.conv = nn.Conv2d(inc, outc, k, s, p, groups=inc, bias=bias)
+        self.bn = nn.BatchNorm2d(outc) if bn else nn.Identity()
+        self.act = select_act(act)
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -72,9 +73,9 @@ class PointConv(nn.Module):
         k = to_tuplex(1, 2)
         s = to_tuplex(1, 2)
 
-        self.act = select_act(act)
-        self.bn = nn.BatchNorm2d(outc) if bn else nn.Identity()
         self.conv = nn.Conv2d(inc, outc, k, s, groups=g, bias=bias)
+        self.bn = nn.BatchNorm2d(outc) if bn else nn.Identity()
+        self.act = select_act(act)
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -89,11 +90,11 @@ class Linear(nn.Module):
 
     def __init__(self, inf, outf, outc=0, act='relu', bn=True, bias=False):
         super(Linear, self).__init__()
-        self.act = select_act(act)
-        self.bn = nn.BatchNorm1d(outc) if (bn and outc) else nn.Identity()
-        if bn is True and outc == 0:
-            print('The BatchNorm1d do not be instantiated because the outc is 0, please reset the outc')
         self.fc = nn.Linear(inf, outf, bias=bias)
+        self.bn = nn.BatchNorm1d(outc) if (bn and outc) else nn.Identity()
+        self.act = select_act(act)
+        if bn is True and outc == 0:
+            LOGGER.warning('The BatchNorm1d do not be instantiated because the outc is 0, please reset the outc')
 
     def forward(self, x):
         return self.act(self.bn(self.fc(x)))
@@ -114,12 +115,13 @@ class LargeKernelConv(nn.Module):
         k2 = to_tuplex(k2, 2)
         d = to_tuplex(d, 2)
         s = to_tuplex(s, 2)
-        self.act = select_act(act)
-        self.bn = nn.BatchNorm2d(c) if bn else nn.Identity()
+
         self.dw_conv = nn.Conv2d(c, c, k1, s, p1, groups=c, bias=bias)
         self.dwd_conv = nn.Conv2d(c, c, k2, s, p2, dilation=d, groups=c, bias=bias)
         self.point_conv = nn.Conv2d(c, c, (1, 1), bias=bias)
         self.attention = attention
+        self.bn = nn.BatchNorm2d(c) if bn else nn.Identity()
+        self.act = select_act(act)
 
     def forward(self, x):
         v = x.clone()
