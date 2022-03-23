@@ -443,8 +443,8 @@ class LoadAllCheckPointMixin(object):
                 if not element:  # if empty
                     indices_filter.append(index)
 
-            indices = delete_list_indices(indices, indices_filter)
-            rest = delete_list_indices(rest, indices_filter)
+            delete_list_indices(indices, indices_filter)
+            delete_list_indices(rest, indices_filter)
 
             # add params to dict and add param_dict to param_groups
             param_dict['params'] = save_params

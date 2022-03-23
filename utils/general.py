@@ -10,6 +10,7 @@ import random
 import datetime
 import numpy as np
 
+from copy import deepcopy
 from functools import wraps
 
 from utils.log import LOGGER
@@ -57,15 +58,13 @@ def to_tuplex(value, n: int):
     return (value,) * abs(n)
 
 
-def delete_list_indices(list_delete: list, indices_delete):
+def delete_list_indices(list_delete: list, indices_delete, inplace: bool = True):
     r"""
-    Delete list element according to its indices.
+    Delete list element according to its indices (inplace).
     Args:
         list_delete: list = [element, ...]
-        indices_delete: list = [int, ...]
-
-    Returns:
-        list_delete
+        indices_delete: = list or int
+        inplace: = whether inplace operation
     """
     if not isinstance(indices_delete, (list, tuple)):
         indices_delete = [indices_delete]
@@ -79,9 +78,14 @@ def delete_list_indices(list_delete: list, indices_delete):
     indices_delete[filter_minus] = indices_delete[filter_minus] + list_len
     indices_delete.sort()
 
-    for offset, index in enumerate(indices_delete):
-        list_delete.pop(index - offset)
-    return list_delete
+    if inplace:
+        for offset, index in enumerate(indices_delete):
+            list_delete.pop(index - offset)
+    else:
+        new_list_delete = deepcopy(list_delete)
+        for offset, index in enumerate(indices_delete):
+            new_list_delete.pop(index - offset)
+        return new_list_delete
 
 
 def load_all_txt(*args: _path):
