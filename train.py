@@ -71,7 +71,7 @@ class TrainDetect(MetaTrainDetect):
         # TODO upgrade DP DDP
 
         # Initialize or load model
-        self.model = self.load_model(yolov5s_v6(self.datasets['anchors'], self.inc, self.datasets['nc'],
+        self.model = self.load_model(yolov5s_v6(self.inc, self.datasets['nc'], self.datasets['anchors'],
                                                 self.image_size), load=self._load_model)
 
         # Set parameter groups to for the optimizer
@@ -87,7 +87,7 @@ class TrainDetect(MetaTrainDetect):
         self.param_groups = self.empty()
 
         # Initialize and load lr_scheduler
-        self.lr_scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 30), load=self._load_lr_scheduler)
+        self.lr_scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 50), load=self._load_lr_scheduler)
         # TODO set lr_scheduler args to self.hyp
 
         # Initialize and load GradScaler
@@ -138,13 +138,13 @@ def parse_args_detect(known: bool = False):
                         help='whether make images visual in tensorboard')
     parser.add_argument('--visual_graph', type=bool, default=False,
                         help='whether make model graph visual in tensorboard')
-    parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
+    parser.add_argument('--weights', type=str, default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=300, help='epochs for training')
-    parser.add_argument('--batch_size', type=int, default=2, help='')
+    parser.add_argument('--epochs', type=int, default=1000, help='epochs for training')
+    parser.add_argument('--batch_size', type=int, default=16, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
-    parser.add_argument('--pin_memory', type=bool, default=True, help='')
+    parser.add_argument('--pin_memory', type=bool, default=False, help='')
     parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
     parser.add_argument('--name', type=str, default='exp', help='')
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
@@ -154,7 +154,7 @@ def parse_args_detect(known: bool = False):
                         help='the kind of data augmentation mosaic / mixup / cutout')
     parser.add_argument('--inc', type=int, default=3, help='')
     parser.add_argument('--image_size', type=int, default=640, help='')
-    parser.add_argument('--load_model', type=str, default=None, help='')
+    parser.add_argument('--load_model', type=str, default='state_dict', help='')
     parser.add_argument('--load_optimizer', type=bool, default=False, help='')
     parser.add_argument('--load_lr_scheduler', type=bool, default=False, help='')
     parser.add_argument('--load_gradscaler', type=bool, default=False, help='')
@@ -186,4 +186,6 @@ if __name__ == '__main__':
     # TODO add necessary functions
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
+
     # TODO add pycocotools
+    # TODO add datasets.yaml for VOC COCO

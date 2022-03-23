@@ -103,6 +103,7 @@ class BaseYolov5V6(MetaModelDetect):
         self.head_in_channels = [neck_channels[idx] for idx in cfgs['head_in_channels_idx_to_neck']]
 
         self.inc = inc
+        self.nc = num_class
         self.no = num_class + num_bbox
         self.anchors, self.nl, self.na = self.get_register_anchors(anchors)
         self._check_nl()

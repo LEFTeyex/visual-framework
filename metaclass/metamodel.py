@@ -14,6 +14,7 @@ class MetaModelDetect(nn.Module):
     def __init__(self):
         super(MetaModelDetect, self).__init__()
         self.inc: int  # input channel (channel of image, RGB is 3 or GRAY is 1)
+        self.nc: int  # number of classes
         self.anchors: Tensor  # consist of wh which is corresponding to scalings
         self.nl: int  # number of layer for outputs
         self.na: int  # number of anchor per layer

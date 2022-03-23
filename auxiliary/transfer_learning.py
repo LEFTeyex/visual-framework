@@ -70,7 +70,7 @@ def print_pair_name_shape(x, y, x_position: int = 50, y_position: int = 50, x_de
 
     # print pair
     for x_ns, y_ns in zip(x, y):  # (name, shape)
-        xn, xs = x_ns
+        xn, xs = x_ns  # x name, x shape
         yn, ys = y_ns
         print(f'{str(xn):{x_p}}{str(xs):<20}{str(yn):{y_p}}{str(ys):<20}')
 
@@ -108,9 +108,11 @@ def _exchange_name_when_shape_correspond(state_dict, state_dict_to_check, x_del=
     r"""It is not inplace"""
     # get new_names and weights then delete unexpected ones
     old_weights = list(state_dict.values())
-    delete_list_indices(old_weights, x_del)
+    if x_del is not None:
+        delete_list_indices(old_weights, x_del)
     new_names = list(state_dict_to_check.keys())
-    delete_list_indices(new_names, y_del)
+    if y_del is not None:
+        delete_list_indices(new_names, y_del)
 
     # create OrderedDict for state_dict then check
     state_dict = OrderedDict(list(zip(new_names, old_weights)))
@@ -159,7 +161,8 @@ def transfer_weights(state_dict, model_instance, save_path=None):
         for unexpected_key in rest[1]:
             print(unexpected_key)
         print('-' * num)
-    torch.save(model_instance.state_dict(), save_path)
+    checkpoint = {'model': model_instance.float()}  # for mixins to load
+    torch.save(checkpoint, save_path)
 
 
 def first_check_name_shape(x, y, x_position: int = 50, y_position: int = 50, x_del=None, y_del=None):
@@ -219,13 +222,13 @@ def run():
 
     # the parameters needed to set consist of first, second and last
     first = True
-    second = False
-    last = False
+    second = True
+    last = True
 
     # first
-    state_dict_path = '../models/yolov5/yolov5x_v6_sd.pt'
+    state_dict_path = '../models/yolov5/yolov5x_v6.pt'
     model = yolov5_v6.yolov5x_v6()  # the instance model
-    x_position = 40
+    x_position = 50
     y_position = 50
     x_del = None
     y_del = None
@@ -235,21 +238,21 @@ def run():
     name_pairs = []  # only when kind == 'change'
 
     # last
-    path_save = Path(state_dict_path).parent / 'yolov5x_v6_sd.pt'
+    path_save = Path(state_dict_path).parent / 'yolov5x_v6.pt'
     # =========================================================================
 
     # others
-    state_dict_to_transfer = torch.load(state_dict_path)
+    state_dict_to_transfer = torch.load(state_dict_path)['model'].state_dict()
     model_state_dict = model.state_dict()
-    state_dict = None
+    sd = None
 
     if first and not second:
         first_check_name_shape(state_dict_to_transfer, model_state_dict, x_position, y_position, x_del, y_del)
     if second:
-        state_dict = second_change_name_of_weights(kind, state_dict_to_transfer, name_pairs, model_state_dict,
-                                                   x_del=x_del, y_del=y_del)
+        sd = second_change_name_of_weights(kind, state_dict_to_transfer, name_pairs, model_state_dict,
+                                           x_del=x_del, y_del=y_del)
     if second and last:
-        last_transfer_weights_and_save(state_dict, model, path_save)
+        last_transfer_weights_and_save(sd, model, path_save)
 
 
 if __name__ == '__main__':

@@ -205,7 +205,7 @@ class LoadAllCheckPointMixin(object):
             model_instance: _module_or_None = ModelDetect() the instance of model, Default=None(only when load='model')
             load: _str_or_None = None / 'model' / 'state_dict', Default='state_dict'(load model from state_dict)
 
-        Return model_instance
+        Return model_instance in float
         """
         # check whether model_instance and load is conflict
         if load == 'model':
@@ -224,12 +224,23 @@ class LoadAllCheckPointMixin(object):
         elif load == 'state_dict':
             LOGGER.info('Loading model state_dict...')
             self._check_checkpoint_not_none()
-            # TODO Upgrade for somewhere in the future for Transfer Learning
+            state_dict = self.checkpoint['model'].state_dict()
+
+            # generator of model name shape pair
+            model_ns = ((name, weight.shape) for name, weight in model_instance.state_dict().items())
+            # delete the same keys but different weight shape
+            for name, shape in model_ns:
+                if name in state_dict and state_dict[name].shape != shape:
+                    del state_dict[name]
+                    LOGGER.warning(f'Delete the {name} in state_dict because of different weight shape')
+
             # load model and get the rest of (0, missing_keys) and (1, unexpected_keys)
-            rest = model_instance.load_state_dict(self.checkpoint['model'].state_dict(), strict=False)
+            rest = model_instance.load_state_dict(state_dict, strict=False)
             if rest[0] or rest[1]:
                 LOGGER.warning(f'There are the rest of {len(rest[0])} missing_keys'
                                f' and {len(rest[1])} unexpected_keys when load model')
+                LOGGER.warning(f'missing_keys: {rest[0]}')
+                LOGGER.warning(f'unexpected_keys: {rest[1]}')
                 LOGGER.info('Load model state_dict successfully with the rest of keys')
             else:
                 LOGGER.info('Load model state_dict successfully without the rest of keys')
@@ -243,7 +254,7 @@ class LoadAllCheckPointMixin(object):
         else:
             raise ValueError(f"The arg load: {load} do not match, "
                              f"please input one of  (None, 'model', 'state_dict')")
-        return model_instance.to(self.device)  # return model to self.device
+        return model_instance.float().to(self.device)  # return model to self.device
 
     def load_optimizer(self, optim_instance: _optimizer, load: bool = True):
         r"""
@@ -614,7 +625,8 @@ class TrainDetectMixin(object):
 
         # show in pbar
         space = ' ' * 11
-        pbar.set_description_str(f'{space}epoch: {self.epoch}/{self.epochs - 1}, {memory_cuda}')
+        progress = f'{self.epoch}/{self.epochs - 1}:'
+        pbar.set_description_str(f"{space}epoch {progress:<9}{memory_cuda}")
         pbar.set_postfix_str(f'total_loss: {loss[0]:.3f}, '
                              f'bbox_loss: {loss[1]:.3f}, '
                              f'class_loss: {loss[2]:.3f}, '
@@ -799,7 +811,7 @@ class ValDetectMixin(object):
 
         # show in pbar
         space = ' ' * 11
-        pbar.set_description_str(f'{space}validating: {memory_cuda}')
+        pbar.set_description_str(f"{space}{'validating:':<15}{memory_cuda}")
         pbar.set_postfix_str(f'total_loss: {loss[0]:.3f}, '
                              f'bbox_loss: {loss[1]:.3f}, '
                              f'class_loss: {loss[2]:.3f}, '
