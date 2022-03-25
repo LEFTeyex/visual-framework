@@ -26,11 +26,11 @@ from utils.bbox import xywh2xyxy, rescale_xyxy
 from utils.general import delete_list_indices, time_sync, save_all_txt
 from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
 from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class, compute_fitness
-from utils.typeslib import _str_or_None, _pkt_or_None, _path, _dataset_c, _instance_c, \
+from utils.typeslib import _str_or_None, _list_or_None, _pkt_or_None, _path, _dataset_c, _instance_c, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler
 
-__all__ = ['SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'DataLoaderMixin', 'LossMixin',
-           'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin']
+__all__ = ['SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'FreezeLayersMixin',
+           'DataLoaderMixin', 'LossMixin', 'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin']
 
 
 class SetSavePathMixin(object):
@@ -85,6 +85,7 @@ class SetSavePathMixin(object):
 
     def _set_name(self):
         r"""Set name for save file without repeating, runs/*/exp1, runs/*/exp2"""
+        self.save_path = Path(self.save_path)
         if self.save_path.exists():
             # to save number of exp
             list_num = []
@@ -153,7 +154,7 @@ class LoadAllCheckPointMixin(object):
     r"""
     Need self.model, self.device, self.checkpoint, self.param_groups, self.epochs
     The function in the Mixin below.
-    1. Load checkpoint from self.weights '*.pt' or '*.pth' file. ---------- ues self.device
+    1. Load checkpoint from path '*.pt' or '*.pth' file. ------------------ ues self.device
     2. Load model from 'model' or 'state_dict' or initialize model. ------- ues self.device, self.checkpoint
     3. Load optimizer from state_dict and add param_groups first. --------- ues self.checkpoint, self.param_groups
     4. Load lr_scheduler from state_dict. --------------------------------- ues self.checkpoint
@@ -226,9 +227,8 @@ class LoadAllCheckPointMixin(object):
             self._check_checkpoint_not_none()
             state_dict = self.checkpoint['model'].state_dict()
 
-            # generator of model name shape pair
-            model_ns = ((name, weight.shape) for name, weight in model_instance.state_dict().items())
             # delete the same keys but different weight shape
+            model_ns = ((name, weight.shape) for name, weight in model_instance.state_dict().items())
             for name, shape in model_ns:
                 if name in state_dict and state_dict[name].shape != shape:
                     del state_dict[name]
@@ -396,7 +396,8 @@ class LoadAllCheckPointMixin(object):
                                                 Default=None(do not set param_groups)
                                    for example: (('weight'/'bias', nn.Parameter/nn.*, {lr=0.01, ...}), ...)
 
-        Return param_groups {'params': nn.Parameter, 'lr': 0.01, ...}
+        Returns:
+            param_groups [{'params': nn.Parameter, 'lr': 0.01, ...}, ...]
         """
         # do not set param_groups
         if param_kind_tuple is None:
@@ -473,6 +474,63 @@ class LoadAllCheckPointMixin(object):
         r"""Check whether self.checkpoint exists"""
         if self.checkpoint is None:
             raise ValueError('The self.checkpoint is None, please load checkpoint')
+
+
+class FreezeLayersMixin(object):
+    def __init__(self):
+        self.model = None
+
+    def freeze_layers(self, layer_names: list):
+        r"""
+        Freeze layers in model by names.
+        Args:
+            layer_names: list = list consist of name in model layers
+        """
+        if layer_names:
+            LOGGER.info(f'Freezing name {layer_names} in model...')
+            # to string
+            for idx, name in layer_names:
+                layer_names[idx] = str(name)
+
+            for name, param in self.model.named_parameters():
+                if any(x in name for x in layer_names):
+                    param.requires_grad = False
+                    LOGGER.info(f'Frozen {name} layer')
+            LOGGER.info('Frozen successfully')
+
+    def unfreeze_layers(self, layer_names: list):
+        r"""
+        Unfreeze layers in model by names.
+        Args:
+            layer_names: list = list consist of name in model layers
+        """
+        if layer_names:
+            LOGGER.info(f'Unfreezing name {layer_names} in model...')
+            # to string
+            for idx, name in layer_names:
+                layer_names[idx] = str(name)
+
+            for name, param in self.model.named_parameters():
+                if any(x in name for x in layer_names):
+                    param.requires_grad = True
+                    LOGGER.info(f'Unfrozen {name} layer')
+            LOGGER.info('Unfrozen successfully')
+
+    def freeze_model(self):
+        r"""Freeze model totally"""
+        LOGGER.info('Freezing all layers of model...')
+        for name, param in self.model.named_parameters():
+            param.requires_grad = False
+            LOGGER.debug(f'Frozen {name}')
+        LOGGER.info('Frozen all layers of model successfully')
+
+    def unfreeze_model(self):
+        r"""Unfreeze model totally"""
+        LOGGER.info('Unfreezing all layers of model...')
+        for name, param in self.model.named_parameters():
+            param.requires_grad = True
+            LOGGER.debug(f'Unfrozen {name}')
+        LOGGER.info('Unfrozen all layers of model successfully')
 
 
 class DataLoaderMixin(object):
@@ -658,11 +716,6 @@ class CheckMixin(object):
         raise NotImplementedError
 
     def check_image_size(self):
-        raise NotImplementedError
-
-
-class FreezeLayersMixin(object):
-    def freeze_layers(self, layers):
         raise NotImplementedError
 
 

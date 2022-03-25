@@ -205,7 +205,8 @@ def select_one_device(device_name: str):
     Return device
     """
     LOGGER.info('Selecting device...')
-    device_name = device_name.lower().replace('cuda', '').replace('CUDA', '').replace(' ', '').replace(':', '')
+    # TODO maybe appear BUG when multi cpu
+    device_name = device_name.lower().replace('cuda', '').replace(' ', '').replace(':', '')
     if device_name == 'cpu':
         # TODO Upgrade for somewhere in the future
         # for multi cpu

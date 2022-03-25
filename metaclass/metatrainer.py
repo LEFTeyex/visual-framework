@@ -4,11 +4,9 @@ Meta Trainer module for building all trainer class.
 
 import torch
 
-from pathlib import Path
-
 from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
 from utils.mixins import LossMixin, DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
-    SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin
+    SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin, FreezeLayersMixin
 
 __all__ = ['MetaTrainDetect']
 
@@ -18,6 +16,7 @@ class MetaTrainDetect(
     DataLoaderMixin,
     SetSavePathMixin,
     TrainDetectMixin,
+    FreezeLayersMixin,
     SaveCheckPointMixin,
     LoadAllCheckPointMixin,
     ResultsDealDetectMixin,
@@ -25,54 +24,29 @@ class MetaTrainDetect(
     @logging_initialize('trainer')
     def __init__(self, args):
         super(MetaTrainDetect, self).__init__()
-        # # example
-        # # Get args for self.*
-        # self.hyp = None
-        # self.inc = None
-        # self.name = None
-        # self.epoch = None
-        # self.device = None
-        # self.epochs = None
-        # self.augment = None
-        # self.workers = None
-        # self.shuffle = None
-        # self.weights = None
-        # self.datasets = None
-        # self.save_path = None
-        # self.image_size = None
-        # self.batch_size = None
-        # self.pin_memory = None
-        # self.tensorboard = None
-        # self.data_augment = None
-
-        # # Set load way
-        # self._load_model = None
-        # self._load_optimizer = None
-        # self._load_gradscaler = None
-        # self._load_start_epoch = None
-        # self._load_best_fitness = None
-        # self._load_lr_scheduler = None
-
+        # Get args for self.*
         self.epoch = None
         self.hyp = args.hyp
         self.inc = args.inc
         self.name = args.name
         self.device = args.device
         self.epochs = args.epochs
+        self.weights = args.weights
         self.augment = args.augment
         self.workers = args.workers
         self.shuffle = args.shuffle
         self.datasets = args.datasets
-        self.weights = Path(args.weights)
+        self.save_path = args.save_path
         self.image_size = args.image_size
         self.batch_size = args.batch_size
         self.pin_memory = args.pin_memory
         self.tensorboard = args.tensorboard
-        self.save_path = Path(args.save_path)
+        self.freeze_names = args.freeze_names
         self.visual_image = args.visual_image
         self.visual_graph = args.visual_graph
         self.data_augment = args.data_augment
 
+        # Set load way
         self._load_model = args.load_model
         self._load_optimizer = args.load_optimizer
         self._load_gradscaler = args.load_gradscaler
@@ -89,7 +63,7 @@ class MetaTrainDetect(
 
         # To configure Trainer in subclass as following
         self.save_dict = None  # Get save_dict
-        # self.device = None  # Set one device
+        # self.device = select_one_device(self.device) # Set one device
         self.cuda = None  # For judging whether cuda
         # Load hyp yaml
         # Initialize or auto seed manual and save in self.hyp
@@ -98,6 +72,8 @@ class MetaTrainDetect(
         # Empty args
         self.checkpoint = None  # Load checkpoint
         self.model = None  # Initialize or load model
+        # Unfreeze model
+        # Freeze layers of model
         self.param_groups = None  # Set parameter groups to for the optimizer
         self.optimizer = None  # Initialize and load optimizer
         self.lr_scheduler = None  # Initialize and load lr_scheduler
@@ -181,45 +157,47 @@ class MetaTrainDetect(
         return empty
 
 
-r"""def demo_parse_args_detect(known: bool = False):
-        '''
-        Parse args for training.
-        Args:
-            known: bool = True or False, Default=False
-                parser will get two namespace which the second is unknown args, if known=True.
-    
-        Return namespace(for setting args)
-        '''
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--tensorboard', type=bool, default=True, help='')
-        parser.add_argument('--visual_image', type=bool, default=True,
-                            help='whether make images visual in tensorboard')
-        parser.add_argument('--visual_graph', type=bool, default=False,
-                            help='whether make model graph visual in tensorboard')
-        parser.add_argument('--weights', type=str, default=str(ROOT / ''), help='')
-        parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-        parser.add_argument('--epochs', type=int, default=300, help='epochs for training')
-        parser.add_argument('--batch_size', type=int, default=2, help='')
-        parser.add_argument('--workers', type=int, default=0, help='')
-        parser.add_argument('--shuffle', type=bool, default=True, help='')
-        parser.add_argument('--pin_memory', type=bool, default=True, help='')
-        parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
-        parser.add_argument('--name', type=str, default='exp', help='')
-        parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
-        parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
-        parser.add_argument('--augment', type=bool, default=False, help='whether random augment image')
-        parser.add_argument('--data_augment', type=str, default='mosaic',
-                            help='the kind of data augmentation mosaic / mixup / cutout')
-        parser.add_argument('--inc', type=int, default=3, help='')
-        parser.add_argument('--image_size', type=int, default=640, help='')
-        parser.add_argument('--load_model', type=str, default=None, help='')
-        parser.add_argument('--load_optimizer', type=bool, default=False, help='')
-        parser.add_argument('--load_lr_scheduler', type=bool, default=False, help='')
-        parser.add_argument('--load_gradscaler', type=bool, default=False, help='')
-        parser.add_argument('--load_start_epoch', type=str, default=None, help='')
-        parser.add_argument('--load_best_fitness', type=bool, default=False, help='')
-        namespace = parser.parse_known_args()[0] if known else parser.parse_args()
-        return namespace"""
+# def demo_parse_args_detect(known: bool = False):
+#     r"""
+#     Parse args for training.
+#     Args:
+#         known: bool = True or False, Default=False
+#             parser will get two namespace which the second is unknown args, if known=True.
+#
+#     Return namespace(for setting args)
+#     """
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument('--tensorboard', type=bool, default=True, help='')
+#     parser.add_argument('--visual_image', type=bool, default=True,
+#                         help='whether make images visual in tensorboard')
+#     parser.add_argument('--visual_graph', type=bool, default=False,
+#                         help='whether make model graph visual in tensorboard')
+#     parser.add_argument('--weights', type=str, default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='')
+#     parser.add_argument('--freeze_names', type=list, default=[], help='name of freezing layers in model')
+#     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
+#     parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
+#     parser.add_argument('--batch_size', type=int, default=16, help='')
+#     parser.add_argument('--workers', type=int, default=0, help='')
+#     parser.add_argument('--shuffle', type=bool, default=True, help='')
+#     parser.add_argument('--pin_memory', type=bool, default=False, help='')
+#     parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
+#     parser.add_argument('--name', type=str, default='exp', help='')
+#     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
+#     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
+#     parser.add_argument('--augment', type=bool, default=False, help='whether random augment image')
+#     parser.add_argument('--data_augment', type=str, default='mosaic',
+#                         help='the kind of data augmentation mosaic / mixup / cutout')
+#     parser.add_argument('--inc', type=int, default=3, help='')
+#     parser.add_argument('--image_size', type=int, default=640, help='')
+#     parser.add_argument('--load_model', type=str, default='state_dict', help='')
+#     parser.add_argument('--load_optimizer', type=bool, default=False, help='')
+#     parser.add_argument('--load_lr_scheduler', type=bool, default=False, help='')
+#     parser.add_argument('--load_gradscaler', type=bool, default=False, help='')
+#     parser.add_argument('--load_start_epoch', type=str, default=None, help='')
+#     parser.add_argument('--load_best_fitness', type=bool, default=False, help='')
+#     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
+#     return namespace
+
 
 if __name__ == '__main__':
     pass

@@ -27,6 +27,7 @@ class TrainDetect(MetaTrainDetect):
     r"""Trainer for detection, built by mixins"""
 
     def __init__(self, args):
+        # init self.* by args
         super(TrainDetect, self).__init__(args)
 
         # Set val class
@@ -74,7 +75,13 @@ class TrainDetect(MetaTrainDetect):
         self.model = self.load_model(yolov5s_v6(self.inc, self.datasets['nc'], self.datasets['anchors'],
                                                 self.image_size), load=self._load_model)
 
-        # Set parameter groups to for the optimizer
+        # Unfreeze model
+        self.unfreeze_model()
+
+        # Freeze layers of model
+        self.freeze_layers(self.freeze_names)
+
+        # Set parameter groups list to for the optimizer
         self.param_groups = self.set_param_groups((('bias', nn.Parameter, {}),
                                                    ('weight', nn.BatchNorm2d, {}),
                                                    ('weight', nn.Parameter, {'weight_decay': self.hyp['weight_decay']})
@@ -139,8 +146,9 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--visual_graph', type=bool, default=False,
                         help='whether make model graph visual in tensorboard')
     parser.add_argument('--weights', type=str, default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='')
+    parser.add_argument('--freeze_names', type=list, default=[], help='name of freezing layers in model')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=1000, help='epochs for training')
+    parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
     parser.add_argument('--batch_size', type=int, default=16, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
@@ -189,3 +197,5 @@ if __name__ == '__main__':
 
     # TODO add pycocotools
     # TODO add datasets.yaml for VOC COCO
+
+    # TODO add plot attention heat map 2022.3.25
