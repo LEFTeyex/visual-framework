@@ -24,9 +24,9 @@ from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
 from utils.bbox import xywh2xyxy, rescale_xyxy
 from utils.general import delete_list_indices, time_sync, save_all_txt
-from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
+from utils.decode import filter_outputs2predictions, non_max_suppression
 from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class, compute_fitness
-from utils.typeslib import _str_or_None, _list_or_None, _pkt_or_None, _path, _dataset_c, _instance_c, \
+from utils.typeslib import _str_or_None, _pkt_or_None, _path, _dataset_c, _instance_c, \
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler
 
 __all__ = ['SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'FreezeLayersMixin',
@@ -636,7 +636,6 @@ class TrainDetectMixin(object):
         self.model.train()
         if self.visual_graph:
             WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
-        self.optimizer.zero_grad()
         loss_name = ('total_loss', 'bbox_loss', 'class_loss', 'object_loss')
         loss_all_mean = torch.zeros(4, device=self.device)
 
@@ -648,19 +647,16 @@ class TrainDetectMixin(object):
 
                 # TODO warmup in the future
 
-                # forward
+                # forward with mixed precision
                 with autocast(enabled=self.cuda):
                     outputs = self.model(images)
                     loss, loss_items = self.loss_fn(outputs, labels, kind='ciou')
 
-                # backward
-                self.scaler.scale(loss).backward()
-
-                # optimize
-                # todo maybe accumulating gradient will be better (if index...: ...)
-                self.scaler.step(self.optimizer)  # optimizer.step()
-                self.scaler.update()
-                self.optimizer.zero_grad()
+                # backward and optimize
+                if self.scaler is None:
+                    self.optimize_no_scale(loss)
+                else:
+                    self.optimize_scale(loss)
 
                 # mean total loss and loss items
                 loss_all = torch.cat((loss, loss_items), dim=0).detach()
@@ -673,6 +669,24 @@ class TrainDetectMixin(object):
             # lr_scheduler
             self.lr_scheduler.step()
         return loss_all_mean.tolist(), loss_name
+
+    def optimize_no_scale(self, loss):
+        # backward
+        loss.backward()
+
+        # optimize
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+    def optimize_scale(self, loss):
+        # backward
+        self.scaler.scale(loss).backward()
+
+        # optimize
+        # todo maybe accumulating gradient will be better (if index...: ...)
+        self.scaler.step(self.optimizer)  # optimizer.step()
+        self.scaler.update()
+        self.optimizer.zero_grad()  # improve a little performance when set_to_none=True
 
     def _show_loss_in_pbar_training(self, loss, pbar):
         # GPU memory used which an approximate value because of 1E9
@@ -822,7 +836,7 @@ class ValDetectMixin(object):
         return ap_all, f1_all, p_all, r_all, cls_name_number
 
     def _parse_outputs(self, outputs):
-        outputs = parse_outputs_yolov5(outputs, self.model.anchors, self.model.scalings)  # bbox is xyxy
+        outputs = self.model.decode_outputs(outputs)  # bbox is xyxy
         # TODO get it by predictions or outputs through below whether used outputs over
         # TODO think it in memory for filter_outputs2predictions
         outputs = filter_outputs2predictions(outputs, 0.25)  # list which len is bs

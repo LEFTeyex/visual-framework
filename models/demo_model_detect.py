@@ -45,9 +45,9 @@ class ModelDetect(MetaModelDetect):
         super(ModelDetect, self).__init__()
         # get cfg parameters
         backbone_channels = cfg['backbone_channels']
-        backbone_c3_layers = cfg['backbone_c3_layers']
+        backbone_c3_layers = cfg['backbone_layers']
         neck_channels = cfg['neck_channels']
-        neck_c3_layers = cfg['neck_c3_layers']
+        neck_c3_layers = cfg['neck_layers']
         self.head_in_channels = [neck_channels[idx] for idx in cfgs['head_in_channels_idx_to_neck']]
 
         self.inc = inc
@@ -85,9 +85,9 @@ cfgs = {
 
     'model': {
         'backbone_channels': [],
-        'backbone_c3_layers': [],
+        'backbone_layers': [],
         'neck_channels': [],
-        'neck_c3_layers': []
+        'neck_layers': []
     }
 }
 

@@ -102,7 +102,7 @@ class Linear(nn.Module):
 
 class LargeKernelConv(nn.Module):
     r"""
-    Large Kernel Convolution https://arxiv.org/abs/2202.09741.
+    Large Kernel Convolution https://arxiv.org/abs/2202.09741
     It can reduce a lot of parameters compared with fully connected network.
     """
 

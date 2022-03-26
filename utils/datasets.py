@@ -18,7 +18,7 @@ from utils.general import load_all_yaml, to_tuplex
 from utils.augmentation import random_affine_or_perspective, cutout, mixup, mosaic
 from utils.typeslib import _path, _int_or_tuple
 
-__all__ = ['DatasetDetect', 'get_and_check_datasets_yaml']
+__all__ = ['DatasetDetect', 'get_and_check_datasets_yaml', 'load_image_resize']
 
 IMAGE_FORMATS = ('bmp', 'jpg', 'jpeg', 'jpe', 'png', 'tif', 'tiff', 'webp')  # acceptable image suffixes
 

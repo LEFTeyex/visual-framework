@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 
 from utils.log import logging_initialize
+from utils.decode import parse_outputs_yolov5
 from models.units import Conv, C3, SPPF
 from models.model_utils import init_weights
 from metaclass.metamodel import MetaModelDetect
@@ -93,7 +94,7 @@ class BaseYolov5V6(MetaModelDetect):
     r"""YOLOv5 v6.0"""
 
     def __init__(self, inc: int, cfg: dict, num_class: int, anchors: list, num_bbox: int = 5, img_size: int = 640,
-                 g=1, act='silu', bn=True, bias=False):
+                 g=1, act='silu', bn=True, bias=False, decode=False, reshape=False):
         super(BaseYolov5V6, self).__init__()
         # get cfg parameters
         backbone_channels = cfg['backbone_channels']
@@ -101,6 +102,8 @@ class BaseYolov5V6(MetaModelDetect):
         neck_channels = cfg['neck_channels']
         neck_c3_layers = cfg['neck_c3_layers']
         self.head_in_channels = [neck_channels[idx] for idx in cfgs['head_in_channels_idx_to_neck']]
+        self.decode = decode
+        self.reshape = reshape
 
         self.inc = inc
         self.nc = num_class
@@ -118,14 +121,22 @@ class BaseYolov5V6(MetaModelDetect):
         self.scalings, self.image_size = self.get_register_scalings(img_size)
         self.scale_anchors()
 
-    def forward(self, x):
+    def forward(self, x, compute_scalings=False):
         x = self.backbone(x)
         x = self.neck(x)
         x = self.head(x)
+        if self.decode and not compute_scalings:
+            x = self.decode_outputs(x, reshape=self.reshape)
         return x
 
     def initialize_weights(self):
         self.apply(init_weights)
+
+    def decode_outputs(self, outputs, scalings=None, reshape: bool = True):
+        if scalings is None:
+            scalings = (1, 1, 1)
+        outputs = outputs if isinstance(outputs, (list, tuple)) else [outputs]
+        return parse_outputs_yolov5(outputs, self.anchors, scalings, reshape)
 
     def _check_nl(self):
         if len(self.head_in_channels) != self.nl:
@@ -185,42 +196,47 @@ def _get_inc_and_num_class(inc, num_class, anchors):
 
 @logging_initialize()
 def yolov5n_v6(inc: int = None, num_class: int = None, anchors: list = None,
-               img_size: int = 640, g=1, act='silu', bn=True, bias=False):
+               img_size: int = 640, g=1, act='silu', bn=True, bias=False, decode=False, reshape=False):
     inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5n_v6']
-    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
+    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias,
+                        decode=decode, reshape=reshape)
 
 
 @logging_initialize()
 def yolov5s_v6(inc: int = None, num_class: int = None, anchors: list = None,
-               img_size: int = 640, g=1, act='silu', bn=True, bias=False):
+               img_size: int = 640, g=1, act='silu', bn=True, bias=False, decode=False, reshape=False):
     inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5s_v6']
-    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
+    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias,
+                        decode=decode, reshape=reshape)
 
 
 @logging_initialize()
 def yolov5m_v6(inc: int = None, num_class: int = None, anchors: list = None,
-               img_size: int = 640, g=1, act='silu', bn=True, bias=False):
+               img_size: int = 640, g=1, act='silu', bn=True, bias=False, decode=False, reshape=False):
     inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5m_v6']
-    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
+    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias,
+                        decode=decode, reshape=reshape)
 
 
 @logging_initialize()
 def yolov5l_v6(inc: int = None, num_class: int = None, anchors: list = None,
-               img_size: int = 640, g=1, act='silu', bn=True, bias=False):
+               img_size: int = 640, g=1, act='silu', bn=True, bias=False, decode=False, reshape=False):
     inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5l_v6']
-    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
+    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias,
+                        decode=decode, reshape=reshape)
 
 
 @logging_initialize()
 def yolov5x_v6(inc: int = None, num_class: int = None, anchors: list = None,
-               img_size: int = 640, g=1, act='silu', bn=True, bias=False):
+               img_size: int = 640, g=1, act='silu', bn=True, bias=False, decode=False, reshape=False):
     inc, num_class, anchors = _get_inc_and_num_class(inc, num_class, anchors)
     cfg = cfgs['yolov5x_v6']
-    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias)
+    return BaseYolov5V6(inc, cfg, num_class, anchors, img_size=img_size, g=g, act=act, bn=bn, bias=bias,
+                        decode=decode, reshape=reshape)
 
 
 def _test():

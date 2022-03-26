@@ -18,7 +18,8 @@ __all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predicti
            'non_max_suppression']
 
 
-def parse_outputs_yolov5(outputs: tuple, anchors: Tensor, scalings: Tensor):
+def parse_outputs_yolov5(outputs: list, anchors: Tensor, scalings: Tensor, reshape_cat=True):
+    # output shape is (bs, layer, h, w, (xywh + obj + cls))
     output_all = []
     for index, (output, anchor, scaling) in enumerate(zip(outputs, anchors, scalings)):
         bs, na, ny, nx, no = output.shape  # na-number of anchor, no-number of output
@@ -28,8 +29,12 @@ def parse_outputs_yolov5(outputs: tuple, anchors: Tensor, scalings: Tensor):
         output[..., 0:4] = parse_bbox_yolov5(output[..., 0:4], anchor, (nx, ny), scaling)
         # parse others (object and classes)
         output[..., 4:] = output[..., 4:].sigmoid()
-        output_all.append(output.view(bs, -1, no))
-    output_all = torch.cat(output_all, dim=1)  # shape(bs, n, no)
+        if reshape_cat:
+            output_all.append(output.view(bs, -1, no))
+        else:
+            output_all.append(output)
+    if reshape_cat:
+        output_all = torch.cat(output_all, dim=1)  # shape(bs, n, no)
     return output_all
 
 

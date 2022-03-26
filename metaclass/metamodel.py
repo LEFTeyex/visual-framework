@@ -20,6 +20,8 @@ class MetaModelDetect(nn.Module):
         self.na: int  # number of anchor per layer
         self.image_size: int
         self.scalings: Tensor
+        self.decode = False
+        self.reshape = False
 
     def get_register_anchors(self, anchors):
         anchors = torch.tensor(anchors).float()
@@ -31,7 +33,7 @@ class MetaModelDetect(nn.Module):
     def get_register_scalings(self, image_size):
         image = torch.zeros(1, self.inc, image_size, image_size)
         image_size = torch.tensor(image_size)
-        outputs = self.forward(image)
+        outputs = self.forward(image, True)
         scalings = torch.tensor([image_size / x.shape[-2] for x in outputs])
         self.register_buffer('scalings', scalings)
         self.register_buffer('image_size', image_size)
@@ -41,8 +43,12 @@ class MetaModelDetect(nn.Module):
         r"""For anchor method but anchor free method"""
         self.anchors /= self.scalings.view(-1, 1, 1)
 
-    def forward(self, x):
+    def forward(self, x, compute_scalings=False):
         raise NotImplementedError
 
     def initialize_weights(self):
+        raise NotImplementedError
+
+    def decode_outputs(self, outputs, scalings=None, reshape: bool = True):
+        # outputs = outputs if isinstance(outputs, (list, tuple)) else [outputs]
         raise NotImplementedError
