@@ -489,7 +489,7 @@ class FreezeLayersMixin(object):
         if layer_names:
             LOGGER.info(f'Freezing name {layer_names} in model...')
             # to string
-            for idx, name in layer_names:
+            for idx, name in enumerate(layer_names):
                 layer_names[idx] = str(name)
 
             for name, param in self.model.named_parameters():
@@ -507,7 +507,7 @@ class FreezeLayersMixin(object):
         if layer_names:
             LOGGER.info(f'Unfreezing name {layer_names} in model...')
             # to string
-            for idx, name in layer_names:
+            for idx, name in enumerate(layer_names):
                 layer_names[idx] = str(name)
 
             for name, param in self.model.named_parameters():
@@ -836,7 +836,7 @@ class ValDetectMixin(object):
         return ap_all, f1_all, p_all, r_all, cls_name_number
 
     def _parse_outputs(self, outputs):
-        outputs = self.model.decode_outputs(outputs)  # bbox is xyxy
+        outputs = self.model.decode_outputs(outputs, self.model.scalings)  # bbox is xyxy
         # TODO get it by predictions or outputs through below whether used outputs over
         # TODO think it in memory for filter_outputs2predictions
         outputs = filter_outputs2predictions(outputs, 0.25)  # list which len is bs

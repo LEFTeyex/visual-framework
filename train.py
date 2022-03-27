@@ -146,7 +146,8 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--visual_graph', type=bool, default=False,
                         help='whether make model graph visual in tensorboard')
     parser.add_argument('--weights', type=str, default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='')
-    parser.add_argument('--freeze_names', type=list, default=[], help='name of freezing layers in model')
+    parser.add_argument('--freeze_names', type=list, default=['backbone', 'neck'],
+                        help='name of freezing layers in model')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
     parser.add_argument('--batch_size', type=int, default=16, help='')
@@ -197,4 +198,3 @@ if __name__ == '__main__':
 
     # TODO add pycocotools
     # TODO add datasets.yaml for VOC COCO
-
