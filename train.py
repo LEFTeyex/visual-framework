@@ -198,4 +198,3 @@ if __name__ == '__main__':
     # TODO add pycocotools
     # TODO add datasets.yaml for VOC COCO
 
-    # TODO add plot attention heat map 2022.3.25

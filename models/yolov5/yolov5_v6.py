@@ -101,7 +101,7 @@ class BaseYolov5V6(MetaModelDetect):
         backbone_c3_layers = cfg['backbone_c3_layers']
         neck_channels = cfg['neck_channels']
         neck_c3_layers = cfg['neck_c3_layers']
-        self.head_in_channels = [neck_channels[idx] for idx in cfgs['head_in_channels_idx_to_neck']]
+        self.head_in_channels = [neck_channels[idx] for idx in cfgs['head_channels_idx_to_neck']]
         self.decode = decode
         self.reshape = reshape
 
@@ -121,22 +121,28 @@ class BaseYolov5V6(MetaModelDetect):
         self.scalings, self.image_size = self.get_register_scalings(img_size)
         self.scale_anchors()
 
-    def forward(self, x, compute_scalings=False):
+    def forward(self, x):
+        x = self._forward_alone(x)
+        if self.decode:
+            x = self.decode_outputs(x, reshape=self.reshape)
+        return x
+
+    def _forward_alone(self, x):
         x = self.backbone(x)
         x = self.neck(x)
         x = self.head(x)
-        if self.decode and not compute_scalings:
-            x = self.decode_outputs(x, reshape=self.reshape)
         return x
 
     def initialize_weights(self):
         self.apply(init_weights)
 
-    def decode_outputs(self, outputs, scalings=None, reshape: bool = True):
+    def decode_outputs(self, x, scalings=None, reshape=True):
         if scalings is None:
-            scalings = (1, 1, 1)
-        outputs = outputs if isinstance(outputs, (list, tuple)) else [outputs]
-        return parse_outputs_yolov5(outputs, self.anchors, scalings, reshape)
+            scalings = (1,) * self.nl
+
+        x = x if isinstance(x, (list, tuple)) else [x]
+        x = parse_outputs_yolov5(x, self.anchors, scalings, reshape)
+        return x
 
     def _check_nl(self):
         if len(self.head_in_channels) != self.nl:
@@ -145,7 +151,7 @@ class BaseYolov5V6(MetaModelDetect):
 
 cfgs = {
     'inc': 3, 'num_class': 80,
-    'head_in_channels_idx_to_neck': (5, 9, 13),
+    'head_channels_idx_to_neck': (5, 9, 13),
     'anchors': [[[10, 13], [16, 30], [33, 23]],
                 [[30, 61], [62, 45], [59, 119]],
                 [[116, 90], [156, 198], [373, 326]]],
