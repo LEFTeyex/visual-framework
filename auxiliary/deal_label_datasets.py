@@ -145,7 +145,10 @@ def _xml2json_coco(xml_dir_path: str, image_path_txt: str, classes, supercategor
             cats = []
             for obj in root.iter('object'):
                 cls = obj.find('name').text
-                category_id = classes.index(cls)
+                if cls in classes:
+                    category_id = classes.index(cls)
+                else:
+                    continue
                 cat = {'supercategory': str(supercategory),
                        'id': int(category_id),
                        'name': str(cls)}
