@@ -125,6 +125,7 @@ def compute_ap(recall, precision):
     p = np.flip(np.maximum.accumulate(np.flip(p)))
 
     # interpolation in P-R curve for ap
+    # coco do not use interpolation
     x = np.linspace(0, 1, 101)
     y = np.interp(x, r, p)
     ap = np.trapz(y, x)

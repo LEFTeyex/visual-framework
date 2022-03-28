@@ -191,4 +191,4 @@ def demo_feature_map():
 
 
 if __name__ == '__main__':
-    demo_feature_map()
+    demo_attention_map()
