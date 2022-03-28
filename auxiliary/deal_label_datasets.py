@@ -292,9 +292,10 @@ def convert_xml2txt_yolo_or_xml2json_coco_or_classify_datasets(args):
 
 
 def add_prefix_suffix_for_path_txt(list_str: list, prefix: str, suffix: str):
+    new_list = []
     for idx, x in enumerate(list_str):
-        list_str[idx] = [str(Path(prefix) / f'{x}{suffix}')]
-    return list_str
+        new_list.append([str(Path(prefix) / f'{x}{suffix}')])
+    return new_list
 
 
 def deal_voc_detection(path: str, filter_difficult: bool = True):
@@ -328,15 +329,19 @@ def deal_voc_detection(path: str, filter_difficult: bool = True):
 
     # deal train and val txt
     deal_txt = ['trainval.txt', 'train.txt', 'val.txt', 'test.txt']
-    save_txt_path = [path / txt for txt in deal_txt]
-    deal_txt = [str(path / 'ImageSets/Main' / txt) for txt in deal_txt]
+    deal_txt = [path / 'ImageSets/Main' / txt for txt in deal_txt]
     prefix = str(path / 'images')
     suffix = '.jpg'
 
     # check and filter deal_txt exists
-    deal_txt = [x for x in deal_txt if Path(x).exists()]
+    deal_txt = [x for x in deal_txt if x.exists()]
+    save_txt_path = [path / txt.name for txt in deal_txt]
 
-    all_txt_list = load_all_txt(*deal_txt)
+    if len(deal_txt) == 1:
+        all_txt_list = [load_all_txt(*deal_txt)]
+    else:
+        all_txt_list = load_all_txt(*deal_txt)
+
     for idx, txt_list in enumerate(all_txt_list):
         all_txt_list[idx] = add_prefix_suffix_for_path_txt(txt_list, prefix, suffix)
     save_all_txt(*zip(all_txt_list, save_txt_path))
