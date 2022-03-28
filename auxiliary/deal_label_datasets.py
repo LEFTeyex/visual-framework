@@ -57,7 +57,8 @@ def _x1y1wh2xywhn(bbox, w: int, h: int):
 
 def _xyxy2segmentation(bbox):
     x1, y1, x2, y2 = bbox
-    segmentation = [[x1, y1, x2, y1, x2, y2, x1, y2]]
+    # left_top left_bottom right_bottom right_top
+    segmentation = [[x1, y1, x1, y2, x2, y2, x2, y1]]
     return segmentation
 
 
@@ -436,7 +437,7 @@ def parse_args_detect(known: bool = False):
 
     # xml2coco_json
     parser.add_argument('--image_path_txt', type=str,
-                        default=r'F:\datasets\good\VOCdevkit\VOC2012\trainval.txt', help='path')
+                        default=r'F:\datasets\good\VOCdevkit\VOC2012\val.txt', help='path')
     parser.add_argument('--supercategory', type=str, default='voc', help='')
 
     # xml2txt_yolo
