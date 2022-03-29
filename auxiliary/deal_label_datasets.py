@@ -114,12 +114,13 @@ def _xml2txt_yolo(path: str, classes, w: _int_or_None = None, h: _int_or_None = 
     print('Done')
 
 
-def _xml2json_coco(xml_dir_path: str, image_path_txt: str, classes, supercategory: str, filter_difficult: bool = True):
+def _xml2json_coco(xml_dir_path: str, image_name_txt: str, classes, supercategory: str,
+                   filter_difficult: bool = True):
     r"""Convert xml corresponding to image path txt file while it is corresponding to val or test"""
     xml_dir_path = Path(xml_dir_path)
-    image_path_txt = Path(image_path_txt)
-    save_path = str(image_path_txt.parent / f'{str(image_path_txt.stem)}.json')
-    image_paths_list = load_all_txt(image_path_txt)
+    image_name_txt = Path(image_name_txt)
+    save_path = str(xml_dir_path.parent / f'{str(image_name_txt.stem)}.json')
+    image_names_list = load_all_txt(image_name_txt)
 
     assert xml_dir_path.exists(), f'The path {str(xml_dir_path)} do not exist'
     assert xml_dir_path.is_dir(), f'The path {str(xml_dir_path)} is not a dir'
@@ -130,8 +131,8 @@ def _xml2json_coco(xml_dir_path: str, image_path_txt: str, classes, supercategor
     image_id = 0
     ann_id = 0
 
-    with tqdm(image_paths_list, bar_format='{l_bar}{bar:20}{r_bar}',
-              desc=f'{image_path_txt.stem} xml2json_coco', total=len(image_paths_list)) as pbar:
+    with tqdm(image_names_list, bar_format='{l_bar}{bar:20}{r_bar}',
+              desc=f'{image_name_txt.stem} xml2json_coco', total=len(image_names_list)) as pbar:
         for p in pbar:
             xml_path = xml_dir_path / f'{Path(p).stem}.xml'
             root = ElementTree.parse(xml_path).getroot()
@@ -214,7 +215,7 @@ def _xml2json_coco(xml_dir_path: str, image_path_txt: str, classes, supercategor
 
 
 def _classify_datasets(path: str, save_path: str, seed: int, weights=(0.8, 0.1)):
-    r"""Get absolute path for training images"""
+    r"""Get relative path for training images"""
     classify_to = ('train', 'val', 'test')
     save_path = Path(save_path)
     save_path.mkdir(parents=True, exist_ok=True)
@@ -231,7 +232,8 @@ def _classify_datasets(path: str, save_path: str, seed: int, weights=(0.8, 0.1))
         img_files += [x for x in p.glob('*.*')]
     else:
         raise TypeError(f'The path {p} is not a directory, please input the path of directory')
-    img_files = [str(x) for x in img_files if x.suffix.replace('.', '').lower() in image_formats]
+    # get relative path
+    img_files = [x.name for x in img_files if x.suffix.replace('.', '').lower() in image_formats]
 
     # sample
     total_num = len(img_files)
@@ -294,10 +296,10 @@ def convert_xml2txt_yolo_or_xml2json_coco_or_classify_datasets(args):
         raise ValueError(f'The input kind {args.kind} is wrong')
 
 
-def add_prefix_suffix_for_path_txt(list_str: list, prefix: str, suffix: str):
+def add_suffix_for_path_txt(list_str: list, suffix: str):
     new_list = []
     for idx, x in enumerate(list_str):
-        new_list.append([str(Path(prefix) / f'{x}{suffix}')])
+        new_list.append([f'{x}{suffix}'])
     return new_list
 
 
@@ -333,12 +335,11 @@ def deal_voc_detection(path: str, filter_difficult: bool = True):
     # deal train and val txt
     deal_txt = ['trainval.txt', 'train.txt', 'val.txt', 'test.txt']
     deal_txt = [path / 'ImageSets/Main' / txt for txt in deal_txt]
-    prefix = str(path / 'images')
     suffix = '.jpg'
 
     # check and filter deal_txt exists
     deal_txt = [x for x in deal_txt if x.exists()]
-    save_txt_path = [path / txt.name for txt in deal_txt]
+    save_txt_path = [image_dir / txt.name for txt in deal_txt]
 
     if len(deal_txt) == 1:
         all_txt_list = [load_all_txt(*deal_txt)]
@@ -346,7 +347,7 @@ def deal_voc_detection(path: str, filter_difficult: bool = True):
         all_txt_list = load_all_txt(*deal_txt)
 
     for idx, txt_list in enumerate(all_txt_list):
-        all_txt_list[idx] = add_prefix_suffix_for_path_txt(txt_list, prefix, suffix)
+        all_txt_list[idx] = add_suffix_for_path_txt(txt_list, suffix)
     save_all_txt(*zip(all_txt_list, save_txt_path))
 
     # reset name for JPEGImages and Annotations_yolo
@@ -445,7 +446,7 @@ def parse_args_detect(known: bool = False):
 
     # xml2coco_json
     parser.add_argument('--image_path_txt', type=str,
-                        default=r'F:\datasets\good\VOCdevkit\VOC2012\val.txt', help='path')
+                        default=r'F:\datasets\good\VOCdevkit\VOC2012\images\val.txt', help='path')
     parser.add_argument('--supercategory', type=str, default='voc', help='')
 
     # xml2txt_yolo
@@ -469,13 +470,13 @@ def main():
 
 
 def check_json_coco():
-    path = 'F:/datasets/good/VOCdevkit/VOC2012/trainval.json'  # json path
+    path = 'F:/datasets/good/VOCdevkit/VOC2012/val.json'  # json path
     data = COCO(path)
     pass
 
 
 if __name__ == '__main__':
-    main()
-    # check_json_coco()
-    # deal_voc_detection()
+    # main()
+    check_json_coco()
+    # deal_voc_detection(r'F:\datasets\good\VOCdevkit\VOC2012')
     # deal_coco_detection()

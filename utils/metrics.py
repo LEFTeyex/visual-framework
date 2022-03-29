@@ -66,7 +66,6 @@ def compute_metrics_per_class(tp, conf, pred_cls, label_cls, eps=1e-16):
     # init
     ap, r, p = np.zeros((nc, niou)), np.zeros((nc, niou)), np.zeros((nc, niou))
     pr_curve = [[] for _ in range(nc)]
-    prx = np.linspace(0, 1, 1000)
 
     # compute precision-recall(P-R) curve and AP
     for index_unique, cls in enumerate(unique_cls):
@@ -89,10 +88,10 @@ def compute_metrics_per_class(tp, conf, pred_cls, label_cls, eps=1e-16):
             p[index_unique] = precision[-1]
 
             # AP
-            pry = np.zeros((niou, 1000))
+            pry = np.zeros((niou, 101))
             for index_iou in range(niou):
                 ap[index_unique, index_iou], _r, _p = compute_ap(recall[:, index_iou], precision[:, index_iou])
-                pry[index_iou] = np.interp(prx, _r, _p)
+                pry[index_iou] = _p
             pr_curve[index_unique].append(pry)
             # TODO plot P-R curve by pr_curve
 
@@ -117,20 +116,41 @@ def compute_ap(recall, precision):
 
     Return
     """
-    # add sentinel values to beginning and end
-    r = np.concatenate(([0.0], recall, [1.0]))
-    p = np.concatenate(([1.0], precision, [0.0]))
+    # method in pycocotools COCOeval
+    r = recall.tolist()
+    p = precision.tolist()
+    length = len(p)
 
-    # compute the precision envelope
-    p = np.flip(np.maximum.accumulate(np.flip(p)))
+    for idx in range(length - 1, 0, -1):
+        if p[idx] > p[idx - 1]:
+            p[idx - 1] = p[idx]
 
-    # interpolation in P-R curve for ap
-    # coco do not use interpolation
-    x = np.linspace(0, 1, 101)
-    y = np.interp(x, r, p)
-    ap = np.trapz(y, x)
+    r_threshold = np.linspace(.0, 1.00, int(np.round((1.00 - .0) / .01)) + 1, endpoint=True)
+    indices = np.searchsorted(r, r_threshold, side='left')
+    q = np.zeros((len(r_threshold),))
 
-    # there is other method for ap before VOC-2010
+    # try:  # for avoid from IndexError
+    for ri, pi in enumerate(indices):
+        q[ri] = p[pi]
+    # except:
+    #     pass
+    p, r = q, r_threshold
+    ap = np.mean(p)
+
+    # # method in yolov5
+    # # add sentinel values to beginning and end
+    # r = np.concatenate(([0.0], recall, [1.0]))
+    # p = np.concatenate(([1.0], precision, [0.0]))
+    #
+    # # compute the precision envelope
+    # p = np.flip(np.maximum.accumulate(np.flip(p)))
+    #
+    # # interpolation in P-R curve for ap
+    # x = np.linspace(0, 1, 101)
+    # y = np.interp(x, r, p)
+    # ap = np.trapz(y, x)
+
+    # # method before VOC-2010
     # index = np.where(r[1:] != r[:-1])[0]
     # ap = np.sum((r[index + 1] - r[index]) * p[index + 1])
     return ap, r, p

@@ -196,6 +196,7 @@ if __name__ == '__main__':
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
 
-    # TODO 2022.3.28
+    # TODO 2022.3.29
+    # TODO add create json for val by COCOeval
     # TODO add pycocotools
     # TODO add datasets.yaml for VOC COCO

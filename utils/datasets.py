@@ -47,8 +47,8 @@ class DatasetDetect(Dataset):
         self.hyp = hyp
         self.img_files = get_img_files(path)  # get the path tuple of image files
         self.indices = range(len(self.img_files))  # for choices in data augmentation
-        # check img suffix and sort img_files(to str)
-        self.img_files = sorted(str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS))
+        # check img suffix and img_files(to str)
+        self.img_files = [str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS)]
         self.img_files = tuple(self.img_files)  # to save memory
         if not self.img_files:
             raise FileNotFoundError('No images found')
