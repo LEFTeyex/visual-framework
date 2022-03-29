@@ -43,7 +43,11 @@ class TrainDetect(MetaTrainDetect):
                                                          ('all_class_results', 'all_class_results.txt'),
                                                          ('last', 'weights/last.pt'),
                                                          ('best', 'weights/best.pt'),
+                                                         ('json_gt', 'json_gt.json'),
+                                                         ('json_dt', 'json_dt.json'),
                                                          logfile='logger.log')
+
+        self.coco_eval = (self.save_dict['json_gt'], self.save_dict['json_dt'])
 
         # Set one device
         self.device = select_one_device(self.device)  # requires model, images, labels .to(self.device)
@@ -113,7 +117,8 @@ class TrainDetect(MetaTrainDetect):
         self.train_dataloader = self.get_dataloader(DatasetDetect, 'train', augment=self.augment,
                                                     data_augment=self.data_augment, shuffle=self.shuffle)
         self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
-        self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
+        self.test_dataloader = self.get_dataloader(DatasetDetect, 'test',
+                                                   create_json_gt=self.save_dict['json_gt'])
 
         # TODO upgrade warmup
 
@@ -196,7 +201,6 @@ if __name__ == '__main__':
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
 
-    # TODO 2022.3.29
-    # TODO add create json for val by COCOeval
+    # TODO 2022.3.30
     # TODO add pycocotools
     # TODO add datasets.yaml for VOC COCO

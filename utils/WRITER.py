@@ -122,7 +122,7 @@ def add_batch_images_predictions_detect(writer, title, bs_index, images, predict
         epoch:
         dfmt:
     """
-    # TODO BUG: the step is not continue
+    # TODO BUG: the step is not continue because of the max is 10
     if (writer is not None) and epoch == -1:
         bs = images.shape[0]
         for index in range(bs):

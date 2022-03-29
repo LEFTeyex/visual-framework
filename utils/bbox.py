@@ -11,24 +11,26 @@ from torch import Tensor
 
 from utils.typeslib import _Tensor_or_ndarray
 
-__all__ = ['xywh2xyxy', 'xywhn2xyxy', 'xyxy2xywhn',
+__all__ = ['xywh2xyxy', 'xywhn2xyxy', 'xyxy2x1y1wh', 'xyxy2xywhn',
            'rescale_xywhn', 'rescale_xyxy', 'clip_bbox', 'bbox_iou']
 
 
-def xywh2xyxy(bbox: _Tensor_or_ndarray):
+def xywh2xyxy(bbox: _Tensor_or_ndarray, pxy: tuple = (0, 0)):
     r"""
     Convert the center xywh to the topleft and bottomright xyxy.
     Args:
         bbox: _Tensor_or_ndarray = bbox shape(..., 4)
+        pxy: tuple = padding xy (left, top)
 
     Returns:
         bbox (converted)
     """
     y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
-    y[..., 0] = bbox[..., 0] - bbox[..., 2] / 2  # top left x
-    y[..., 1] = bbox[..., 1] - bbox[..., 3] / 2  # top left y
-    y[..., 2] = bbox[..., 0] + bbox[..., 2] / 2  # bottom right x
-    y[..., 3] = bbox[..., 1] + bbox[..., 3] / 2  # bottom right y
+    px, py = pxy
+    y[..., 0] = bbox[..., 0] - bbox[..., 2] / 2 + px  # top left x
+    y[..., 1] = bbox[..., 1] - bbox[..., 3] / 2 + py  # top left y
+    y[..., 2] = bbox[..., 0] + bbox[..., 2] / 2 + px  # bottom right x
+    y[..., 3] = bbox[..., 1] + bbox[..., 3] / 2 + py  # bottom right y
     return y
 
 
@@ -53,14 +55,32 @@ def xywhn2xyxy(bbox: _Tensor_or_ndarray, hw_nopad: tuple, pxy: tuple = (0, 0)):
     return y
 
 
-def xyxy2xywhn(bbox: _Tensor_or_ndarray, hw_pad: tuple, pxy: tuple = (0, 0), clip=True):
+def xyxy2x1y1wh(bbox: _Tensor_or_ndarray, pxy: tuple = (0, 0)):
+    r"""
+    Convert the topleft and bottomright xyxy to the center xywh normalized
+    Args:
+        bbox: _Tensor_or_ndarray = bbox shape(..., 4)
+        pxy: tuple = padding xy (left, top)
+
+    Returns:
+        bbox (converted)
+    """
+    y = bbox.clone() if isinstance(bbox, Tensor) else np.copy(bbox)
+    px, py = pxy
+    y[..., 0] = bbox[..., 0] + px  # top left x
+    y[..., 1] = bbox[..., 1] + py  # top left y
+    y[..., 2] = bbox[..., 2] - bbox[..., 0]  # w
+    y[..., 3] = bbox[..., 3] - bbox[..., 1]  # h
+    return y
+
+
+def xyxy2xywhn(bbox: _Tensor_or_ndarray, hw_pad: tuple, pxy: tuple = (0, 0)):
     r"""
     Convert the topleft and bottomright xyxy to the center xywh normalized
     Args:
         bbox: _Tensor_or_ndarray = bbox shape(..., 4)
         hw_pad: tuple = shape with padding (h, w)
         pxy: tuple = padding xy (left, top)
-        clip: = True/False
 
     Returns:
         bbox (converted)
@@ -73,8 +93,7 @@ def xyxy2xywhn(bbox: _Tensor_or_ndarray, hw_pad: tuple, pxy: tuple = (0, 0), cli
     y[..., 1] = (bbox[..., 1] + bbox[..., 3]) / 2 + py  # center y
     y[..., 2] = bbox[..., 2] - bbox[..., 0]  # w
     y[..., 3] = bbox[..., 3] - bbox[..., 1]  # h
-    if clip:
-        y = clip_bbox(y, hw_pad)
+
     y[..., [0, 2]] /= w
     y[..., [1, 3]] /= h
     return y

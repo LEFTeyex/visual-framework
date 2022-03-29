@@ -12,6 +12,7 @@ __all__ = ['MetaValDetect']
 class MetaValDetect(ValDetectMixin):
     def __init__(self, last=True, model=None, writer=None,  # need to super in subclass
                  half=True, dataloader=None, loss_fn=None, cls_names=None, epoch=None, visual_image=None,
+                 coco_eval=None,  # coco_eval is the tuple with path of gt and dt json file
                  args=None):
         super(MetaValDetect, self).__init__()
         self.last = last
@@ -20,7 +21,8 @@ class MetaValDetect(ValDetectMixin):
         self.writer = writer
         self.training = model is not None
         self.cls_names = None
-        self.set_self_parameters_training(model, half, loss_fn, dataloader, cls_names, epoch, visual_image)
+        self.coco_eval = coco_eval
+        self.set_self_parameters_val_training(model, half, loss_fn, dataloader, cls_names, epoch, visual_image)
 
     def val(self):
         # TODO
@@ -43,12 +45,12 @@ class MetaValDetect(ValDetectMixin):
         log_loss_and_metrics('Val', self.epoch, self.last, self.writer, self.cls_names,
                              loss_name, loss_all, metrics, fps_time)
 
-    def set_self_parameters_val_alone(self):
+    def set_self_parameters_val(self):
         # TODO
         # val alone
         pass
 
-    def set_self_parameters_training(self, model, half, loss_fn, dataloader, cls_names, epoch, visual_image):
+    def set_self_parameters_val_training(self, model, half, loss_fn, dataloader, cls_names, epoch, visual_image):
         # val during training
         if self.training:
             self.device = next(model.parameters()).device

@@ -9,6 +9,7 @@ The Mixins only call self.* variable, can not define self.* variable inside to a
 Please follow the rule, if you want to upgrade and maintain this module with me.
 """
 
+import json
 import torch
 import numpy as np
 import torch.nn as nn
@@ -22,7 +23,7 @@ from torch.utils.data import DataLoader
 from utils import WRITER
 from utils.log import LOGGER, add_log_file
 from utils.check import check_only_one_set
-from utils.bbox import xywh2xyxy, rescale_xyxy
+from utils.bbox import xywh2xyxy, xyxy2x1y1wh, rescale_xyxy
 from utils.general import delete_list_indices, time_sync, save_all_txt
 from utils.decode import filter_outputs2predictions, non_max_suppression
 from utils.metrics import match_pred_label_iou_vector, compute_metrics_per_class, compute_fitness
@@ -550,8 +551,8 @@ class DataLoaderMixin(object):
         self.pin_memory = None
         self.visual_image = None
 
-    def get_dataloader(self, dataset: _dataset_c, name: str,
-                       augment: bool = False, data_augment='', shuffle: bool = False):
+    def get_dataloader(self, dataset: _dataset_c, name: str, augment: bool = False,
+                       data_augment='', shuffle: bool = False, create_json_gt=None):
         r"""
         Set dataset and get dataloader.
         Args:
@@ -560,17 +561,24 @@ class DataLoaderMixin(object):
             augment: bool = False/True
             data_augment: str = 'cutout'/'mixup'/'mosaic' the kind of data augmentation
             shuffle: bool = False/True
+            create_json_gt: = path for saving json whether create json coco format for using COCOeval
 
         Return dataloader instance
         """
         if self.datasets.get(name, None) is None:
             dataloader = None
             LOGGER.warning(f'The datasets {name} do not exist, got Dataloader {name} is None')
+            if create_json_gt:
+                raise Exception(f'The json_gt will not be created.'
+                                f'Please check and correct the path of {name} in datasets.yaml, '
+                                f'if you want to use COCO to eval.'
+                                f'Otherwise please do not input the arg of the create_json_gt')
         else:
             LOGGER.info(f'Initializing Dataloader {name}...')
             # set dataset
             LOGGER.info(f'Initializing Dataset {name}...')
-            dataset = dataset(self.datasets[name], self.image_size, augment, data_augment, self.hyp, name)
+            dataset = dataset(self.datasets, name, self.image_size, augment, data_augment, self.hyp,
+                              create_json_gt=create_json_gt)
             LOGGER.info(f'Initialize Dataset {name} successfully')
 
             # visualizing
@@ -607,7 +615,8 @@ class LossMixin(object):
         Args:
             loss_class: _instance_c = loss class
 
-        Return loss_instance
+        Returns:
+            loss_instance
         """
         LOGGER.info('Initializing LossDetect...')
         loss_instance = loss_class(self.model, self.hyp)
@@ -641,7 +650,7 @@ class TrainDetectMixin(object):
 
         with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
                   bar_format='{l_bar}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels, _) in pbar:
+            for index, (images, labels, _, _) in pbar:
                 images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
                 labels = labels.to(self.device)
 
@@ -743,6 +752,7 @@ class ValDetectMixin(object):
         self.writer = None
         self.device = None
         self.loss_fn = None
+        self.coco_eval = None
         self.dataloader = None
         self.visual_image = None
 
@@ -751,9 +761,10 @@ class ValDetectMixin(object):
         loss_all_mean = torch.zeros(4, device=self.device).half() if self.half else torch.zeros(4, device=self.device)
         iou_vector = torch.linspace(0.5, 0.95, 10, device=self.device)
         stats = []  # statistics to save tuple(pred_iou_level, pred conf, pred cls, label cls)
+        json_dt = []  # save detection truth for COCO
         with tqdm(enumerate(self.dataloader), total=len(self.dataloader),
                   bar_format='{l_bar:>42}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels, shape_converts) in pbar:
+            for index, (images, labels, shape_converts, img_ids) in pbar:
                 # get current for computing FPs but maybe not accurate maybe
                 t0 = time_sync()
                 images = images.to(self.device)
@@ -788,9 +799,13 @@ class ValDetectMixin(object):
                                                                self.epoch)
 
                 # get metrics data
-                _stats = self._get_metrics_stats(predictions, labels, shape_converts, iou_vector)
-                stats.extend(_stats)
+                self._get_metrics_stats(predictions, labels, shape_converts, iou_vector, stats, json_dt, img_ids)
+
             WRITER.add_epoch_curve(self.writer, 'val_loss', loss_all_mean, loss_name, self.epoch)
+
+        if self.coco_eval:
+            with open(self.coco_eval[1], 'w') as f:
+                json.dump(json_dt, f)
         return loss_all_mean.tolist(), loss_name, stats
 
     def compute_metrics(self, stats):
@@ -842,10 +857,9 @@ class ValDetectMixin(object):
         outputs = filter_outputs2predictions(outputs, 0.25)  # list which len is bs
         return outputs
 
-    def _get_metrics_stats(self, predictions, labels, shape_converts, iou_vector):
+    def _get_metrics_stats(self, predictions, labels, shape_converts, iou_vector, stats, json_dt, img_ids):
         # save tuple(pred_iou_level, pred conf, pred cls, label cls)
-        stats = []  # save temporarily
-        for index, pred in enumerate(predictions):
+        for index, (pred, image_id) in enumerate(zip(predictions, img_ids)):
             self.seen += 1
             label = labels[labels[:, 0] == index, 1:]  # one image label
             nl = label.shape[0]  # number of label
@@ -859,6 +873,9 @@ class ValDetectMixin(object):
 
             pred[:, :4] = rescale_xyxy(pred[:, :4], shape_converts[index])
 
+            if self.coco_eval:
+                self._append_json_dt(pred, image_id, json_dt)
+
             if nl:
                 label[:, 1:] = xywh2xyxy(label[:, 1:])
                 label[:, 1:] = rescale_xyxy(label[:, 1:], shape_converts[index])
@@ -867,7 +884,18 @@ class ValDetectMixin(object):
             else:
                 pred_iou_level = torch.zeros((pred.shape[0], iou_vector.shape[0]), dtype=torch.bool)
             stats.append((pred_iou_level.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), label_cls))
-        return stats
+
+    @staticmethod
+    def _append_json_dt(predictions, image_id, json_dt: list):
+        # prediction(n, 6(x, y, x, y, conf, cls_idx))
+        bboxes = xyxy2x1y1wh(predictions[:, :4])
+        cls = predictions[:, 5]
+        scores = predictions[:, 4]
+        for category_id, bbox, score in zip(cls.tolist(), bboxes.tolist(), scores.tolist()):
+            json_dt.append({'image_id': int(image_id),
+                            'category_id': int(category_id),
+                            'bbox': [round(x, 3) for x in bbox],  # Keep 3 decimal places to get more accurate mAP
+                            'score': float(score)})
 
     def _show_loss_in_pbar_validating(self, loss, pbar):
         # GPU memory used which an approximate value because of 1E9

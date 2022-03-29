@@ -4,6 +4,8 @@ Meta Trainer module for building all trainer class.
 
 import torch
 
+from pycocotools.cocoeval import COCOeval
+
 from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
 from utils.mixins import LossMixin, DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
     SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin, FreezeLayersMixin
@@ -63,6 +65,7 @@ class MetaTrainDetect(
 
         # To configure Trainer in subclass as following
         self.save_dict = None  # Get save_dict
+        self.coco_eval = None  # self.save_dict['json_dt']
         # self.device = select_one_device(self.device) # Set one device
         self.cuda = None  # For judging whether cuda
         # Load hyp yaml
@@ -133,9 +136,16 @@ class MetaTrainDetect(
             dataloader = self.val_dataloader
         tester = self.val_class(last=True, model=self.model, half=False, dataloader=dataloader,
                                 loss_fn=self.loss_fn, cls_names=self.datasets['names'],
-                                epoch=self.epoch, writer=self.writer, visual_image=self.visual_image)
+                                epoch=self.epoch, writer=self.writer, visual_image=self.visual_image,
+                                coco_eval=self.coco_eval)
         results = tester.val_training()
         return results
+
+    def coco_evaluation(self, eval_type='bbox'):  # eval_type is one of ('segm', 'bbox', 'keypoints')
+        coco_gt, coco_dt = self.coco_eval
+        # TODO check coco_gt, coco_dt exists
+        coco_gt = COCOeval()
+        # TODO 2022.3.30
 
     def close_tensorboard(self):
         r"""Close writer which is the instance of SummaryWriter in tensorboard"""

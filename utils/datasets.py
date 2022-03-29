@@ -2,10 +2,11 @@ r"""
 Custom Dataset module.
 Consist of Dataset that designed for different tasks.
 """
-import random
 
 import cv2
+import json
 import torch
+import random
 import numpy as np
 
 from tqdm import tqdm
@@ -29,34 +30,39 @@ class DatasetDetect(Dataset):
     For images, save its paths and load images with resizing, padding.
     For labels, save it and convert labels when images resized or padded.
     Args:
-        path: = path or [path, ...] for images
+        datasets: = datasets dict
+        name: = the name of dataset type
         img_size: int = the largest edge of image size
         augment: = False/True whether data augment
         data_augment: str = 'cutout'/'mixup'/'mosaic' the kind of data augmentation
         hyp: = self.hyp in train hyperparameter augmentation
-        prefix: str = the prefix for tqdm.tqdm
+        create_json_gt: = path for saving json whether create json coco format for using COCOeval
     """
 
     # TODO upgrade val_from_train, test_from_train function in the future reference to random_split
     # TODO upgrade rectangular train shape for image model in the future reference to yolov5 rect=True
     # TODO upgrade .cache file in memory for faster training
-    def __init__(self, path, img_size: int, augment=False, data_augment: str = '', hyp=None, prefix: str = ''):
+    def __init__(self, datasets, name: str, img_size: int, augment=False, data_augment: str = '', hyp=None,
+                 create_json_gt=None):
+        self.datasets = datasets
         self.img_size = img_size
         self.augment = augment
         self.data_augment = data_augment.lower().replace(' ', '')
         self.hyp = hyp
-        self.img_files = get_img_files(path)  # get the path tuple of image files
-        self.indices = range(len(self.img_files))  # for choices in data augmentation
+        self.create_json_gt = create_json_gt
+        self.img_files = get_img_files(datasets[name])  # get the path tuple of image files
         # check img suffix and img_files(to str)
         self.img_files = [str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS)]
         self.img_files = tuple(self.img_files)  # to save memory
         if not self.img_files:
             raise FileNotFoundError('No images found')
+        self.indices = range(len(self.img_files))  # for choices in data augmentation
 
         # get label_files that it is str and sorted with images_files
         self.label_files = img2label_files(self.img_files)
         # check images and labels then get labels which is [np.array shape(n,nlabel), ...]
-        self.label_files, self.nlabel = self._check_img_get_label_detect(self.img_files, self.label_files, prefix)
+        self.label_files, self.nlabel = \
+            self._check_img_get_label_create_json_coco_detect(self.img_files, self.label_files, name)
         LOGGER.info(f'Load {len(self.img_files)} images and {len(self.label_files)} labels')
 
     def __getitem__(self, index):
@@ -85,7 +91,7 @@ class DatasetDetect(Dataset):
         else:
             label = torch.empty((0, self.nlabel + 1))  # empty
 
-        return image, label, shape_convert  # only one image(c,h,w), label(nl, 1 + nlabel)
+        return image, label, shape_convert, index  # only one image(c,h,w), label(nl, 1 + nlabel)
 
     def __len__(self):
         r"""Return len of all data"""
@@ -168,10 +174,10 @@ class DatasetDetect(Dataset):
         Args:
             batch: list = [0(image, label, ...), 1, 2, 3] for batch index of data
 
-        Return images, labels, shape_converts
+        Return images, labels, shape_converts, img_ids
         """
         # batch is [(image, label, shape_convert), ...]
-        images, labels, shape_converts = zip(*batch)
+        images, labels, shape_converts, img_ids = zip(*batch)  # every element is tuple
         # add index for label to image
         for index, label in enumerate(labels):
             label[:, 0] = index
@@ -179,32 +185,55 @@ class DatasetDetect(Dataset):
         labels = torch.cat(labels, dim=0)  # shape (n, 1 + nlabel)
         images = torch.stack(images, dim=0)  # shape (bs, c, h, w)
         # shape_converts is tuple
-        return images, labels, shape_converts
+        return images, labels, shape_converts, img_ids
 
-    @staticmethod
-    def _check_img_get_label_detect(images_files, labels_files, prefix: str = '', nlabel: int = 5):
+    def _check_img_get_label_create_json_coco_detect(self, image_files, label_files, prefix: str = '',
+                                                     nlabel: int = 5):
         r"""
         Check image (channels) and labels (empty, shape, positive, normalized).
         Get labels then.
         Args:
-            images_files: = images_files(path tuple)
-            labels_files: = labels_files(path tuple)
+            image_files: = images_files(path tuple)
+            label_files: = labels_files(path tuple)
             prefix: str = the prefix for tqdm.tqdm
             nlabel: int = number for detecting (x,y,w,h,object) new
 
         Return labels(tuple), nlabel
         """
         labels = []  # save labels
-        channel = cv2.imread(images_files[0]).shape[-1]
+        channel = cv2.imread(image_files[0]).shape[-1]
         space = ' ' * 11
-        with tqdm(zip(images_files, labels_files),
+
+        # for json coco format
+        images = []  # consist of dict(file_name, height, width, id)
+        annotations = []  # consist of dict(segmentation, area, iscrowd, image_id, bbox:list, category_id, id)
+        categories = []  # # consist of dict(supercategory, id, name)
+        ann_id = 0
+
+        def xywh2segmentation(b):
+            bx1, by1, bw, bh = b
+            bx2, by2 = bx1 + bw, by1 + bh
+            return [[bx1, by1, bx1, by2, bx2, by2, bx2, by1]]
+
+        with tqdm(enumerate(zip(image_files, label_files)),
                   bar_format='{l_bar}{bar:20}{r_bar}',
                   desc=f'{space}{prefix}: checking image and label',
-                  total=len(images_files)) as pbar:
-            for ip, lp in pbar:  # image path, label path
+                  total=len(image_files)) as pbar:
+            for image_id, (ip, lp) in pbar:  # image path, label path
+                image = cv2.imread(ip)
+                height, width, c = image.shape
+
                 # check image
-                assert cv2.imread(ip).shape[-1] == channel, \
-                    f'The channel of the image {ip} do not match with {channel}'
+                assert c == channel, f'The channel of the image {ip} do not match with {channel}'
+
+                # create images the image_id is corresponding to the index of image_files
+                if self.create_json_gt:
+                    image = {'file_name': Path(ip).name,
+                             'height': height,
+                             'width': width,
+                             'id': image_id}
+                    images.append(image)
+
                 # check label and get read it to list
                 with open(lp, 'r') as f:
                     label = [x.strip().split() for x in f.read().splitlines() if x]  # label is [[class,x,y,w,h], ...]
@@ -216,6 +245,42 @@ class DatasetDetect(Dataset):
                     assert (label >= 0).all(), f'The value in label should not be negative {lp}'
                     assert (label[:, 1:] <= 1).all(), f'Non-normalized or out of bounds coordinates {lp}'
                     labels.append(label)
+
+                    # create annotations
+                    if self.create_json_gt:
+                        cls, x, y, w, h = label[:, 0], label[:, 1] * width, label[:, 2] * height, \
+                                          label[:, 3] * width, label[:, 4] * height
+                        # center to top-left
+                        x = x - w * 0.5
+                        y = y - h * 0.5
+                        bboxes = np.concatenate((x, y, w, h), axis=0).T
+                        areas = bboxes[:, 2] * bboxes[:, 3]
+                        for category_id, bbox, area in zip(cls.tolist(), bboxes.tolist(), areas.tolist()):
+                            bbox = [float(x) for x in bbox]
+                            ann = {'id': ann_id,
+                                   'image_id': image_id,
+                                   'category_id': int(category_id),
+                                   'segmentation': xywh2segmentation(bbox),
+                                   'area': float(area),
+                                   'bbox': bbox,
+                                   'iscrowd': 0}
+                            annotations.append(ann)
+                            ann_id += 1
+
+        # create categories and save json for coco
+        if self.create_json_gt:
+            for idx, name in enumerate(self.datasets['names']):
+                cat = {'supercategory': '0',
+                       'id': idx,
+                       'name': name}
+                categories.append(cat)
+            categories.sort(key=lambda x: int(x['id']))
+            coco_json = {'images': images,
+                         'annotations': annotations,
+                         'categories': categories}
+            with open(self.create_json_gt, 'w') as f:
+                json.dump(coco_json, f)
+
         return tuple(labels), nlabel
 
 
