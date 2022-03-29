@@ -15,8 +15,6 @@ from typing import Optional
 
 from utils.general import save_all_txt, load_all_txt
 
-ROOT = Path.cwd()
-
 _int_or_None = Optional[int]
 
 
@@ -287,7 +285,7 @@ def convert_xml2txt_yolo_or_xml2json_coco_or_classify_datasets(args):
 
     elif kind == 'classify':
         path = args.path_classify
-        save_path = Path(args.save_path) / args.dir_name
+        save_path = args.save_path
         seed = args.seed
         weights = args.weights
         _classify_datasets(path, save_path, seed, weights)
@@ -372,7 +370,6 @@ def deal_coco_detection(path: str):
     path = Path(path)
     if not path.exists():
         raise FileExistsError(f'The path {str(path)} do not exist')
-    image_dir = path / 'images'
     label_dir = path / 'annotations'
     deal_json = ['instances_train2017.json', 'instances_val2017.json']
     for json_path in deal_json:
@@ -380,7 +377,7 @@ def deal_coco_detection(path: str):
         data = COCO(label_dir / json_path)
         data_type = json_path[10:-5]
         img_path_save_path = path / f'{data_type}.txt'
-        cats_dict = {str(d['id']): str(k) for k, d in data.cats.items()}
+        cats_dict = {str(v['id']): str(k) for k, v in enumerate(data.cats.values())}
 
         with tqdm(data.imgToAnns.items(), bar_format='{l_bar}{bar:20}{r_bar}',
                   desc=f'{data_type} json2txt_yolo', total=len(data.imgToAnns.items())) as pbar:
@@ -388,7 +385,7 @@ def deal_coco_detection(path: str):
             for Id, annotations in pbar:
                 img_data = data.imgs[Id]
                 img_name = img_data['file_name']
-                img_path = [str(image_dir / data_type / img_name)]
+                img_path = [img_name]
                 label_name = img_name.replace('.jpg', '.txt')
                 h, w = img_data['height'], img_data['width']
                 label_save_path = path / f"labels/{data_type}/{label_name}"
@@ -396,7 +393,7 @@ def deal_coco_detection(path: str):
                 labels = []
                 for ann in annotations:
                     bbox = ann['bbox']
-                    cls_idx = cats_dict[str(ann['category_id'])]
+                    cls_idx = [cats_dict[str(ann['category_id'])]]
                     bbox = _x1y1wh2xywhn(bbox, w, h)
                     label = cls_idx + bbox
                     labels.append(label)
@@ -455,8 +452,7 @@ def parse_args_detect(known: bool = False):
 
     # classify_datasets
     parser.add_argument('--path_classify', type=str, default='F:/datasets/VOCdevkit/VOC2012/images', help='')
-    parser.add_argument('--save_path', type=str, default=str(ROOT.parent / 'data/datasets'), help='')
-    parser.add_argument('--dir_name', type=str, default='VOC2012', help='')
+    parser.add_argument('--save_path', type=str, default='', help='')
     parser.add_argument('--seed', type=int, default=0, help='')
     parser.add_argument('--weights', type=list, default=[0.8, 0.1],
                         help='the proportion of train and val, the rest is test')
