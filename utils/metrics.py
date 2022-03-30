@@ -129,11 +129,11 @@ def compute_ap(recall, precision):
     indices = np.searchsorted(r, r_threshold, side='left')
     q = np.zeros((len(r_threshold),))
 
-    # try:  # for avoid from IndexError
-    for ri, pi in enumerate(indices):
-        q[ri] = p[pi]
-    # except:
-    #     pass
+    try:  # for avoid from IndexError and let them zero
+        for ri, pi in enumerate(indices):
+            q[ri] = p[pi]
+    except IndexError:
+        pass
     p, r = q, r_threshold
     ap = np.mean(p)
 

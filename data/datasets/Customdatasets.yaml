@@ -1,0 +1,57 @@
+# Set Custom datasets
+# Set datasets path file as follows
+
+# path|
+#     |---images|---train.txt  or  |---images|
+#     |         |---0001.jpg       |         |train1-----|---train1.txt
+#     |         |---0002.jpg       |         |train2...  |---0001.jpg
+#     |         |---...            |         |...        |---0002.jpg
+#     |                            |                     |---...
+#     |---labels|                  |---labels|
+#               |---0001.txt                 |train1-----|
+#               |---0002.txt                 |train2...  |---0001.txt (class,x,y,w,h)
+#               |---...                      |...        |---0002.txt
+#                                                        |---...
+
+# input (file dir) or (*.txt) for (train val test)
+# for example one
+# path: c:/datasets/images
+# train: train.txt  # the (*.txt) must be in the same dir with images(*.jpg etc.) as above
+#                   # and the path in *.txt has better be relative
+# or
+# train:
+#  - train1/train1.txt
+#  - train2/train2.txt
+
+# for example two
+# path: c:/datasets
+# train: images  # the file dir of images(*.jpg etc.)
+# or
+# train:
+#  - images/train1
+#  - images/train2
+
+# the path should better be absolute
+path: .../datasets
+
+# must exists
+train: images/train.txt
+
+# must exists
+val: images/val.txt
+
+test: null
+
+# anchors is wh list
+anchors:
+  - [ [ 10, 13 ], [ 16, 30 ], [ 33, 23 ] ]
+  - [ [ 30, 61 ], [ 62, 45 ], [ 59, 119 ] ]
+  - [ [ 116, 90 ], [ 156, 198 ], [ 373, 326 ] ]
+
+# number of classes
+nc: 20
+
+# name of classes corresponding to 0, 1, 2, ...
+names: [ 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car',
+         'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
+         'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor' ]

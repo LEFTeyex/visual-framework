@@ -45,6 +45,7 @@ class TrainDetect(MetaTrainDetect):
                                                          ('best', 'weights/best.pt'),
                                                          ('json_gt', 'json_gt.json'),
                                                          ('json_dt', 'json_dt.json'),
+                                                         ('coco_results', 'coco_results.json'),
                                                          logfile='logger.log')
 
         self.coco_eval = (self.save_dict['json_gt'], self.save_dict['json_dt'])
@@ -116,9 +117,8 @@ class TrainDetect(MetaTrainDetect):
         # Get dataloader for training testing
         self.train_dataloader = self.get_dataloader(DatasetDetect, 'train', augment=self.augment,
                                                     data_augment=self.data_augment, shuffle=self.shuffle)
-        self.val_dataloader = self.get_dataloader(DatasetDetect, 'val')
-        self.test_dataloader = self.get_dataloader(DatasetDetect, 'test',
-                                                   create_json_gt=self.save_dict['json_gt'])
+        self.val_dataloader = self.get_dataloader(DatasetDetect, 'val', create_json_gt=self.save_dict['json_gt'])
+        self.test_dataloader = self.get_dataloader(DatasetDetect, 'test')
 
         # TODO upgrade warmup
 
@@ -159,7 +159,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
     parser.add_argument('--pin_memory', type=bool, default=False, help='')
-    parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
+    parser.add_argument('--datasets', type=str, default=str(ROOT / 'mine/data/datasets/Customdatasets.yaml'), help='')
     parser.add_argument('--name', type=str, default='exp', help='')
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
@@ -200,7 +200,3 @@ if __name__ == '__main__':
     # TODO add necessary functions
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
-
-    # TODO 2022.3.30
-    # TODO add pycocotools
-    # TODO add datasets.yaml for VOC COCO

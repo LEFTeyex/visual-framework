@@ -1,0 +1,29 @@
+# VOC datasets
+
+# the path should better be absolute
+path: .../VOC
+
+train:
+  - VOC2007trainval/images/2007train.txt
+  - VOC2012trainval/images/2012train.txt
+
+val:
+  - VOC2007trainval/images/2007val.txt
+  - VOC2012trainval/images/2012val.txt
+
+test:
+  - VOC2007test/images/2007test.txt
+
+# anchors is wh list
+anchors:
+  - [ [ 10, 13 ], [ 16, 30 ], [ 33, 23 ] ]
+  - [ [ 30, 61 ], [ 62, 45 ], [ 59, 119 ] ]
+  - [ [ 116, 90 ], [ 156, 198 ], [ 373, 326 ] ]
+
+# number of classes
+nc: 20
+
+# name of classes corresponding to 0, 1, 2, ...
+names: [ 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car',
+         'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
+         'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor' ] 'train', 'tvmonitor' ]

@@ -95,7 +95,7 @@ def add_datasets_images_labels_detect(writer, datasets, title, dfmt='CHW'):
         space = ' ' * 11
         with tqdm(enumerate(datasets), total=10, bar_format='{l_bar}{bar:20}{r_bar}',
                   desc=f'{space}{title}: visualizing images with labels') as pbar:
-            for index, (image, label, _) in pbar:
+            for index, (image, label, _, _) in pbar:
                 # only consist of 10 images per plot in tensorboard
                 if index <= 9:
                     _, h, w = image.shape

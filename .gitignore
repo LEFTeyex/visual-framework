@@ -4,8 +4,6 @@
 .idea/**
 __pycache__/**
 runs/**
-data/datasets/**
-!data/datasets/Mydatasets.yaml
 mine/**
 
 # *.py

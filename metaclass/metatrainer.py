@@ -2,8 +2,13 @@ r"""
 Meta Trainer module for building all trainer class.
 """
 
+import json
 import torch
+import numpy as np
 
+from pathlib import Path
+from datetime import datetime
+from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
 from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
@@ -65,7 +70,7 @@ class MetaTrainDetect(
 
         # To configure Trainer in subclass as following
         self.save_dict = None  # Get save_dict
-        self.coco_eval = None  # self.save_dict['json_dt']
+        self.coco_eval = None  # (self.save_dict['json_gt'], self.save_dict['json_dt'])
         # self.device = select_one_device(self.device) # Set one device
         self.cuda = None  # For judging whether cuda
         # Load hyp yaml
@@ -103,11 +108,15 @@ class MetaTrainDetect(
             # TODO maybe need a auto stop function for bad training
 
         self.model = self.empty()
-        test_results = self.test_trained()
+        test_results, coco_results = self.test_trained()
         results, _ = self.deal_results_memory((None, None), test_results)
         self.add_data_results(('all_results', results[0]),
                               ('all_class_results', results[1]))
         self.save_all_results()
+
+        # save coco results
+        self.save_coco_results(coco_results)
+
         self.close_tensorboard()
         self.empty_cache()
 
@@ -139,13 +148,52 @@ class MetaTrainDetect(
                                 epoch=self.epoch, writer=self.writer, visual_image=self.visual_image,
                                 coco_eval=self.coco_eval)
         results = tester.val_training()
-        return results
 
-    def coco_evaluation(self, eval_type='bbox'):  # eval_type is one of ('segm', 'bbox', 'keypoints')
+        # get coco results
+        coco_results = None
+        if self.coco_eval:
+            coco_results = self.coco_evaluation(dataloader, 'bbox')
+
+        return results, coco_results
+
+    def coco_evaluation(self, dataloader, eval_type='bbox'):  # eval_type is one of ('segm', 'bbox', 'keypoints')
         coco_gt, coco_dt = self.coco_eval
-        # TODO check coco_gt, coco_dt exists
-        coco_gt = COCOeval()
-        # TODO 2022.3.30
+        if not Path(coco_gt).exists():
+            raise FileExistsError(f'The coco_gt json file do not exist')
+        if not Path(coco_dt).exists():
+            raise FileExistsError(f'The coco_dt json file do not exist')
+
+        coco_gt = COCO(coco_gt)
+        coco_dt = coco_gt.loadRes(coco_dt)
+        coco = COCOeval(coco_gt, coco_dt, iouType=eval_type)
+        coco.params.imgIds = list(dataloader.dataset.indices)
+        coco.evaluate()
+        coco.accumulate()
+        coco.summarize()
+        return coco.eval
+
+    def save_coco_results(self, coco_results):
+        if self.coco_eval:
+            params = coco_results['params']
+            new_params = {}
+            for k, v in params.__dict__.items():
+                if isinstance(v, np.ndarray):
+                    v = v.tolist()
+                elif isinstance(v, (list, tuple)):
+                    v = np.asarray(v).tolist()
+                new_params[k] = v
+            coco_results['params'] = new_params
+
+            for k, v in coco_results.items():
+                if isinstance(v, np.ndarray):
+                    v = v.tolist()
+                elif isinstance(v, datetime):
+                    v = str(v)
+                coco_results[k] = v
+
+            with open(self.save_dict['coco_results'], 'w') as f:
+                json.dump(coco_results, f)
+                LOGGER.info(f"Save json coco_dt {self.save_dict['coco_results']} successfully")
 
     def close_tensorboard(self):
         r"""Close writer which is the instance of SummaryWriter in tensorboard"""
@@ -190,7 +238,7 @@ class MetaTrainDetect(
 #     parser.add_argument('--workers', type=int, default=0, help='')
 #     parser.add_argument('--shuffle', type=bool, default=True, help='')
 #     parser.add_argument('--pin_memory', type=bool, default=False, help='')
-#     parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Mydatasets.yaml'), help='')
+#     parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Customdatasets.yaml'), help='')
 #     parser.add_argument('--name', type=str, default='exp', help='')
 #     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
 #     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')

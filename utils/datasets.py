@@ -56,7 +56,7 @@ class DatasetDetect(Dataset):
         self.img_files = tuple(self.img_files)  # to save memory
         if not self.img_files:
             raise FileNotFoundError('No images found')
-        self.indices = range(len(self.img_files))  # for choices in data augmentation
+        self.indices = range(len(self.img_files))  # for choices in data augmentation and coco evaluation
 
         # get label_files that it is str and sorted with images_files
         self.label_files = img2label_files(self.img_files)
@@ -253,7 +253,7 @@ class DatasetDetect(Dataset):
                         # center to top-left
                         x = x - w * 0.5
                         y = y - h * 0.5
-                        bboxes = np.concatenate((x, y, w, h), axis=0).T
+                        bboxes = np.stack((x, y, w, h), axis=0).T
                         areas = bboxes[:, 2] * bboxes[:, 3]
                         for category_id, bbox, area in zip(cls.tolist(), bboxes.tolist(), areas.tolist()):
                             bbox = [float(x) for x in bbox]
@@ -280,6 +280,7 @@ class DatasetDetect(Dataset):
                          'categories': categories}
             with open(self.create_json_gt, 'w') as f:
                 json.dump(coco_json, f)
+            LOGGER.info(f'Create json coco_gt {self.create_json_gt} successfully')
 
         return tuple(labels), nlabel
 
@@ -344,7 +345,7 @@ def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0,
     return image, (h2, w2), padxy
 
 
-def get_img_files(path, file_path_is_absolute: bool = True):
+def get_img_files(path, file_path_is_absolute: bool = False):
     r"""
     Get all the image path in the path and its dir.
     Args:
@@ -355,7 +356,7 @@ def get_img_files(path, file_path_is_absolute: bool = True):
         img_files(which is absolute image paths tuple)
     """
     img_files = []
-    for p in path if isinstance(path, list) else [path]:
+    for p in path if isinstance(path, (list, tuple)) else [path]:
         p = Path(p)
         if p.is_dir():
             img_files += [x for x in p.rglob('*.*')]
@@ -432,11 +433,13 @@ def get_and_check_datasets_yaml(path: _path):
         LOGGER.debug('No datasets test')
         train, val = tvt
 
-    del tvt
-
     # train must exist
     if train is None:
         raise FileExistsError(f'The path train must not None, '
+                              f'please reset it in the {path}')
+    # val must exist
+    if val is None:
+        raise FileExistsError(f'The path val must not None, '
                               f'please reset it in the {path}')
 
     # check whether train, val, test exist

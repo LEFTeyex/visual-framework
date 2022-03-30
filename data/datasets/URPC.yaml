@@ -1,0 +1,22 @@
+# URPC datasets
+
+# the path should better be absolute
+path: .../URPC
+
+train: URPC2021/train/images/train.txt
+
+val: URPC2021/train/images/val.txt
+
+test: null
+
+# anchors is wh list
+anchors:
+  - [ [ 10, 13 ], [ 16, 30 ], [ 33, 23 ] ]
+  - [ [ 30, 61 ], [ 62, 45 ], [ 59, 119 ] ]
+  - [ [ 116, 90 ], [ 156, 198 ], [ 373, 326 ] ]
+
+# number of classes
+nc: 4
+
+# name of classes corresponding to 0, 1, 2, ...
+names: [ 'holothurian', 'echinus', 'scallop', 'starfish' ]

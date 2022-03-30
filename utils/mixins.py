@@ -53,7 +53,7 @@ class SetSavePathMixin(object):
             args: = (name, path), ...
             logfile: _str_or_None = 'logger.log' or '*/others.log', Default=None(logger.log file will not be created)
 
-        Return dict{'name': path, ...}
+        Return dict{'name': strpath, ...}
         """
         self._set_name()
         self.save_path /= self.name
@@ -80,7 +80,7 @@ class SetSavePathMixin(object):
         for k, v in args:
             path = self.save_path / v
             path.parent.mkdir(parents=True, exist_ok=True)
-            save_dict[k] = path
+            save_dict[k] = str(path)
         LOGGER.info('Set save path successfully')
         return save_dict, writer
 
