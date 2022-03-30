@@ -14,6 +14,8 @@ from pytorch_grad_cam.utils.image import show_cam_on_image
 
 from utils.datasets import load_image_resize
 
+__all__ = ['get_attention_map', 'get_feature_map']
+
 
 class _DetectOutputTarget(torch.nn.Module):
     def __init__(self, layer: int, anchor_idx: int, idx: int):
@@ -24,13 +26,13 @@ class _DetectOutputTarget(torch.nn.Module):
 
     def forward(self, model_output):
         r"""
-        The model_output shape is list[ shape(bs, layer, h, w, (xywh + obj + cls)) ]
+        The model_output shape is list[ shape(bs, anchor_idx, h, w, (xywh + obj + cls)) ]
         Returns:
             model_output
         """
         model_output = model_output[self.layer][:, self.anchor_idx, :, :, self.idx]
         # TODO verify the bs can be multiple
-        return model_output.sum(dim=(-2, -1))  # shape(bs, n)
+        return model_output.sum()
 
 
 class _GradCAM(GradCAM):
@@ -54,7 +56,7 @@ class _GradCAM(GradCAM):
 
         if self.uses_gradients:
             self.model.zero_grad()
-            loss = sum(sum([target(output) for target in targets]))
+            loss = sum([target(output) for target in targets])
             loss.backward(retain_graph=True)
 
         cam_per_layer = self.compute_cam_per_layer(input_tensor,
@@ -113,6 +115,7 @@ def parse_feature_map(features, to_wh, separate=False, use_rgb: bool = False, co
 
 
 def get_attention_map(img_path, img_size, model_instance, target_layers: list, layer, anchor, idx, use_cuda=True):
+    r"""The layer and target_layers should be corresponding for gradient backward"""
     img, img_tensor = load_image_np_tensor(img_path, img_size)
     cam = _GradCAM(model_instance, target_layers, use_cuda=use_cuda)
     targets = [_DetectOutputTarget(layer, anchor, idx)]
@@ -154,11 +157,11 @@ def demo_attention_map():
 
     path = '../../data/images/dog.jpg'
     img_size = 640
-    weights = torch.load('../../runs/train/exp1/weights/best.pt')['model'].state_dict()
-    model_instance = yolov5s_v6(num_class=20, decode=True)
+    weights = torch.load('../../models/yolov5/yolov5s_v6.pt')['model'].state_dict()
+    model_instance = yolov5s_v6(num_class=80, decode=True)
     model_instance.load_state_dict(weights)
-    target_layers = [model_instance.head.m[0]]
-    layer, anchor, idx = 0, 0, 14
+    target_layers = [model_instance.neck.conv5]
+    layer, anchor, idx = 2, 0, 21
     img_attentions = get_attention_map(path, img_size, model_instance, target_layers, layer, anchor, idx)
     for img_attention in img_attentions:
         print(img_attention.shape)
@@ -175,7 +178,7 @@ def demo_feature_map():
     model_instance = yolov5s_v6(num_class=80, decode=True)
     model_instance.load_state_dict(weights)
     target_layers = [model_instance.backbone.block3[3]]
-    separate = True
+    separate = False
 
     feature_maps = get_feature_map(path, img_size, model_instance, target_layers, separate)
     for feature_map in feature_maps:

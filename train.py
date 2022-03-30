@@ -154,12 +154,12 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--freeze_names', type=list, default=['backbone', 'neck'],
                         help='name of freezing layers in model')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
+    parser.add_argument('--epochs', type=int, default=1, help='epochs for training')
     parser.add_argument('--batch_size', type=int, default=16, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
     parser.add_argument('--pin_memory', type=bool, default=False, help='')
-    parser.add_argument('--datasets', type=str, default=str(ROOT / 'mine/data/datasets/Customdatasets.yaml'), help='')
+    parser.add_argument('--datasets', type=str, default=str(ROOT / 'mine/data/datasets/VOC.yaml'), help='')
     parser.add_argument('--name', type=str, default='exp', help='')
     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
@@ -200,3 +200,5 @@ if __name__ == '__main__':
     # TODO add necessary functions
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
+
+    # TODO add val alone 2022.3.30

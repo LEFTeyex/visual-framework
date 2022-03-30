@@ -239,7 +239,7 @@ class DatasetDetect(Dataset):
                     label = [x.strip().split() for x in f.read().splitlines() if x]  # label is [[class,x,y,w,h], ...]
                     label = np.array(label, dtype=np.float32)
                     label = np.unique(label, axis=0)  # remove the same one
-                    assert len(label), f'The label {lp} is empty'
+                    assert len(label), f'The label {lp} is empty'  # make sure the label is not empty
                     assert label.ndim == 2, f'There are format problem with label {lp}'
                     assert label.shape[1] == nlabel, f'The label require {nlabel} element {lp}'
                     assert (label >= 0).all(), f'The value in label should not be negative {lp}'

@@ -26,4 +26,4 @@ nc: 20
 # name of classes corresponding to 0, 1, 2, ...
 names: [ 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car',
          'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike',
-         'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor' ] 'train', 'tvmonitor' ]
+         'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor' ]
