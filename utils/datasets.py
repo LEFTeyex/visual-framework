@@ -15,11 +15,11 @@ from torch.utils.data import Dataset
 
 from utils.log import LOGGER
 from utils.bbox import xywhn2xyxy, xyxy2xywhn, rescale_xywhn
-from utils.general import load_all_yaml, to_tuplex
+from utils.general import load_all_yaml, to_tuplex, make_divisible_up
 from utils.augmentation import random_affine_or_perspective, cutout, mixup, mosaic
 from utils.typeslib import _path, _int_or_tuple
 
-__all__ = ['DatasetDetect', 'get_and_check_datasets_yaml', 'load_image_resize']
+__all__ = ['DatasetDetect', 'get_and_check_datasets_yaml', 'load_image_resize', 'load_image_correct_rect']
 
 IMAGE_FORMATS = ('bmp', 'jpg', 'jpeg', 'jpe', 'png', 'tif', 'tiff', 'webp')  # acceptable image suffixes
 
@@ -107,7 +107,7 @@ class DatasetDetect(Dataset):
         # TODO maybe the shape computed in __init__ and save will be better and faster
         image, hw0, hw_nopad, ratio = load_image_resize(img_path, self.img_size)
         image, hw_pad, padxy = letterbox(image, self.img_size)  # pad image to shape or img_size
-        shape_convert = hw0, ratio, padxy  # for convert coordinate from hw_pad to hw0
+        shape_convert = hw0, ratio, padxy  # for convert coordinate from hw_pad to hw0 in COCOeval
 
         # convert label xywh normalized to xyxy (padded)
         if nl:
@@ -292,7 +292,8 @@ def load_image_resize(img_path: _path, img_size: int):
         img_path: _path = Path
         img_size: int = img_size for the largest edge
 
-    Return image, (h0, w0), (h1, w1), r
+    Returns:
+        image, (h0, w0), (h1, w1), r
     """
     image = cv2.imread(img_path)  # (h,w,c) BGR
     image = image[..., ::-1]  # BGR to RGB
@@ -312,6 +313,21 @@ def load_image_resize(img_path: _path, img_size: int):
     return image, (h0, w0), (h1, w1), r
 
 
+def load_image_correct_rect(img_path: _path, img_size: int, divisor: int = 32):
+    r"""Load image and resize it and make its side is divisible 32"""
+    image, (h0, w0), (h1, w1), r = load_image_resize(img_path, img_size)
+
+    # compute shape_pad
+    if h1 != w1:
+        h2, w2 = (make_divisible_up(h1, divisor), w1) if h1 < w1 else (h1, make_divisible_up(w1, divisor))
+        image, (h2, w2), padxy = letterbox(image, (h2, w2))
+    else:
+        h2, w2 = h1, w1
+        padxy = (0, 0)
+
+    return image, (h0, w0), (h1, w1), r, (h2, w2), padxy
+
+
 def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0, 0)):
     r"""
     Pad image to specified shape.
@@ -320,7 +336,8 @@ def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0,
         shape_pad: _int_or_tuple = (h, w) or int
         color: tuple = RGB
 
-    Return image(ndarray), (h2, w2), pxy
+    Returns:
+        image(ndarray), (h2, w2), pxy
     """
     if isinstance(shape_pad, int):
         shape_pad = to_tuplex(shape_pad, 2)

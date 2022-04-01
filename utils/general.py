@@ -17,7 +17,7 @@ from utils.log import LOGGER
 from utils.typeslib import _int_or_None, _path
 
 __all__ = ['timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'save_all_txt', 'load_all_txt',
-           'load_all_yaml', 'save_all_yaml',
+           'load_all_yaml', 'save_all_yaml', 'make_divisible_up',
            'init_seed', 'select_one_device']
 
 
@@ -43,6 +43,11 @@ def time_sync():
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     return time.time()
+
+
+def make_divisible_up(x, divisor):
+    r"""Make x divisible by divisor then return a number may be large"""
+    return (x // divisor + 1) * divisor
 
 
 def to_tuplex(value, n: int):

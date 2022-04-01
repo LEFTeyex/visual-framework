@@ -12,7 +12,7 @@ from typing import List
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
-from utils.datasets import load_image_resize
+from utils.datasets import load_image_correct_rect
 
 __all__ = ['get_attention_map', 'get_feature_map']
 
@@ -89,7 +89,7 @@ class HookFeaturesFromModuleLayers:
 
 
 def load_image_np_tensor(img_path, to_img_size):
-    img = load_image_resize(img_path, to_img_size)[0].astype(np.float32) / 255  # RGB float 0-1
+    img = load_image_correct_rect(img_path, to_img_size)[0].astype(np.float32) / 255  # RGB float 0-1
     img_tensor = np.transpose(img, (2, 0, 1))[None]
     img_tensor = np.ascontiguousarray(img_tensor)
     img_tensor = torch.from_numpy(img_tensor)
@@ -97,7 +97,7 @@ def load_image_np_tensor(img_path, to_img_size):
 
 
 def parse_feature_map(features, to_wh, separate=False, use_rgb: bool = False, colormap: int = cv2.COLORMAP_JET):
-    # for only one image feature
+    # for only one image feature\
     features = np.array(features, dtype=np.float32)
     if not separate:
         assert features.ndim == 4, f'The ndim of features should be 4 but got {features.ndim}'
