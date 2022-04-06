@@ -17,8 +17,11 @@ import torch.nn as nn
 from tqdm import tqdm
 from pathlib import Path
 from copy import deepcopy
+from datetime import datetime
+from pycocotools.coco import COCO
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
+from pycocotools.cocoeval import COCOeval
 
 from utils import WRITER
 from utils.log import LOGGER, add_log_file
@@ -31,7 +34,8 @@ from utils.typeslib import _str_or_None, _pkt_or_None, _path, _dataset_c, _insta
     _module_or_None, _optimizer, _lr_scheduler, _gradscaler
 
 __all__ = ['SetSavePathMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin', 'FreezeLayersMixin',
-           'DataLoaderMixin', 'LossMixin', 'TrainDetectMixin', 'ValDetectMixin', 'ResultsDealDetectMixin']
+           'DataLoaderMixin', 'LossMixin', 'TrainDetectMixin', 'ValDetectMixin', 'COCOEvaluateMixin',
+           'ResultsDealDetectMixin']
 
 
 class SetSavePathMixin(object):
@@ -911,6 +915,51 @@ class ValDetectMixin(object):
                              f'bbox_loss: {loss[1]:.3f}, '
                              f'class_loss: {loss[2]:.3f}, '
                              f'object_loss: {loss[3]:.3f}')
+
+
+class COCOEvaluateMixin(object):
+    def __init__(self):
+        self.coco_eval = None
+
+    def coco_evaluate(self, dataloader, eval_type='bbox'):  # eval_type is one of ('segm', 'bbox', 'keypoints')
+        coco_gt, coco_dt = self.coco_eval
+        if not Path(coco_gt).exists():
+            raise FileExistsError(f'The coco_gt {coco_gt} json file do not exist')
+        if not Path(coco_dt).exists():
+            raise FileExistsError(f'The coco_dt {coco_dt} json file do not exist')
+
+        coco_gt = COCO(coco_gt)
+        coco_dt = coco_gt.loadRes(coco_dt)
+        coco = COCOeval(coco_gt, coco_dt, iouType=eval_type)
+        coco.params.imgIds = list(dataloader.dataset.indices)
+        coco.evaluate()
+        coco.accumulate()
+        coco.summarize()
+        return coco.eval
+
+    def save_coco_results(self, coco_results, path):
+        path = str(path)
+        if self.coco_eval:
+            params = coco_results['params']
+            new_params = {}
+            for k, v in params.__dict__.items():
+                if isinstance(v, np.ndarray):
+                    v = v.tolist()
+                elif isinstance(v, (list, tuple)):
+                    v = np.asarray(v).tolist()
+                new_params[k] = v
+            coco_results['params'] = new_params
+
+            for k, v in coco_results.items():
+                if isinstance(v, np.ndarray):
+                    v = v.tolist()
+                elif isinstance(v, datetime):
+                    v = str(v)
+                coco_results[k] = v
+
+            with open(path, 'w') as f:
+                json.dump(coco_results, f)
+                LOGGER.info(f"Save json coco_dt {path} successfully")
 
 
 class ResultsDealDetectMixin(object):

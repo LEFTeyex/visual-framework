@@ -2,18 +2,11 @@ r"""
 Meta Trainer module for building all trainer class.
 """
 
-import json
 import torch
-import numpy as np
-
-from pathlib import Path
-from datetime import datetime
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval
 
 from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
 from utils.mixins import LossMixin, DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
-    SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin, FreezeLayersMixin
+    SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin, FreezeLayersMixin, COCOEvaluateMixin
 
 __all__ = ['MetaTrainDetect']
 
@@ -24,9 +17,10 @@ class MetaTrainDetect(
     SetSavePathMixin,
     TrainDetectMixin,
     FreezeLayersMixin,
+    COCOEvaluateMixin,
     SaveCheckPointMixin,
     LoadAllCheckPointMixin,
-    ResultsDealDetectMixin,
+    ResultsDealDetectMixin
 ):
     @logging_initialize('trainer')
     def __init__(self, args):
@@ -115,7 +109,7 @@ class MetaTrainDetect(
         self.save_all_results()
 
         # save coco results
-        self.save_coco_results(coco_results)
+        self.save_coco_results(coco_results, self.save_dict['coco_results'])
 
         self.close_tensorboard()
         self.empty_cache()
@@ -152,48 +146,9 @@ class MetaTrainDetect(
         # get coco results
         coco_results = None
         if self.coco_eval:
-            coco_results = self.coco_evaluation(dataloader, 'bbox')
+            coco_results = self.coco_evaluate(dataloader, 'bbox')
 
         return results, coco_results
-
-    def coco_evaluation(self, dataloader, eval_type='bbox'):  # eval_type is one of ('segm', 'bbox', 'keypoints')
-        coco_gt, coco_dt = self.coco_eval
-        if not Path(coco_gt).exists():
-            raise FileExistsError(f'The coco_gt json file do not exist')
-        if not Path(coco_dt).exists():
-            raise FileExistsError(f'The coco_dt json file do not exist')
-
-        coco_gt = COCO(coco_gt)
-        coco_dt = coco_gt.loadRes(coco_dt)
-        coco = COCOeval(coco_gt, coco_dt, iouType=eval_type)
-        coco.params.imgIds = list(dataloader.dataset.indices)
-        coco.evaluate()
-        coco.accumulate()
-        coco.summarize()
-        return coco.eval
-
-    def save_coco_results(self, coco_results):
-        if self.coco_eval:
-            params = coco_results['params']
-            new_params = {}
-            for k, v in params.__dict__.items():
-                if isinstance(v, np.ndarray):
-                    v = v.tolist()
-                elif isinstance(v, (list, tuple)):
-                    v = np.asarray(v).tolist()
-                new_params[k] = v
-            coco_results['params'] = new_params
-
-            for k, v in coco_results.items():
-                if isinstance(v, np.ndarray):
-                    v = v.tolist()
-                elif isinstance(v, datetime):
-                    v = str(v)
-                coco_results[k] = v
-
-            with open(self.save_dict['coco_results'], 'w') as f:
-                json.dump(coco_results, f)
-                LOGGER.info(f"Save json coco_dt {self.save_dict['coco_results']} successfully")
 
     def close_tensorboard(self):
         r"""Close writer which is the instance of SummaryWriter in tensorboard"""

@@ -197,8 +197,8 @@ if __name__ == '__main__':
     # TODO auto compute anchors
 
     # next work
+    # TODO add threshold for nms and filter predictions
     # TODO add necessary functions
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
-
-    # TODO add val alone 2022.3.30
+    # TODO design model structure

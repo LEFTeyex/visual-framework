@@ -100,7 +100,7 @@ def log_loss_and_metrics(when: str, epoch: int, last, writer, cls_names, loss_na
         LOGGER.info(f'{space}Speed {fps_time[1]:.2f} ms per image, FPs: {fps_time[0]:.1f}, no accuracy')
 
     (ap50_95, ap50, ap75, ap), (mf1, f1), (mp, p), (mr, r), (cls, cls_number) = metrics
-    if ap is not None:
+    if ap:
         name_writer = ('P_50', 'R_50', 'F1_50', 'AP50', 'AP75', 'AP5095')
         value_writer = (mp[0], mr[0], mf1[0], ap50, ap75, ap50_95)
         WRITER.add_epoch_curve(writer, 'val_metrics', value_writer, name_writer, epoch)

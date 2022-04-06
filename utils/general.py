@@ -9,6 +9,7 @@ import torch
 import random
 import datetime
 import numpy as np
+import pandas as pd
 
 from copy import deepcopy
 from functools import wraps
@@ -16,8 +17,8 @@ from functools import wraps
 from utils.log import LOGGER
 from utils.typeslib import _int_or_None, _path
 
-__all__ = ['timer', 'time_sync', 'to_tuplex', 'delete_list_indices', 'save_all_txt', 'load_all_txt',
-           'load_all_yaml', 'save_all_yaml', 'make_divisible_up',
+__all__ = ['timer', 'time_sync', 'make_divisible_up', 'to_tuplex', 'delete_list_indices',
+           'save_all_txt', 'load_all_txt', 'load_all_yaml', 'save_all_yaml', 'save_matrix_excel',
            'init_seed', 'select_one_device']
 
 
@@ -177,6 +178,19 @@ def save_all_yaml(*args, mode='w'):
             # save yaml dict without sorting
             yaml.safe_dump(dict_yaml, f, sort_keys=False)
     LOGGER.debug('Save all dict yaml successfully')
+
+
+def save_matrix_excel(path, matrix: list, sheets: list):
+    if len(matrix) != len(sheets):
+        raise ValueError(f'The length of matrix {len(matrix)} and '
+                         f'sheets {len(sheets)} must be equal and corresponding')
+
+    LOGGER.info(f'Saving matrix to excel {str(path)}')
+    with pd.ExcelWriter(path) as writer:
+        for m, sheet in zip(matrix, sheets):
+            df = pd.DataFrame(m)
+            df.to_excel(writer, sheet_name=sheet)
+    LOGGER.info(f'Save matrix to excel successfully')
 
 
 def init_seed(seed: _int_or_None = None):

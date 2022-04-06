@@ -42,7 +42,7 @@ def add_model_graph(writer, model, inc, image_size, epoch=0, verbose=False):
         epoch:
         verbose:
     """
-    if (writer is not None) and epoch == 0:
+    if writer and epoch == 0:
         device = next(model.parameters()).device
         image = torch.zeros(1, inc, image_size, image_size, device=device)
         # todo args need to change
@@ -58,7 +58,7 @@ def add_optimizer_lr(writer, optimizer, epoch, new_style=True):
         epoch:
         new_style:
     """
-    if writer is not None:
+    if writer:
         for index, param_group in enumerate(optimizer.param_groups):
             name = param_group.get('name', str(index))
             lr = param_group['lr']
@@ -76,7 +76,7 @@ def add_epoch_curve(writer, title, value, value_name, epoch, new_style=True):
         epoch:
         new_style:
     """
-    if writer is not None and epoch >= 0:
+    if writer and epoch >= 0:
         for v, v_name in zip(value, value_name):
             writer.add_scalar(f'{title}/{v_name}', v, epoch, new_style=new_style)
 
@@ -91,7 +91,7 @@ def add_datasets_images_labels_detect(writer, datasets, title, dfmt='CHW'):
         title:
         dfmt:
     """
-    if writer is not None:
+    if writer:
         space = ' ' * 11
         with tqdm(enumerate(datasets), total=10, bar_format='{l_bar}{bar:20}{r_bar}',
                   desc=f'{space}{title}: visualizing images with labels') as pbar:
@@ -123,7 +123,7 @@ def add_batch_images_predictions_detect(writer, title, bs_index, images, predict
         dfmt:
     """
     # TODO BUG: the step is not continue because of the max is 10
-    if (writer is not None) and epoch == -1:
+    if writer and epoch == -1:
         bs = images.shape[0]
         for index in range(bs):
             # only consist of 10 images per plot in tensorboard

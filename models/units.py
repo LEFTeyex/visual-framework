@@ -10,7 +10,8 @@ from utils.log import LOGGER
 from utils.general import to_tuplex
 from models.units_utils import auto_pad, select_act
 
-__all__ = ['Conv', 'DWConv', 'PointConv', 'Linear', 'LargeKernelConv', 'Bottleneck', 'C3', 'SPP', 'SPPF']
+__all__ = ['Conv', 'FPConv', 'DWConv', 'PointConv', 'Linear',
+           'LargeKernelConv', 'Bottleneck', 'C3', 'SPP', 'SPPF']
 
 
 class Conv(nn.Module):
@@ -32,12 +33,29 @@ class Conv(nn.Module):
         self.act = select_act(act)
 
     def forward(self, x):
-        x = self.act(self.bn(self.conv(x)))
-        return x
+        return self.act(self.bn(self.conv(x)))
 
     def fuse_forward(self, x):
         # For fusing model which the Convolution and the BatchNorm are fused in Convolution by matrix multiplication
         return self.act(self.conv(x))
+
+
+class FPConv(nn.Module):
+    r"""Few parameters Convolution"""
+
+    def __init__(self, inc, outc, k=3, s=1, p=None, act='relu', bn=True, bias=False):
+        super(FPConv, self).__init__()
+        p = auto_pad(k) if (p is None) else p
+        k = to_tuplex(k, 2)
+        s = to_tuplex(s, 2)
+
+        self.dw_conv = nn.Conv2d(inc, outc, k, s, p, groups=inc, bias=bias)
+        self.point_conv = nn.Conv2d(outc, outc, (1, 1), (1, 1), bias=bias)
+        self.bn = nn.BatchNorm2d(outc) if bn else nn.Identity()
+        self.act = select_act(act)
+
+    def forward(self, x):
+        return self.act(self.bn(self.point_conv(self.dw_conv(x))))
 
 
 class DWConv(nn.Module):
@@ -191,7 +209,7 @@ class SPPF(nn.Module):
         x = self.conv1(x)
         y1 = self.m(x)
         y2 = self.m(y1)
-        return self.conv2(torch.cat([x, y1, y2, self.m(y2)], dim=1))
+        return self.conv2(torch.cat((x, y1, y2, self.m(y2)), dim=1))
 
 
 if __name__ == '__main__':
