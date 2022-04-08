@@ -8,6 +8,7 @@ import argparse
 from pathlib import Path
 
 from models.yolov5.yolov5_v6 import yolov5s_v6
+from utils.log import add_log_file
 from utils.loss import LossDetectYolov5
 from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
 from utils.general import timer, select_one_device, save_all_yaml, load_all_yaml
@@ -31,29 +32,33 @@ class ValDetect(MetaValDetect):
 
     def set_self_parameters_val(self, args):
         super(ValDetect, self).set_self_parameters_val(args)
-        self.save_dict, _ = self.get_save_path(('hyp', 'hyp.yaml'),
-                                               ('args', 'args.yaml'),
-                                               ('datasets', 'datasets.yaml'),
-                                               ('json_gt', 'json_gt.json'),
-                                               ('json_dt', 'json_dt.json'),
-                                               ('coco_results', 'coco_results.json'),
-                                               logfile='logger.log')
-        self.coco_eval = (self.save_dict['json_gt'], self.save_dict['json_dt'])
+        self.path_dict = self.get_save_path(('hyp', 'hyp.yaml'),
+                                            ('logger', 'logger.log'),
+                                            ('args', 'args.yaml'),
+                                            ('datasets', 'datasets.yaml'),
+                                            ('json_gt', 'json_gt.json'),
+                                            ('json_dt', 'json_dt.json'),
+                                            ('coco_results', 'coco_results.json'))
+        # Add FileHandler for logger
+        add_log_file(self.path_dict['logger'])
+
+        self.coco_eval = (self.path_dict['json_gt'], self.path_dict['json_dt'])
         self.device = select_one_device(self.device)
         self.hyp = load_all_yaml(self.hyp)
         self.datasets = get_and_check_datasets_yaml(self.datasets)
         self.cls_names = self.datasets['names']
-        save_all_yaml((vars(args), self.save_dict['args']),
-                      (self.hyp, self.save_dict['hyp']),
-                      (self.datasets, self.save_dict['datasets']))
+        save_all_yaml((vars(args), self.path_dict['args']),
+                      (self.hyp, self.path_dict['hyp']),
+                      (self.datasets, self.path_dict['datasets']))
         self.checkpoint = self.load_checkpoint(self.weights)
 
         # TODO load='state_dict'
         self.model = self.load_model(yolov5s_v6(self.inc, self.datasets['nc'], self.datasets['anchors'],
                                                 self.image_size))
 
-        self.loss_fn = self.get_loss_fn(LossDetectYolov5)
-        self.dataloader = self.get_dataloader(DatasetDetect, self.task, create_json_gt=self.save_dict['json_gt'])
+        self.loss_fn = LossDetectYolov5(self.model, self.hyp)
+        self.dataloader = self.set_dataloader(DatasetDetect(self.datasets, self.task, self.image_size,
+                                                            json_gt=self.path_dict['json_gt']))
 
 
 def parse_args_detect(known: bool = False):
@@ -78,7 +83,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--datasets', type=str, default=str(ROOT / 'mine/data/datasets/Customdatasets.yaml'), help='')
     parser.add_argument('--task', type=str, default='val', help='test val train')
     parser.add_argument('--name', type=str, default='exp', help='')
-    parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/val'), help='')
+    parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/val/detect'), help='')
     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
     return namespace
 

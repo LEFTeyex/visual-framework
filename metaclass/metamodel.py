@@ -7,12 +7,20 @@ import torch.nn as nn
 
 from torch import Tensor
 
-__all__ = ['MetaModelDetect']
+__all__ = ['MetaModelDetectAnchorBased']
 
 
-class MetaModelDetect(nn.Module):
+class MetaModelClass(nn.Module):
     def __init__(self):
-        super(MetaModelDetect, self).__init__()
+        super(MetaModelClass, self).__init__()
+
+    def forward(self, x):
+        raise NotImplementedError
+
+
+class MetaModelDetectAnchorBased(nn.Module):
+    def __init__(self):
+        super(MetaModelDetectAnchorBased, self).__init__()
         self.inc: int  # input channel (channel of image, RGB is 3 or GRAY is 1)
         self.nc: int  # number of classes
         self.anchors: Tensor  # consist of wh which is corresponding to scalings

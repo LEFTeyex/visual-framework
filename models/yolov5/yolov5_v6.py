@@ -11,7 +11,7 @@ from utils.log import logging_initialize
 from utils.decode import parse_outputs_yolov5
 from models.units import Conv, C3, SPPF
 from models.model_utils import init_weights
-from metaclass.metamodel import MetaModelDetect
+from metaclass.metamodel import MetaModelDetectAnchorBased
 
 __all__ = ['yolov5n_v6', 'yolov5s_v6', 'yolov5m_v6', 'yolov5l_v6', 'yolov5x_v6']
 
@@ -90,7 +90,7 @@ class Head(nn.Module):
         return y
 
 
-class BaseYolov5V6(MetaModelDetect):
+class BaseYolov5V6(MetaModelDetectAnchorBased):
     r"""YOLOv5 v6.0"""
 
     def __init__(self, inc: int, cfg: dict, num_class: int, anchors: list, num_bbox: int = 5, img_size: int = 640,

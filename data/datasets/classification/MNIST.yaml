@@ -1,0 +1,16 @@
+# MNIST datasets
+
+# the parent path
+path: .../mnist
+
+train: train.txt
+
+val: val.txt
+
+test: test.txt
+
+# number of classes
+nc: 10
+
+# name of classes corresponding to 0, 1, 2, ...
+names: [ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]

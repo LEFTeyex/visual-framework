@@ -6,14 +6,13 @@ import torch
 
 from utils.log import LOGGER, log_loss_and_metrics
 from utils.metrics import compute_fps
-from utils.mixins import ValDetectMixin, SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, LossMixin, \
+from utils.mixins import ValDetectMixin, SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, \
     COCOEvaluateMixin
 
 __all__ = ['MetaValDetect']
 
 
 class MetaValDetect(
-    LossMixin,
     ValDetectMixin,
     DataLoaderMixin,
     SetSavePathMixin,
@@ -56,7 +55,7 @@ class MetaValDetect(
             self.model = None
             self.loss_fn = None
             self.cls_names = None
-            self.save_dict = None
+            self.path_dict = None
             self.checkpoint = None
             self.dataloader = None
             self.set_self_parameters_val(args)
@@ -69,7 +68,7 @@ class MetaValDetect(
         fps_time = compute_fps(self.seen, self.time)
         self.log_results(loss_all, loss_name, metrics, fps_time)
         coco_results = self.coco_evaluate(self.dataloader, 'bbox')
-        self.save_coco_results(coco_results, self.save_dict['coco_results'])
+        self.save_coco_results(coco_results, self.path_dict['coco_results'])
         self.empty_cache()
 
     @torch.no_grad()

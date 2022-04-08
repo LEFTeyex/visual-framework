@@ -6,7 +6,6 @@ Consist of all utils of writer in tensorboard.
 import torch
 
 from tqdm import tqdm
-from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 
 from utils.bbox import xywh2xyxy
@@ -25,7 +24,6 @@ def set_writer(save_path: _path):
     Returns:
         writer
     """
-    save_path = Path(save_path) / 'tensorboard'
     writer = SummaryWriter(str(save_path))
     return writer
 

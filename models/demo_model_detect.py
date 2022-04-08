@@ -6,7 +6,7 @@ It is built by units.py or torch.nn Module.
 import torch.nn as nn
 
 from models.model_utils import init_weights
-from metaclass.metamodel import MetaModelDetect
+from metaclass.metamodel import MetaModelDetectAnchorBased
 
 
 class Backbone(nn.Module):
@@ -33,7 +33,7 @@ class Head(nn.Module):
         pass
 
 
-class ModelDetect(MetaModelDetect):
+class ModelDetect(MetaModelDetectAnchorBased):
     # TODO Upgrade for args got in train.py in the future
     r"""
     Model of Detection which is a custom model.

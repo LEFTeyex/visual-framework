@@ -5,20 +5,22 @@ Meta Trainer module for building all trainer class.
 import torch
 
 from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
-from utils.mixins import LossMixin, DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
-    SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin, FreezeLayersMixin, COCOEvaluateMixin
+from utils.metrics import compute_fitness
+from utils.mixins import DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
+    SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin, FreezeLayersMixin, COCOEvaluateMixin, \
+    TensorboardWriterMixin
 
-__all__ = ['MetaTrainDetect']
+__all__ = ['MetaTrainDetect', 'MetaTrainClassify']
 
 
 class MetaTrainDetect(
-    LossMixin,
     DataLoaderMixin,
     SetSavePathMixin,
     TrainDetectMixin,
     FreezeLayersMixin,
     COCOEvaluateMixin,
     SaveCheckPointMixin,
+    TensorboardWriterMixin,
     LoadAllCheckPointMixin,
     ResultsDealDetectMixin
 ):
@@ -58,13 +60,13 @@ class MetaTrainDetect(
         # Tensorboard must exist
         self.writer = None
 
-        # todo using Need to set in subclass __init__ below
+        # todo Need to set in subclass __init__ below
         # Set val class
         self.val_class = None  # Must Need
 
         # To configure Trainer in subclass as following
-        self.save_dict = None  # Get save_dict
-        self.coco_eval = None  # (self.save_dict['json_gt'], self.save_dict['json_dt'])
+        self.path_dict = None  # Get path_dict
+        self.coco_eval = None  # (self.path_dict['json_gt'], self.path_dict['json_dt'])
         # self.device = select_one_device(self.device) # Set one device
         self.cuda = None  # For judging whether cuda
         # Load hyp yaml
@@ -98,7 +100,8 @@ class MetaTrainDetect(
             results, results_for_best = self.deal_results_memory(loss, results_val)
             self.add_data_results(('all_results', results[0]),
                                   ('all_class_results', results[1]))
-            self.save_checkpoint(results_for_best)
+            fitness = compute_fitness(results_for_best, self.hyp['fit_weights'])  # compute fitness for best save
+            self.save_checkpoint(fitness)
             # TODO maybe need a auto stop function for bad training
 
         self.model = self.empty()
@@ -109,7 +112,7 @@ class MetaTrainDetect(
         self.save_all_results()
 
         # save coco results
-        self.save_coco_results(coco_results, self.save_dict['coco_results'])
+        self.save_coco_results(coco_results, self.path_dict['coco_results'])
 
         self.close_tensorboard()
         self.empty_cache()
@@ -126,9 +129,9 @@ class MetaTrainDetect(
     def test_trained(self):
         self.epoch = -1
         self.checkpoint = self.empty()
-        self.checkpoint = self.load_checkpoint(self.save_dict['best'])
+        self.checkpoint = self.load_checkpoint(self.path_dict['best'])
         if self.checkpoint is None:
-            self.checkpoint = self.load_checkpoint(self.save_dict['last'])
+            self.checkpoint = self.load_checkpoint(self.path_dict['last'])
             LOGGER.info('Load last.pt for validating because of no best.pt')
         else:
             LOGGER.info('Load best.pt for validating')
@@ -150,12 +153,6 @@ class MetaTrainDetect(
 
         return results, coco_results
 
-    def close_tensorboard(self):
-        r"""Close writer which is the instance of SummaryWriter in tensorboard"""
-        if self.writer is not None:
-            self.writer.flush()
-            self.writer.close()
-
     def log_results(self, loss_all, loss_name):
         log_loss('Train', self.epoch, loss_name, loss_all)
 
@@ -170,46 +167,88 @@ class MetaTrainDetect(
         return empty
 
 
-# def demo_parse_args_detect(known: bool = False):
-#     r"""
-#     Parse args for training.
-#     Args:
-#         known: bool = True or False, Default=False
-#             parser will get two namespace which the second is unknown args, if known=True.
-#
-#     Return namespace(for setting args)
-#     """
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('--tensorboard', type=bool, default=True, help='')
-#     parser.add_argument('--visual_image', type=bool, default=True,
-#                         help='whether make images visual in tensorboard')
-#     parser.add_argument('--visual_graph', type=bool, default=False,
-#                         help='whether make model graph visual in tensorboard')
-#     parser.add_argument('--weights', type=str, default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='')
-#     parser.add_argument('--freeze_names', type=list, default=[], help='name of freezing layers in model')
-#     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-#     parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
-#     parser.add_argument('--batch_size', type=int, default=16, help='')
-#     parser.add_argument('--workers', type=int, default=0, help='')
-#     parser.add_argument('--shuffle', type=bool, default=True, help='')
-#     parser.add_argument('--pin_memory', type=bool, default=False, help='')
-#     parser.add_argument('--datasets', type=str, default=str(ROOT / 'data/datasets/Customdatasets.yaml'), help='')
-#     parser.add_argument('--name', type=str, default='exp', help='')
-#     parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train'), help='')
-#     parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
-#     parser.add_argument('--augment', type=bool, default=False, help='whether random augment image')
-#     parser.add_argument('--data_augment', type=str, default='mosaic',
-#                         help='the kind of data augmentation mosaic / mixup / cutout')
-#     parser.add_argument('--inc', type=int, default=3, help='')
-#     parser.add_argument('--image_size', type=int, default=640, help='')
-#     parser.add_argument('--load_model', type=str, default='state_dict', help='')
-#     parser.add_argument('--load_optimizer', type=bool, default=False, help='')
-#     parser.add_argument('--load_lr_scheduler', type=bool, default=False, help='')
-#     parser.add_argument('--load_gradscaler', type=bool, default=False, help='')
-#     parser.add_argument('--load_start_epoch', type=str, default=None, help='')
-#     parser.add_argument('--load_best_fitness', type=bool, default=False, help='')
-#     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
-#     return namespace
+class MetaTrainClassify(
+    DataLoaderMixin,
+    SetSavePathMixin,
+    FreezeLayersMixin,
+    SaveCheckPointMixin,
+    TensorboardWriterMixin,
+    LoadAllCheckPointMixin
+):
+    @logging_initialize('trainer')
+    def __init__(self, args):
+        super(MetaTrainClassify, self).__init__()
+        self.epoch = None
+        self.hyp = args.hyp
+        self.inc = args.inc
+        self.name = args.name
+        self.device = args.device
+        self.epochs = args.epochs
+        self.weights = args.weights
+        self.augment = args.augment
+        self.workers = args.workers
+        self.shuffle = args.shuffle
+        self.datasets = args.datasets
+        self.channels = args.channels
+        self.save_path = args.save_path
+        self.image_size = args.image_size
+        self.batch_size = args.batch_size
+        self.pin_memory = args.pin_memory
+        self.tensorboard = args.tensorboard
+        self.freeze_names = args.freeze_names
+        self.visual_image = args.visual_image
+        self.visual_graph = args.visual_graph
+
+        # Set load way
+        self._load_model = args.load_model
+        self._load_optimizer = args.load_optimizer
+        self._load_gradscaler = args.load_gradscaler
+        self._load_start_epoch = args.load_start_epoch
+        self._load_best_fitness = args.load_best_fitness
+        self._load_lr_scheduler = args.load_lr_scheduler
+
+        # Tensorboard must exist
+        self.writer = None
+
+        # todo Need to set in subclass __init__ below
+        # Set val class
+        self.val_class = None  # Must Need
+
+        # To configure Trainer in subclass as following
+        self.path_dict = None  # Get path_dict
+        # self.device = select_one_device(self.device) # Set one device
+        self.cuda = None  # For judging whether cuda
+        # Load hyp yaml
+        # Initialize or auto seed manual and save in self.hyp
+        # Get datasets path dict
+        # Save yaml dict
+        # Empty args
+        self.checkpoint = None  # Load checkpoint
+        self.model = None  # Initialize or load model
+        # Unfreeze model
+        # Freeze layers of model
+        self.param_groups = None  # Set parameter groups to for the optimizer
+        self.optimizer = None  # Initialize and load optimizer
+        self.lr_scheduler = None  # Initialize and load lr_scheduler
+        self.scaler = None  # Initialize and load GradScaler
+        self.start_epoch = None  # Initialize or load start_epoch
+        self.best_fitness = None  # Initialize or load best_fitness
+        # Empty self.checkpoint when load finished
+        self.train_dataloader = None  # Get dataloader for training
+        self.val_dataloader = None  # Get dataloader for validating
+        self.test_dataloader = None  # Get dataloader for testing
+        self.loss_fn = None  # Get loss function
+        self.results = None  # To save results of training and validating
+
+    @staticmethod
+    def empty_cache():
+        r"""Empty cuda cache"""
+        torch.cuda.empty_cache()
+
+    @staticmethod
+    def empty(empty=None):
+        r"""Set variable None"""
+        return empty
 
 
 if __name__ == '__main__':

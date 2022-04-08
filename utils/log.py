@@ -53,7 +53,7 @@ LOGGER = _set_logger(__name__, ch_level=logging.INFO, developing=False)
 
 def add_log_file(filepath, fh_level=logging.DEBUG, mode: str = 'a'):
     r"""
-    Add FileHandler for logger to write in *.txt
+    Add FileHandler for logger to write in *.log
     Args:
         filepath: = '**/logger.log'
         fh_level: = logging.DEBUG, logging.INFO etc.

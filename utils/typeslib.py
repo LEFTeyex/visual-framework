@@ -21,9 +21,8 @@ __all__ = [
     '_instance', '_instance_c',
     # pytorch
     '_Tensor_or_None', '_int_or_Tensor', '_Tensor_or_ndarray',
-    '_module', '_optimizer', '_lr_scheduler', '_gradscaler', '_parameter',
+    '_module', '_optimizer', '_lr_scheduler', '_gradscaler', '_parameter', '_dataset',
     '_module_or_parameter', '_module_or_None',
-    '_dataset_c',
     # special designed
     '_pkt_or_None',
 ]
@@ -62,9 +61,6 @@ _gradscaler = TypeVar('_gradscaler', bound=GradScaler)
 _lr_scheduler = TypeVar('_lr_scheduler', bound=_LRScheduler)
 _module_or_None = Optional[_module]
 _module_or_parameter = Union[_module, _parameter]
-
-# pytorch class
-_dataset_c = Type[_dataset]
 
 # special designed
 _param_kind = Tuple[str, Type[_module_or_parameter], dict]
