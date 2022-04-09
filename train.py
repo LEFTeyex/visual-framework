@@ -20,7 +20,7 @@ from metaclass.metatrainer import MetaTrainDetect, MetaTrainClassify
 from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
 from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device
 
-from val import ValDetect
+from val import ValDetect, ValClassify
 
 from mine.SmartNet.models.smartnet import SmartNet
 
@@ -158,13 +158,12 @@ class TrainClassify(MetaTrainClassify):
 
         # Get path_dict
         self.path_dict = self.get_save_path(('hyp', 'hyp.yaml'),
+                                            ('args', 'args.yaml'),
                                             ('logger', 'logger.log'),
                                             ('writer', 'tensorboard'),
-                                            ('args', 'args.yaml'),
-                                            ('datasets', 'datasets.yaml'),
-                                            ('all_results', 'all_results.txt'),
                                             ('last', 'weights/last.pt'),
-                                            ('best', 'weights/best.pt'))
+                                            ('best', 'weights/best.pt'),
+                                            ('datasets', 'datasets.yaml'))
 
         # Add FileHandler for logger
         add_log_file(self.path_dict['logger'])
@@ -201,7 +200,7 @@ class TrainClassify(MetaTrainClassify):
         # Initialize or load model
         self.model = self.load_model(SmartNet(self.inc, self.datasets['nc'], self.image_size, self.channels,
                                               invalid=0.01, num_add=5, add_cut_percentage=0.9,
-                                              act='relu', device=self.device))
+                                              act='relu', device=self.device), load=self._load_model)
 
         # Unfreeze model
         self.unfreeze_model()
@@ -253,11 +252,8 @@ class TrainClassify(MetaTrainClassify):
         # Get loss function
         self.loss_fn = nn.CrossEntropyLoss()
 
-        # To save results of training and validating
-        self.results =
-
         # Set val class
-        self.val_class =
+        self.val_class = ValClassify
 
 
 def parse_args_detect(known: bool = False):
@@ -294,7 +290,6 @@ def parse_args_detect(known: bool = False):
                         help='the kind of data augmentation mosaic / mixup / cutout')
     parser.add_argument('--inc', type=int, default=3, help='')
     parser.add_argument('--image_size', type=int, default=640, help='')
-    parser.add_argument('--channels', type=list, default=[1, 2, 3], help='')
     parser.add_argument('--load_model', type=str, default='state_dict', help='')
     parser.add_argument('--load_optimizer', type=bool, default=False, help='')
     parser.add_argument('--load_lr_scheduler', type=bool, default=False, help='')
@@ -305,31 +300,32 @@ def parse_args_detect(known: bool = False):
     return namespace
 
 
-def parse_args_class(known: bool = False):
+def parse_args_classify(known: bool = False):
     parser = argparse.ArgumentParser()
     parser.add_argument('--tensorboard', type=bool, default=True, help='')
-    parser.add_argument('--visual_image', type=bool, default=True,
+    parser.add_argument('--visual_image', type=bool, default=False,
                         help='whether make images visual in tensorboard')
     parser.add_argument('--visual_graph', type=bool, default=False,
                         help='whether make model graph visual in tensorboard')
-    parser.add_argument('--weights', type=str, default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='')
-    parser.add_argument('--freeze_names', type=list, default=['backbone', 'neck'],
+    parser.add_argument('--weights', type=str, default='', help='')
+    parser.add_argument('--freeze_names', type=list, default=[],
                         help='name of freezing layers in model')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
-    parser.add_argument('--epochs', type=int, default=1, help='epochs for training')
-    parser.add_argument('--batch_size', type=int, default=16, help='')
+    parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
+    parser.add_argument('--batch_size', type=int, default=64, help='')
     parser.add_argument('--workers', type=int, default=0, help='')
     parser.add_argument('--shuffle', type=bool, default=True, help='')
     parser.add_argument('--pin_memory', type=bool, default=False, help='')
-    parser.add_argument('--datasets', type=str, default=str(ROOT / 'mine/data/datasets/VOC.yaml'), help='')
+    parser.add_argument('--datasets', type=str, default=str(ROOT / 'mine/data/datasets/classification/MNIST.yaml'),
+                        help='')
     parser.add_argument('--name', type=str, default='exp', help='')
-    parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train/detect'), help='')
-    parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
-    parser.add_argument('--augment', type=bool, default=False, help='whether random augment image')
+    parser.add_argument('--save_path', type=str, default=str(ROOT / 'runs/train/classify'), help='')
+    parser.add_argument('--hyp', type=str, default=str(ROOT / 'data/hyp/hyp_classify_train.yaml'), help='')
 
-    parser.add_argument('--inc', type=int, default=3, help='')
-    parser.add_argument('--image_size', type=int, default=640, help='')
-    parser.add_argument('--load_model', type=str, default='state_dict', help='')
+    parser.add_argument('--inc', type=int, default=1, help='')
+    parser.add_argument('--image_size', type=int, default=28, help='')
+    parser.add_argument('--channels', type=list, default=[512, 256, 128, 64], help='')
+    parser.add_argument('--load_model', type=str, default=None, help='')
     parser.add_argument('--load_optimizer', type=bool, default=False, help='')
     parser.add_argument('--load_lr_scheduler', type=bool, default=False, help='')
     parser.add_argument('--load_gradscaler', type=bool, default=False, help='')
@@ -348,10 +344,9 @@ def train_detection():
 
 @timer
 def train_classify():
-    arguments = parse_args_class()
-    # trainer = TrainClassify(arguments)
-    # trainer.train()
-    pass
+    arguments = parse_args_classify()
+    trainer = TrainClassify(arguments)
+    trainer.train()
 
 
 if __name__ == '__main__':

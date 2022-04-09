@@ -12,9 +12,9 @@ from utils.log import add_log_file
 from utils.loss import LossDetectYolov5
 from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
 from utils.general import timer, select_one_device, save_all_yaml, load_all_yaml
-from metaclass.metavaler import MetaValDetect
+from metaclass.metavaler import MetaValDetect, MetaValClassify
 
-__all__ = ['ValDetect']
+__all__ = ['ValDetect', 'ValClassify']
 
 r"""Set Global Constant for file save and load"""
 ROOT = Path.cwd()  # **/visual-framework root directory
@@ -59,6 +59,14 @@ class ValDetect(MetaValDetect):
         self.loss_fn = LossDetectYolov5(self.model, self.hyp)
         self.dataloader = self.set_dataloader(DatasetDetect(self.datasets, self.task, self.image_size,
                                                             json_gt=self.path_dict['json_gt']))
+
+
+class ValClassify(MetaValClassify):
+    def __init__(self, args=None,
+                 last=True, model=None, writer=None,
+                 half=True, dataloader=None, loss_fn=None, cls_names=None, epoch=None, visual_image=None):
+        super(ValClassify, self).__init__(last, model, writer, half, dataloader,
+                                          loss_fn, cls_names, epoch, visual_image, args)
 
 
 def parse_args_detect(known: bool = False):

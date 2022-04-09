@@ -35,7 +35,7 @@ from utils.typeslib import _str_or_None, _pkt_or_None, _path, _dataset, \
 
 __all__ = ['SetSavePathMixin', 'TensorboardWriterMixin', 'SaveCheckPointMixin', 'LoadAllCheckPointMixin',
            'FreezeLayersMixin', 'DataLoaderMixin', 'TrainDetectMixin', 'ValDetectMixin',
-           'TrainClassifyMixin',
+           'TrainClassifyMixin', 'ValClassifyMixin',
            'COCOEvaluateMixin', 'ResultsDealDetectMixin']
 
 
@@ -154,11 +154,11 @@ class SaveCheckPointMixin(object):
     def save_checkpoint(self, fitness):
         # save the best checkpoint
         if fitness > self.best_fitness:
-            LOGGER.debug(f'Saving last checkpoint in epoch{self.epoch}...')
+            LOGGER.debug(f'Saving best checkpoint in epoch{self.epoch}...')
             checkpoint = self.get_checkpoint()
             self.best_fitness = fitness
             torch.save(checkpoint, self.path_dict['best'])
-            LOGGER.debug(f'Save last checkpoint in epoch{self.epoch} successfully')
+            LOGGER.debug(f'Save best checkpoint in epoch{self.epoch} successfully')
 
         # save the last checkpoint
         if self.epoch + 1 == self.epochs:
@@ -580,13 +580,12 @@ class DataLoaderMixin(object):
         Returns:
             dataloader instance
         """
-        name = dataset_instance.name
-        LOGGER.info(f'Initialize Dataloader {name}...')
+        LOGGER.info(f'Initialize Dataloader...')
         # visualizing
         if self.visual_image:
-            LOGGER.info(f'Visualizing Dataset {name}...')
-            WRITER.add_datasets_images_labels_detect(self.writer, dataset_instance, name)
-            LOGGER.info(f'Visualize Dataset {name} successfully')
+            LOGGER.info(f'Visualizing Dataset...')
+            WRITER.add_datasets_images_labels_detect(self.writer, dataset_instance, 'None')
+            LOGGER.info(f'Visualize Dataset successfully')
 
         # set dataloader
         # TODO upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
@@ -599,7 +598,7 @@ class DataLoaderMixin(object):
                                 num_workers=self.workers,
                                 pin_memory=self.pin_memory,
                                 collate_fn=collate_fn)
-        LOGGER.info(f'Initialize Dataloader {name} successfully')
+        LOGGER.info(f'Initialize Dataloader successfully')
         return dataloader
 
 
@@ -721,7 +720,7 @@ class TrainClassifyMixin(object):
 
         with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
                   bar_format='{l_bar}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels, _, _) in pbar:
+            for index, (images, labels) in pbar:
                 # images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
                 images = images.to(self.device)
                 labels = labels.to(self.device)
@@ -729,7 +728,7 @@ class TrainClassifyMixin(object):
                 # forward with mixed precision
                 with autocast(enabled=self.cuda):
                     outputs = self.model(images)
-                    loss = self.loss_fn(outputs, labels, kind='ciou')
+                    loss = self.loss_fn(outputs, labels)
 
                 # backward and optimize
                 if self.scaler is None:
@@ -876,6 +875,7 @@ class ValDetectMixin(object):
         return loss_all_mean.tolist(), loss_name, stats
 
     def compute_metrics(self, stats):
+        # todo the stats is tensor how to np.concatenate
         stats = [np.concatenate(x, 0) for x in zip(*stats)]  # all of pred_iou_level, pred cls_conf, pred cls, label cls
         # cls count
         cls_number = np.bincount(stats[3].astype(np.int64), minlength=self.model.nc)
@@ -996,10 +996,10 @@ class ValClassifyMixin(object):
     def val_once(self):
         loss_name = ('class_loss',)
         loss_mean = torch.zeros(1, device=self.device).half() if self.half else torch.zeros(1, device=self.device)
-
+        stats = []
         with tqdm(enumerate(self.dataloader), total=len(self.dataloader),
                   bar_format='{l_bar:>42}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels, shape_converts, img_ids) in pbar:
+            for index, (images, labels) in pbar:
                 # get current for computing FPs but maybe not accurate maybe
                 t0 = time_sync()
                 images = images.to(self.device)
@@ -1011,7 +1011,7 @@ class ValClassifyMixin(object):
 
                 # inference
                 outputs = self.model(images)
-                loss = self.loss_fn(outputs, labels, kind='ciou')
+                loss = self.loss_fn(outputs, labels)
 
                 # mean total loss and loss items
                 _loss = loss.detach()
@@ -1019,12 +1019,39 @@ class ValClassifyMixin(object):
                 self._show_loss_in_pbar_validating(loss_mean, pbar)
 
                 self.time += time_sync() - t0
+                self.seen += images.shape[0]
+                self._get_metrics_stats(outputs, labels, stats)
 
                 if self.visual_image:
                     # TODO add image without label for classification
                     pass
 
             WRITER.add_epoch_curve(self.writer, 'val_loss', loss_mean, loss_name, self.epoch)
+
+        return loss_mean.tolist(), loss_name, stats
+
+    def compute_metrics(self, stats):
+        stats = [np.concatenate(x, 0) for x in zip(*stats)]
+        nc = self.model.nc
+        pre, conf, labels = stats
+        cls_number = np.bincount(labels.astype(np.int64), minlength=nc)
+        cls_top1_number = np.zeros_like(cls_number)
+        for cls in range(nc):
+            filter_cls = labels == cls
+            top1_number = np.sum(pre[filter_cls] == labels[filter_cls]).tolist()
+            cls_top1_number[cls] = top1_number
+        top1 = (cls_top1_number.sum() / cls_number.sum()).tolist()
+        top1_cls = (cls_top1_number / cls_number).tolist()
+
+        fmt = '<10.3f'
+        space = ' ' * 50
+        LOGGER.info(f'{space}top1: {top1:{fmt}}')
+        return top1, top1_cls
+
+    @staticmethod
+    def _get_metrics_stats(predictions, labels, stats):
+        cls_conf, cls_pre = torch.max(predictions, dim=1)
+        stats.append((cls_pre.cpu(), cls_conf.cpu(), labels.cpu()))
 
     def _show_loss_in_pbar_validating(self, loss, pbar):
         # GPU memory used which an approximate value because of 1E9
@@ -1036,7 +1063,7 @@ class ValClassifyMixin(object):
         # show in pbar
         space = ' ' * 11
         pbar.set_description_str(f"{space}{'validating:':<15}{memory_cuda}")
-        pbar.set_postfix_str(f'class_loss: {loss[0]:.3f}, ')
+        pbar.set_postfix_str(f'class_loss: {loss[0]:.3f}')
 
 
 class COCOEvaluateMixin(object):

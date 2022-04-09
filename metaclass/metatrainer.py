@@ -8,7 +8,7 @@ from utils.log import LOGGER, logging_initialize, logging_start_finish, log_loss
 from utils.metrics import compute_fitness
 from utils.mixins import DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
     SaveCheckPointMixin, LoadAllCheckPointMixin, ResultsDealDetectMixin, FreezeLayersMixin, COCOEvaluateMixin, \
-    TensorboardWriterMixin
+    TensorboardWriterMixin, TrainClassifyMixin
 
 __all__ = ['MetaTrainDetect', 'MetaTrainClassify']
 
@@ -136,7 +136,7 @@ class MetaTrainDetect(
         else:
             LOGGER.info('Load best.pt for validating')
         self.model = self.load_model(load='model')
-        if self.test_dataloader is not None:
+        if self.test_dataloader:
             dataloader = self.test_dataloader
         else:
             dataloader = self.val_dataloader
@@ -171,6 +171,7 @@ class MetaTrainClassify(
     DataLoaderMixin,
     SetSavePathMixin,
     FreezeLayersMixin,
+    TrainClassifyMixin,
     SaveCheckPointMixin,
     TensorboardWriterMixin,
     LoadAllCheckPointMixin
@@ -185,7 +186,6 @@ class MetaTrainClassify(
         self.device = args.device
         self.epochs = args.epochs
         self.weights = args.weights
-        self.augment = args.augment
         self.workers = args.workers
         self.shuffle = args.shuffle
         self.datasets = args.datasets
@@ -239,6 +239,53 @@ class MetaTrainClassify(
         self.test_dataloader = None  # Get dataloader for testing
         self.loss_fn = None  # Get loss function
         self.results = None  # To save results of training and validating
+
+    @logging_start_finish('Training')
+    def train(self):
+        for self.epoch in range(self.start_epoch, self.epochs):
+            loss = self.train_one_epoch()
+            self.log_results(*loss)
+            results_val = self.val_training()
+            self.save_checkpoint(results_val[1][0])
+            # TODO maybe need a auto stop function for bad training
+
+        self.model = self.empty()
+        test_results = self.test_trained()
+
+        self.close_tensorboard()
+        self.empty_cache()
+
+    @torch.no_grad()
+    def val_training(self):
+        valer = self.val_class(last=False, model=self.model, half=True, dataloader=self.val_dataloader,
+                               loss_fn=self.loss_fn, cls_names=self.datasets['names'],
+                               epoch=self.epoch, writer=self.writer, visual_image=self.visual_image)
+        results = valer.val_training()
+        return results
+
+    @torch.inference_mode()
+    def test_trained(self):
+        self.epoch = -1
+        self.checkpoint = self.empty()
+        self.checkpoint = self.load_checkpoint(self.path_dict['best'])
+        if self.checkpoint is None:
+            self.checkpoint = self.load_checkpoint(self.path_dict['last'])
+            LOGGER.info('Load last.pt for validating because of no best.pt')
+        else:
+            LOGGER.info('Load best.pt for validating')
+        self.model = self.load_model(load='model')
+        if self.test_dataloader:
+            dataloader = self.test_dataloader
+        else:
+            dataloader = self.val_dataloader
+        tester = self.val_class(last=True, model=self.model, half=False, dataloader=dataloader,
+                                loss_fn=self.loss_fn, cls_names=self.datasets['names'],
+                                epoch=self.epoch, writer=self.writer, visual_image=self.visual_image)
+        results = tester.val_training()
+        return results
+
+    def log_results(self, loss_all, loss_name):
+        log_loss('Train', self.epoch, loss_name, loss_all)
 
     @staticmethod
     def empty_cache():
