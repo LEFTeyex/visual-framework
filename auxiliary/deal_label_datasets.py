@@ -83,7 +83,7 @@ def _xml2txt_yolo(path: str, classes, w: _int_or_None = None, h: _int_or_None = 
 
             labels = []
             for obj in root.iter('object'):
-                cls = obj.find('name').text
+                cls = obj.find('save_name').text
                 difficult = obj.find('difficult')
                 if difficult is None:
                     difficult = 0
@@ -125,7 +125,7 @@ def _xml2json_coco(xml_dir_path: str, image_name_txt: str, classes, supercategor
 
     images = []  # consist of dict(file_name, height, width, id)
     annotations = []  # consist of dict(segmentation, area, iscrowd, image_id, bbox:list, category_id, id)
-    categories = []  # # consist of dict(supercategory, id, name)
+    categories = []  # # consist of dict(supercategory, id, save_name)
     image_id = 0
     ann_id = 0
 
@@ -143,14 +143,14 @@ def _xml2json_coco(xml_dir_path: str, image_name_txt: str, classes, supercategor
             # annotations item
             cats = []
             for obj in root.iter('object'):
-                cls = obj.find('name').text
+                cls = obj.find('save_name').text
                 if cls in classes:
                     category_id = classes.index(cls)
                 else:
                     continue
                 cat = {'supercategory': str(supercategory),
                        'id': int(category_id),
-                       'name': str(cls)}
+                       'save_name': str(cls)}
                 cats.append(cat)
 
                 difficult = obj.find('difficult')
@@ -231,7 +231,7 @@ def _classify_datasets(path: str, save_path: str, seed: int, weights=(0.8, 0.1))
     else:
         raise TypeError(f'The path {p} is not a directory, please input the path of directory')
     # get relative path
-    img_files = [x.name for x in img_files if x.suffix.replace('.', '').lower() in image_formats]
+    img_files = [x.save_name for x in img_files if x.suffix.replace('.', '').lower() in image_formats]
 
     # sample
     total_num = len(img_files)
@@ -348,7 +348,7 @@ def deal_voc_detection(path: str, filter_difficult: bool = True):
         all_txt_list[idx] = add_suffix_for_path_txt(txt_list, suffix)
     save_all_txt(*zip(all_txt_list, save_txt_path))
 
-    # reset name for JPEGImages and Annotations_yolo
+    # reset save_name for JPEGImages and Annotations_yolo
     image_dir.rename(path / 'images')
     label_dir.rename(path / 'labels')
     print('Done')

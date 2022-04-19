@@ -14,7 +14,7 @@ from utils.general import delete_list_indices
 
 def get_name_weights_list_len(x, is_model: bool = True, require_print: bool = False):
     r"""
-    Get model weights list[(name, shape), ...] for transfer learning.
+    Get model weights list[(save_name, shape), ...] for transfer learning.
     Args:
         x: = model or state_dict
         is_model: = whether is model
@@ -26,7 +26,7 @@ def get_name_weights_list_len(x, is_model: bool = True, require_print: bool = Fa
     name_weights = []
     state = x.state_dict().items() if is_model else x.items()
     for name, weight in state:
-        # get name and weight shape
+        # get save_name and weight shape
         name2weight = (name, tuple(weight.shape))
         name_weights.append(name2weight)
         if require_print:
@@ -36,7 +36,7 @@ def get_name_weights_list_len(x, is_model: bool = True, require_print: bool = Fa
 
 def print_pair_name_shape(x, y, x_position: int = 50, y_position: int = 50, x_del=None, y_del=None):
     r"""
-    Print name and shape pair for checking to transfer weights.
+    Print save_name and shape pair for checking to transfer weights.
     Args:
         x: = state_dict
         y: = state_dict
@@ -45,7 +45,7 @@ def print_pair_name_shape(x, y, x_position: int = 50, y_position: int = 50, x_de
         x_del: = the index list of x for deleting
         y_del: = the index list of y for deleting
     """
-    # get name and shape list
+    # get save_name and shape list
     x = get_name_weights_list_len(x, False)
     y = get_name_weights_list_len(y, False)
 
@@ -69,8 +69,8 @@ def print_pair_name_shape(x, y, x_position: int = 50, y_position: int = 50, x_de
     print(f'len: {len(x)} {len(y)}')
 
     # print pair
-    for x_ns, y_ns in zip(x, y):  # (name, shape)
-        xn, xs = x_ns  # x name, x shape
+    for x_ns, y_ns in zip(x, y):  # (save_name, shape)
+        xn, xs = x_ns  # x save_name, x shape
         yn, ys = y_ns
         print(f'{str(xn):{x_p}}{str(xs):<20}{str(yn):{y_p}}{str(ys):<20}')
 
@@ -81,7 +81,7 @@ def _change_name_of_weights_in_state_dict(state_dict, name_to_change_pair: list)
     for name in name_list:
         for old, new in name_to_change_pair:
             if old in name:
-                # todo maybe apper bug because of repeat old in name that is wrong
+                # todo maybe apper bug because of repeat old in save_name that is wrong
                 new_name = name.replace(old, new)
                 state_dict[new_name] = state_dict.pop(name)
                 break
@@ -89,7 +89,7 @@ def _change_name_of_weights_in_state_dict(state_dict, name_to_change_pair: list)
 
 def change_then_check(state_dict, name_pairs, state_dict_to_check):
     r"""
-    Change name replace old with new and then print to check.
+    Change save_name replace old with new and then print to check.
     Args:
         state_dict: = state_dict to change
         name_pairs: = the list consist of (old, new)
@@ -99,7 +99,7 @@ def change_then_check(state_dict, name_pairs, state_dict_to_check):
         state_dict dealt
     """
     _change_name_of_weights_in_state_dict(state_dict, name_pairs)
-    # for checking whether they are corresponding to each other one by one in (name, shape)
+    # for checking whether they are corresponding to each other one by one in (save_name, shape)
     print_pair_name_shape(state_dict, state_dict_to_check)
     return state_dict
 
@@ -121,7 +121,7 @@ def _exchange_name_when_shape_correspond(state_dict, state_dict_to_check, x_del=
 
 def exchange_then_check(state_dict, state_dict_to_check, x_del=None, y_del=None):
     r"""
-    Exchange name of them when their weights are corresponding one by one.
+    Exchange save_name of them when their weights are corresponding one by one.
     Args:
         state_dict: = state_dict need its weights
         state_dict_to_check: = state_dict to check
@@ -167,7 +167,7 @@ def transfer_weights(state_dict, model_instance, save_path=None):
 
 def first_check_name_shape(x, y, x_position: int = 50, y_position: int = 50, x_del=None, y_del=None):
     r"""
-    First, check the name shape pair and think how to deal them.
+    First, check the save_name shape pair and think how to deal them.
     Args:
         x: = state_dict
         y: = state_dict
@@ -182,7 +182,7 @@ def first_check_name_shape(x, y, x_position: int = 50, y_position: int = 50, x_d
 def second_change_name_of_weights(kind, state_dict, name_pairs, state_dict_to_check,
                                   x_del=None, y_del=None):
     r"""
-    Second, change or exchange name of weights then check whether the changed state_dict is correct.
+    Second, change or exchange save_name of weights then check whether the changed state_dict is correct.
     Args:
         kind: = 'change' / 'exchange' the kind to change
         state_dict: = state_dict to change or exchange

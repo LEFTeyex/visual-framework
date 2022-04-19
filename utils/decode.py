@@ -12,7 +12,7 @@ from torchvision.ops import batched_nms
 from utils.log import LOGGER
 from utils.bbox import xywh2xyxy
 from utils.check import check_between_0_1, check_version
-from utils.typeslib import _tuple_or_None, _int_or_Tensor
+from utils.typeslib import tuple_or_None, int_or_Tensor
 
 __all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
            'non_max_suppression']
@@ -38,7 +38,7 @@ def parse_outputs_yolov5(outputs: list, anchors: Tensor, scalings, reshape: bool
     return output_all
 
 
-def parse_bbox_yolov5(bbox: Tensor, anchor: Tensor, nxy_grid: _tuple_or_None = None, scaling: _int_or_Tensor = 1):
+def parse_bbox_yolov5(bbox: Tensor, anchor: Tensor, nxy_grid: tuple_or_None = None, scaling: int_or_Tensor = 1):
     r"""
     Parse the bbox from output of model.
     Args:
@@ -76,16 +76,18 @@ def create_grid_tensor(nxy_grid: tuple, ndim_bbox: int, device=None):
     # create grid for xy which the shape is (..., h, w, 2(x, y))
     grid_x = torch.arange(nx, device=device)
     grid_y = torch.arange(ny, device=device)
+
     if check_version(torch.__version__, '1.10.0'):
         grid_x, grid_y = torch.meshgrid(grid_x, grid_y, indexing='xy')
     else:
         grid_y, grid_x = torch.meshgrid(grid_y, grid_x)
+
     grid_hwxy = torch.stack((grid_x, grid_y), dim=2)
     grid_hwxy = grid_hwxy.view(*pre_shape, ny, nx, 2)
     return grid_hwxy
 
 
-def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, classes: _tuple_or_None = None):
+def filter_outputs2predictions(outputs: Tensor, obj_threshold: float = 0.25, classes: tuple_or_None = None):
     # check
     assert check_between_0_1(
         obj_threshold), f'Except obj_threshold value is in interval (0, 1), but got {obj_threshold}'

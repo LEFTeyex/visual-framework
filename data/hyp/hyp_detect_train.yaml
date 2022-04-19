@@ -4,22 +4,23 @@
 seed: null  # null is None in yaml
 
 lr0: 0.01
-momentum: 0.9
-weight_decay: 0.005
+momentum: 0.95
+weight_decay: 0.0005
 label_smoothing: 0.1
 fl_gamma: 0.0
 
 # TODO need to scale for batch size in metaclass
-bbox: 0.0296
-cls: 0.243
-obj: 0.301
+iou_kind: 'ciou'
+bbox: 0.05
+cls: 0.5
+obj: 1.0
 
-cls_pw: 0.631
-obj_pw: 0.911
+cls_pw: 0.5
+obj_pw: 0.51728
 
 anchor_threshold: 4.0
 
-fit_weights: [0.0, 0.0, 0.0, 0.1, 0.9]  # for [(IoU 0.5 for) P, R, F1, AP50, AP5095]
+fit_weights: [ 0.0, 0.0, 0.0, 0.1, 0.9 ]  # for [(IoU 0.5 for) P, R, F1, AP50, AP5095]
 
 # augmentation
 filter_bbox: true
@@ -29,3 +30,8 @@ scale: 0.0
 shear: 0.0
 translate: 0.0
 flip: 0.0
+
+# val
+obj_threshold: 0.25
+iou_threshold: 0.5
+max_detect: 300

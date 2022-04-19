@@ -28,7 +28,7 @@ def select_act(act_name_or_module):
     r"""
     Select activation function.
     Args:
-        act_name_or_module: = 'relu' (act name) / nn.ReLU() (instance of nn.Module) / None (nn.Identity())
+        act_name_or_module: = 'relu' (act save_name) / nn.ReLU() (instance of nn.Module) / None (nn.Identity())
 
     Return act(act class instance)
     """

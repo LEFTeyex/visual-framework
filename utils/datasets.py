@@ -17,7 +17,7 @@ from utils.log import LOGGER
 from utils.bbox import xywhn2xyxy, xyxy2xywhn, rescale_xywhn
 from utils.general import load_all_yaml, to_tuplex, make_divisible_up
 from utils.augmentation import random_affine_or_perspective, cutout, mixup, mosaic
-from utils.typeslib import _path, _int_or_tuple
+from utils.typeslib import strpath, int_or_tuple
 
 __all__ = ['DatasetDetect', 'get_and_check_datasets_yaml', 'load_image_resize', 'load_image_correct_rect']
 
@@ -31,7 +31,7 @@ class DatasetDetect(Dataset):
     For labels, save it and convert labels when images resized or padded.
     Args:
         datasets: = datasets dict
-        name: = the name of dataset type
+        name: = the save_name of dataset type
         img_size: int = the largest edge of image size
         augment: = False/True whether data augment
         data_augment: str = 'cutout'/'mixup'/'mosaic' the kind of data augmentation
@@ -44,6 +44,7 @@ class DatasetDetect(Dataset):
     # TODO upgrade .cache file in memory for faster training
     def __init__(self, datasets, name: str, img_size: int, augment=False, data_augment: str = '', hyp=None,
                  json_gt=None):
+        self.name = name
         self.datasets = datasets
         self.img_size = img_size
         self.augment = augment
@@ -52,8 +53,7 @@ class DatasetDetect(Dataset):
         self.json_gt = json_gt
         self.img_files = get_img_files(datasets[name])  # get the path tuple of image files
         # check img suffix and img_files(to str)
-        self.img_files = [str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS)]
-        self.img_files = tuple(self.img_files)  # to save memory
+        self.img_files = tuple(str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS))
         if not self.img_files:
             raise FileNotFoundError('No images found')
         self.indices = range(len(self.img_files))  # for choices in data augmentation and coco evaluation
@@ -80,7 +80,7 @@ class DatasetDetect(Dataset):
         # deal image
         image = np.transpose(image, (2, 0, 1))  # (h,w,c) to (c,h,w)
         image = np.ascontiguousarray(image)  # make image contiguous in memory
-        image = torch.from_numpy(image)  # image to tensor
+        image = torch.from_numpy(image)  # image to tensor uint8
 
         # deal label
         nl = len(label)
@@ -110,6 +110,7 @@ class DatasetDetect(Dataset):
         shape_convert = hw0, ratio, padxy  # for convert coordinate from hw_pad to hw0 in COCOeval
 
         # convert label xywh normalized to xyxy (padded)
+        # the xywhn to xyxy is for augment random_affine_or_perspective
         if nl:
             label[:, 1:] = xywhn2xyxy(label[:, 1:], hw_nopad, padxy)
 
@@ -207,7 +208,7 @@ class DatasetDetect(Dataset):
         # for json coco format
         images = []  # consist of dict(file_name, height, width, id)
         annotations = []  # consist of dict(segmentation, area, iscrowd, image_id, bbox:list, category_id, id)
-        categories = []  # # consist of dict(supercategory, id, name)
+        categories = []  # # consist of dict(supercategory, id, save_name)
         ann_id = 0
 
         def xywh2segmentation(b):
@@ -272,7 +273,7 @@ class DatasetDetect(Dataset):
             for idx, name in enumerate(self.datasets['names']):
                 cat = {'supercategory': '0',
                        'id': idx,
-                       'name': name}
+                       'save_name': name}
                 categories.append(cat)
             categories.sort(key=lambda x: int(x['id']))
             coco_json = {'images': images,
@@ -285,11 +286,11 @@ class DatasetDetect(Dataset):
         return tuple(labels), nlabel
 
 
-def load_image_resize(img_path: _path, img_size: int):
+def load_image_resize(img_path: strpath, img_size: int):
     r"""
     Load image and resize it which the largest edge is img_size.
     Args:
-        img_path: _path = Path
+        img_path: strpath = Path
         img_size: int = img_size for the largest edge
 
     Returns:
@@ -313,7 +314,7 @@ def load_image_resize(img_path: _path, img_size: int):
     return image, (h0, w0), (h1, w1), r
 
 
-def load_image_correct_rect(img_path: _path, img_size: int, divisor: int = 32):
+def load_image_correct_rect(img_path: strpath, img_size: int, divisor: int = 32):
     r"""Load image and resize it and make its side is divisible 32"""
     image, (h0, w0), (h1, w1), r = load_image_resize(img_path, img_size)
 
@@ -328,7 +329,7 @@ def load_image_correct_rect(img_path: _path, img_size: int, divisor: int = 32):
     return image, (h0, w0), (h1, w1), r, (h2, w2), padxy
 
 
-def letterbox(image: np.ndarray, shape_pad: _int_or_tuple, color: tuple = (0, 0, 0)):
+def letterbox(image: np.ndarray, shape_pad: int_or_tuple, color: tuple = (0, 0, 0)):
     r"""
     Pad image to specified shape.
     Args:
@@ -403,7 +404,7 @@ def get_img_files(path, file_path_is_absolute: bool = False):
 def img2label_files(img_files):
     r"""
     Change image path to label path from image paths.
-    The file name must be 'images' and 'labels'.
+    The file save_name must be 'images' and 'labels'.
     Args:
         img_files: = img_files
 
@@ -414,11 +415,11 @@ def img2label_files(img_files):
     return tuple(label_files)  # to save memory
 
 
-def get_and_check_datasets_yaml(path: _path):
+def get_and_check_datasets_yaml(path: strpath):
     r"""
     Get path and other data of datasets yaml for training and check datasets yaml.
     Args:
-        path: _path = Path
+        path: strpath = Path
 
     Return datasets
     """
@@ -483,7 +484,7 @@ def get_and_check_datasets_yaml(path: _path):
 
     datasets['train'], datasets['val'], datasets['test'] = train, val, test
 
-    # check number of classes and name
+    # check number of classes and save_name
     if not (datasets['nc'] == len(datasets['names'])):
         raise ValueError('There is no one-to-one correspondence '
                          'between the number of classes and its names')

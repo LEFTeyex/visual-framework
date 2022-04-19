@@ -9,17 +9,17 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
 from utils.bbox import xywh2xyxy
-from utils.typeslib import _path
+from utils.typeslib import strpath
 
 __all__ = ['set_writer', 'add_model_graph', 'add_optimizer_lr', 'add_epoch_curve',
            'add_datasets_images_labels_detect', 'add_batch_images_predictions_detect']
 
 
-def set_writer(save_path: _path):
+def set_writer(save_path: strpath):
     r"""
     Set tensorboard writer using SummaryWriter.
     Args:
-        save_path: _path = Path
+        save_path: strpath = Path
 
     Returns:
         writer
@@ -65,7 +65,7 @@ def add_optimizer_lr(writer, optimizer, epoch, new_style=True):
 
 def add_epoch_curve(writer, title, value, value_name, epoch, new_style=True):
     r"""
-    Add all train loss with name.
+    Add all train loss with save_name.
     Args:
         writer:
         title:
@@ -74,7 +74,7 @@ def add_epoch_curve(writer, title, value, value_name, epoch, new_style=True):
         epoch:
         new_style:
     """
-    if writer and epoch >= 0:
+    if writer:
         for v, v_name in zip(value, value_name):
             writer.add_scalar(f'{title}/{v_name}', v, epoch, new_style=new_style)
 

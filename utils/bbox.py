@@ -9,13 +9,13 @@ import numpy as np
 
 from torch import Tensor
 
-from utils.typeslib import _Tensor_or_ndarray
+from utils.typeslib import Tensor_or_ndarray
 
 __all__ = ['xywh2xyxy', 'xywhn2xyxy', 'xyxy2x1y1wh', 'xyxy2xywhn',
            'rescale_xywhn', 'rescale_xyxy', 'clip_bbox', 'bbox_iou']
 
 
-def xywh2xyxy(bbox: _Tensor_or_ndarray, pxy: tuple = (0, 0)):
+def xywh2xyxy(bbox: Tensor_or_ndarray, pxy: tuple = (0, 0)):
     r"""
     Convert the center xywh to the topleft and bottomright xyxy.
     Args:
@@ -34,7 +34,7 @@ def xywh2xyxy(bbox: _Tensor_or_ndarray, pxy: tuple = (0, 0)):
     return y
 
 
-def xywhn2xyxy(bbox: _Tensor_or_ndarray, hw_nopad: tuple, pxy: tuple = (0, 0)):
+def xywhn2xyxy(bbox: Tensor_or_ndarray, hw_nopad: tuple, pxy: tuple = (0, 0)):
     r"""
     Convert the center xywh normalized to the topleft and bottomright xyxy.
     Args:
@@ -55,7 +55,7 @@ def xywhn2xyxy(bbox: _Tensor_or_ndarray, hw_nopad: tuple, pxy: tuple = (0, 0)):
     return y
 
 
-def xyxy2x1y1wh(bbox: _Tensor_or_ndarray, pxy: tuple = (0, 0)):
+def xyxy2x1y1wh(bbox: Tensor_or_ndarray, pxy: tuple = (0, 0)):
     r"""
     Convert the topleft and bottomright xyxy to the center xywh normalized
     Args:
@@ -74,7 +74,7 @@ def xyxy2x1y1wh(bbox: _Tensor_or_ndarray, pxy: tuple = (0, 0)):
     return y
 
 
-def xyxy2xywhn(bbox: _Tensor_or_ndarray, hw_pad: tuple, pxy: tuple = (0, 0)):
+def xyxy2xywhn(bbox: Tensor_or_ndarray, hw_pad: tuple, pxy: tuple = (0, 0)):
     r"""
     Convert the topleft and bottomright xyxy to the center xywh normalized
     Args:
@@ -99,7 +99,7 @@ def xyxy2xywhn(bbox: _Tensor_or_ndarray, hw_pad: tuple, pxy: tuple = (0, 0)):
     return y
 
 
-def rescale_xywhn(bbox: _Tensor_or_ndarray, hw_nopad: tuple, hw_pad: tuple, pxy: tuple):
+def rescale_xywhn(bbox: Tensor_or_ndarray, hw_nopad: tuple, hw_pad: tuple, pxy: tuple):
     r"""
     Rescale the center xywh normalized from original to which is resized and padded.
     Args:
@@ -122,7 +122,7 @@ def rescale_xywhn(bbox: _Tensor_or_ndarray, hw_nopad: tuple, hw_pad: tuple, pxy:
     return y
 
 
-def rescale_xyxy(bbox: _Tensor_or_ndarray, shape_converts):
+def rescale_xyxy(bbox: Tensor_or_ndarray, shape_converts):
     r"""
     Rescale xyxy from new image size to original image size.
     Args:
@@ -140,7 +140,7 @@ def rescale_xyxy(bbox: _Tensor_or_ndarray, shape_converts):
     return y
 
 
-def clip_bbox(bbox: _Tensor_or_ndarray, shape):
+def clip_bbox(bbox: Tensor_or_ndarray, shape):
     r"""
     Clip bounding box to image size(shape).
     Args:

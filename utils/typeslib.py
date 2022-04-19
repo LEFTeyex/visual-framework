@@ -13,55 +13,53 @@ from torch.optim.lr_scheduler import _LRScheduler  # ignore _LRScheduler, no pro
 
 __all__ = [
     # strpath
-    '_path',
+    'strpath',
     # python
-    '_int_or_None', '_str_or_None', '_float_or_None', '_complex_or_None',
-    '_set_or_None', '_list_or_None', '_dict_or_None', '_tuple_or_None',
-    '_int_or_tuple',
-    '_instance', '_instance_c',
+    'int_or_None', 'str_or_None', 'float_or_None', 'complex_or_None',
+    'set_or_None', 'list_or_None', 'dict_or_None', 'tuple_or_None',
+    'int_or_tuple',
+    'instance_',
     # pytorch
-    '_Tensor_or_None', '_int_or_Tensor', '_Tensor_or_ndarray',
-    '_module', '_optimizer', '_lr_scheduler', '_gradscaler', '_parameter', '_dataset',
-    '_module_or_parameter', '_module_or_None',
+    'Tensor_or_None', 'int_or_Tensor', 'Tensor_or_ndarray',
+    'module_', 'optimizer_', 'lr_scheduler_', 'gradscaler_', 'parameter_', 'dataset_',
+    'module_or_parameter', 'module_or_None',
     # special designed
-    '_pkt_or_None',
+    'pkt_or_None', 'tuple_or_list',
 ]
 
 # str pathlike
-_path = Union[str, PathLike]
+strpath = Union[str, PathLike]
 
 # python
-_int_or_None = Optional[int]
-_str_or_None = Optional[str]
-_float_or_None = Optional[float]
-_complex_or_None = Optional[complex]
-_set_or_None = Optional[set]
-_list_or_None = Optional[list]
-_dict_or_None = Optional[dict]
-_tuple_or_None = Optional[tuple]
-_int_or_tuple = Union[int, tuple]
+int_or_None = Optional[int]
+str_or_None = Optional[str]
+float_or_None = Optional[float]
+complex_or_None = Optional[complex]
+set_or_None = Optional[set]
+list_or_None = Optional[list]
+dict_or_None = Optional[dict]
+tuple_or_None = Optional[tuple]
+int_or_tuple = Union[int, tuple]
+tuple_or_list = Union[tuple, list]
 
 # python instance
-_instance = TypeVar('_instance', bound=object)
-
-# python class
-_instance_c = Type[_instance]
+instance_ = TypeVar('instance_', bound=object)
 
 # pytorch
-_Tensor_or_None = Optional[Tensor]
-_int_or_Tensor = Union[int, Tensor]
-_Tensor_or_ndarray = Union[Tensor, ndarray]
+Tensor_or_None = Optional[Tensor]
+int_or_Tensor = Union[int, Tensor]
+Tensor_or_ndarray = Union[Tensor, ndarray]
 
 # pytorch instance
-_module = TypeVar('_module', bound=Module)
-_dataset = TypeVar('_dataset', bound=Dataset)
-_optimizer = TypeVar('_optimizer', bound=Optimizer)
-_parameter = TypeVar('_parameter', bound=Parameter)
-_gradscaler = TypeVar('_gradscaler', bound=GradScaler)
-_lr_scheduler = TypeVar('_lr_scheduler', bound=_LRScheduler)
-_module_or_None = Optional[_module]
-_module_or_parameter = Union[_module, _parameter]
+module_ = TypeVar('module_', bound=Module)
+dataset_ = TypeVar('dataset_', bound=Dataset)
+optimizer_ = TypeVar('optimizer_', bound=Optimizer)
+parameter_ = TypeVar('parameter_', bound=Parameter)
+gradscaler_ = TypeVar('gradscaler_', bound=GradScaler)
+lr_scheduler_ = TypeVar('lr_scheduler_', bound=_LRScheduler)
+module_or_None = Optional[module_]
+module_or_parameter = Union[module_, parameter_]
 
 # special designed
-_param_kind = Tuple[str, Type[_module_or_parameter], dict]
-_pkt_or_None = Optional[Tuple[_param_kind, ...]]
+_param_kind = Tuple[str, Type[module_or_parameter], dict]
+pkt_or_None = Optional[Tuple[_param_kind, ...]]

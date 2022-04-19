@@ -34,7 +34,7 @@ class Head(nn.Module):
 
 
 class ModelDetect(MetaModelDetectAnchorBased):
-    # TODO Upgrade for args got in train.py in the future
+    # TODO Upgrade for args got in train_detect.py in the future
     r"""
     Model of Detection which is a custom model.
     Can be defined by changing Backbone and Head.
@@ -52,8 +52,6 @@ class ModelDetect(MetaModelDetectAnchorBased):
 
         self.inc = inc
         self.no = num_class + num_bbox
-        self.anchors, self.nl, self.na = self.get_register_anchors(anchors)
-        self._check_nl()
 
         # layers
         self.backbone = Backbone(inc, backbone_channels, backbone_c3_layers,
@@ -61,9 +59,6 @@ class ModelDetect(MetaModelDetectAnchorBased):
         self.neck = Neck(neck_channels, neck_c3_layers,
                          g=g, act=act, bn=bn, bias=bias, shortcut=False)
         self.head = Head(self.head_in_channels, self.na, self.no)
-
-        self.scalings, self.image_size = self.get_register_scalings(img_size)
-        self.scale_anchors()
 
     def forward(self, x):
         x = self.backbone(x)
@@ -73,6 +68,9 @@ class ModelDetect(MetaModelDetectAnchorBased):
 
     def initialize_weights(self):
         self.apply(init_weights)
+
+    def decode(self, *args):
+        pass
 
     def _check_nl(self):
         if len(self.head_in_channels) != self.nl:

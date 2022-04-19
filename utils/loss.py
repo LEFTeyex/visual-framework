@@ -10,7 +10,7 @@ from torch import Tensor
 
 from utils.bbox import bbox_iou
 from utils.decode import parse_bbox_yolov5
-from utils.typeslib import _module
+from utils.typeslib import module_
 
 __all__ = ['LossDetectYolov5']
 
@@ -20,11 +20,11 @@ class LossDetectYolov5(object):
     Compute loss with outputs, labels.
     Convert labels for loss.
     Args:
-        model: _module = model instance (to get some parameters of model)
-        hyp: dict = self.hyp during training
+        model: module_ = model instance (to get some parameters of model).
+        hyp: dict = self.hyp during training.
     """
 
-    def __init__(self, model: _module, hyp: dict):
+    def __init__(self, model: module_, hyp: dict):
 
         self.hyp = hyp
         self.nc = model.nc
@@ -43,13 +43,12 @@ class LossDetectYolov5(object):
         if g > 0:
             self.loss_cls_fn, self.loss_obj_fn = FocalLoss(self.loss_cls_fn, g), FocalLoss(self.loss_obj_fn, g)
 
-    def __call__(self, outputs: tuple, labels: Tensor, kind: str = 'iou'):
+    def __call__(self, outputs: tuple, labels: Tensor):
         r"""
         Compute loss.
         Args:
             outputs: tuple = outputs during model forward
             labels: Tensor = labels from Dataloader
-            kind: str = 'iou' / 'giou' / 'diou' / 'ciou' the kind of IoU
 
         Return loss, loss_items
         """
@@ -70,7 +69,7 @@ class LossDetectYolov5(object):
 
                 # bbox loss regression
                 bbox = parse_bbox_yolov5(output_filter[:, 0:4], anchors[index])
-                iou = bbox_iou(bbox, labels_bbox[index], xyxy=False, kind=kind)
+                iou = bbox_iou(bbox, labels_bbox[index], xyxy=False, kind=self.hyp['iou_kind'])
                 loss_bbox += (1.0 - iou).mean()
 
                 # class loss
@@ -95,7 +94,7 @@ class LossDetectYolov5(object):
         loss_cls *= self.hyp['cls'] * bs
         loss_obj *= self.hyp['obj'] * bs
 
-        loss = (loss_bbox + loss_cls + loss_obj)
+        loss = loss_bbox + loss_cls + loss_obj
         loss_items = torch.cat((loss_bbox, loss_cls, loss_obj))
         return loss, loss_items
 

@@ -172,6 +172,14 @@ def demo_attention_map():
 def demo_feature_map():
     from models.yolov5.yolov5_v6 import yolov5s_v6
 
+    class Model:
+        def __init__(self, *args, **kwargs):
+            super(Model, self).__init__(*args, **kwargs)
+
+        def forward(self, x):
+            # TODO need to decode a little
+            raise NotImplementedError
+
     path = '../../data/images/dog.jpg'
     img_size = 640
     weights = torch.load('../../models/yolov5/yolov5s_v6.pt')['model'].state_dict()

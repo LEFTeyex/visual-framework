@@ -15,11 +15,11 @@ from copy import deepcopy
 from functools import wraps
 
 from utils.log import LOGGER
-from utils.typeslib import _int_or_None, _path
+from utils.typeslib import int_or_None, strpath
 
 __all__ = ['timer', 'time_sync', 'make_divisible_up', 'to_tuplex', 'delete_list_indices',
            'save_all_txt', 'load_all_txt', 'load_all_yaml', 'save_all_yaml', 'save_matrix_excel',
-           'init_seed', 'select_one_device']
+           'init_seed', 'select_one_device', 'loss_to_mean']
 
 
 def timer(func):
@@ -38,8 +38,8 @@ def timer(func):
 
 def time_sync():
     r"""
-    Get pytorch-accurate time
-    Return time now of current system
+    Get pytorch-accurate time.
+    Return time now of current system.
     """
     if torch.cuda.is_available():
         torch.cuda.synchronize()
@@ -49,6 +49,21 @@ def time_sync():
 def make_divisible_up(x, divisor):
     r"""Make x divisible by divisor then return a number may be large"""
     return (x // divisor + 1) * divisor
+
+
+def loss_to_mean(idx_loop: int, loss_mean, loss):
+    r"""
+    Get mean loss when iteration.
+    Args:
+        idx_loop: int = the index in the loop.
+        loss_mean: = the last mean loss.
+        loss: = the loss in the loop.
+
+    Returns:
+        loss_mean
+    """
+    loss_mean = (loss_mean * idx_loop + loss) / (idx_loop + 1)
+    return loss_mean
 
 
 def to_tuplex(value, n: int):
@@ -94,11 +109,11 @@ def delete_list_indices(list_delete: list, indices_delete, inplace: bool = True)
         return new_list_delete
 
 
-def load_all_txt(*args: _path):
+def load_all_txt(*args: strpath):
     r"""
     Load all *.txt to list from the path.
     Args:
-        args: _path = Path, ...
+        args: strpath = Path, ...
 
     Return list(list, ...) or list(when only one txt to load)
     """
@@ -142,11 +157,11 @@ def save_all_txt(*args, mode='w'):
     LOGGER.debug('Save all txt successfully')
 
 
-def load_all_yaml(*args: _path):
+def load_all_yaml(*args: strpath):
     r"""
     Load all *.yaml to dict from the path.
     Args:
-        args: _path = Path, ...
+        args: strpath = Path, ...
 
     Return tuple(dict, ...) or dict(when only one yaml to load)
     """
@@ -193,11 +208,11 @@ def save_matrix_excel(path, matrix: list, sheets: list):
     LOGGER.info(f'Save matrix to excel successfully')
 
 
-def init_seed(seed: _int_or_None = None):
+def init_seed(seed: int_or_None = None):
     r"""
     Initialize the seed of torch(CPU), torch(GPU), random, numpy by manual or auto(seed=None).
     Args:
-        seed: _int_or_None =  integral number less than 32 bit better, Default=None(auto)
+        seed: int_or_None =  integral number less than 32 bit better, Default=None(auto)
     Return seed
     """
     if seed is None:
