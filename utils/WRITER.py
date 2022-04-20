@@ -121,7 +121,7 @@ def add_batch_images_predictions_detect(writer, title, bs_index, images, predict
         dfmt:
     """
     # TODO BUG: the step is not continue because of the max is 10
-    if writer and epoch == -1:
+    if writer and epoch == -1 and bs_index < 3:
         bs = images.shape[0]
         for index in range(bs):
             # only consist of 10 images per plot in tensorboard

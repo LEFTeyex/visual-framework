@@ -14,7 +14,13 @@ class MetaModelClass(nn.Module):
     def forward(self, x):
         raise NotImplementedError
 
+    def forward_alone(self, x):
+        raise NotImplementedError
+
     def decode(self, *args):
+        raise NotImplementedError
+
+    def initialize_weights(self):
         raise NotImplementedError
 
 
@@ -28,8 +34,8 @@ class MetaModelDetectAnchorBased(nn.Module):
     def forward_alone(self, x):
         raise NotImplementedError
 
-    def initialize_weights(self):
+    def decode(self, *args):
         raise NotImplementedError
 
-    def decode(self, *args):
+    def initialize_weights(self):
         raise NotImplementedError

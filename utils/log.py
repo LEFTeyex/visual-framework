@@ -9,7 +9,7 @@ from functools import wraps
 
 from utils.typeslib import str_or_None
 
-__all__ = ['LOGGER', 'add_log_file', 'log_fps_time',
+__all__ = ['LOGGER', 'add_log_file', 'log_fps_time', 'log_results',
            'logging_initialize', 'logging_start_finish']
 
 
@@ -124,6 +124,13 @@ def logging_start_finish(name: str_or_None = None):
         return wrapper
 
     return function
+
+
+def log_results(results, result_names):
+    fmt = '<10.4f'
+    space = ' ' * 50
+    show = ''.join([f'{x}: {y:{fmt}} ' for x, y in zip(result_names, results)])
+    LOGGER.info(f'{space}{show}')
 
 
 def log_fps_time(fps_time):

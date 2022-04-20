@@ -20,7 +20,7 @@ obj_pw: 0.51728
 
 anchor_threshold: 4.0
 
-fit_weights: [ 0.0, 0.0, 0.0, 0.1, 0.9 ]  # for [(IoU 0.5 for) P, R, F1, AP50, AP5095]
+fit_weights: [ 0.9, 0.1, 0.0 ]  # for [ AP5095, AP50, AP75 ]
 
 # augmentation
 filter_bbox: true
@@ -35,3 +35,13 @@ flip: 0.0
 obj_threshold: 0.25
 iou_threshold: 0.5
 max_detect: 300
+
+# lr_scheduler
+lr_kind: 'lr_lambda'  # lr_step / lr_lambda
+
+# lr_step
+step: 50
+gamma: 0.5
+
+# lr_lambda
+lrf: 0.1

@@ -10,7 +10,7 @@ import torch.nn as nn
 from pathlib import Path
 from torch.optim import SGD
 from torch.cuda.amp import GradScaler
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, LambdaLR
 
 from utils.log import add_log_file, logging_start_finish, logging_initialize, LOGGER
 from utils.loss import LossDetectYolov5
@@ -145,8 +145,14 @@ class TrainDetect(_Args, MetaTrainDetect):
         param_groups = self.release()
 
         # Initialize and load lr_scheduler
-        self.lr_scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 50), load=self._load_lr_scheduler)
-        # TODO set lr_scheduler args to self.hyp
+        if self.hyp['lr_kind'] == 'lr_lambda':
+            self.lr_scheduler = self.load_lr_scheduler(
+                LambdaLR(self.optimizer, lambda x: (1 - x / self.epochs) * (1.0 - self.hyp['lrf']) + self.hyp['lrf']),
+                load=self._load_lr_scheduler)
+        else:
+            self.lr_scheduler = self.load_lr_scheduler(
+                StepLR(self.optimizer, self.hyp['step'], self.hyp['gamma']),
+                load=self._load_lr_scheduler)
 
         # Initialize and load GradScaler
         self.scaler = self.load_gradscaler(GradScaler(enabled=self.cuda), load=self._load_gradscaler)
@@ -177,10 +183,10 @@ class TrainDetect(_Args, MetaTrainDetect):
             }
 
             self.val_dataloader = self.set_dataloader(
-                DatasetDetect(self.datasets, 'val', self.image_size, json_gt=self.coco_json['val']))
+                DatasetDetect(self.datasets, 'val', self.image_size, coco_gt=self.coco_json['val']))
 
             self.test_dataloader = self.set_dataloader(
-                DatasetDetect(self.datasets, 'test', self.image_size, json_gt=self.coco_json['test']))
+                DatasetDetect(self.datasets, 'test', self.image_size, coco_gt=self.coco_json['test']))
         else:
 
             self.coco_json = {
@@ -190,7 +196,7 @@ class TrainDetect(_Args, MetaTrainDetect):
             }
 
             self.val_dataloader = self.set_dataloader(
-                DatasetDetect(self.datasets, 'val', self.image_size, json_gt=self.coco_json['val']))
+                DatasetDetect(self.datasets, 'val', self.image_size, coco_gt=self.coco_json['val']))
             self.test_dataloader = None
 
         self.val_class = ValDetect
@@ -201,17 +207,17 @@ class TrainDetect(_Args, MetaTrainDetect):
     def train(self):
         for self.epoch in range(self.start_epoch, self.epochs):
             self.train_one_epoch(('total_loss', 'bbox_loss', 'class_loss', 'object_loss'))
-            results_val = self.val_training()
-            results_for_best = results_val  # TODO add in 2022.4.19
-            # fitness = compute_fitness(results_for_best, self.hyp['fit_weights'])  # compute fitness for best save
-            # self.save_checkpoint(fitness, self.path_dict['best'], self.path_dict['last'])
+            _, coco_stats = self.val_training()
+
+            fitness = compute_fitness(coco_stats[:3], self.hyp['fit_weights'])  # compute fitness for best save
+            self.save_checkpoint(fitness, self.path_dict['best'], self.path_dict['last'])
             # TODO maybe need a auto stop function for bad training
 
         self.model = self.release()
-        results_test = self.test_trained()
+        coco_eval, _ = self.test_trained()
 
         # save coco results
-        self.save_coco_results(results_test, self.path_dict['coco_results'])
+        self.save_coco_results(coco_eval, self.path_dict['coco_results'])
 
         # release all
         self.close_tensorboard()
@@ -253,7 +259,7 @@ def parse_args_detect(known: bool = False):
     r"""
     Parse args for training.
     Args:
-        known: bool = True or False, Default=False
+        known: bool = True or False, Default=False.
             parser will get two namespace which the second is unknown args, if known=True.
 
     Returns:
@@ -261,55 +267,56 @@ def parse_args_detect(known: bool = False):
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('--tensorboard', type=bool,
-                        default=True, help='')
+                        default=True, help='Use tensorboard to make visual')
     parser.add_argument('--visual_image', type=bool,
-                        default=True, help='whether make images visual in tensorboard')
+                        default=True, help='Make image (train val test) visual')
     parser.add_argument('--visual_graph', type=bool,
-                        default=False, help='whether make model graph visual in tensorboard')
+                        default=False, help='Make model graph visual')
     parser.add_argument('--weights', type=str,
-                        default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='')
+                        default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='The path of checkpoint')
     parser.add_argument('--freeze_names', type=list,
-                        default=[], help='save_name of freezing layers in model')
+                        default=['backbone', 'neck'], help='Layer name to freeze in model')
     parser.add_argument('--device', type=str,
-                        default='0', help='cpu or cuda:0 or 0')
+                        default='0', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=100, help='epochs for training')
+                        default=10, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
-                        default=8, help='')
+                        default=8, help='The batch size in training')
     parser.add_argument('--workers', type=int,
-                        default=0, help='')
+                        default=0, help='For dataloader to load data')
     parser.add_argument('--shuffle', type=bool,
-                        default=True, help='')
+                        default=True, help='Shuffle the training data')
     parser.add_argument('--pin_memory', type=bool,
-                        default=False, help='')
+                        default=False, help='Load data to memory')
     parser.add_argument('--datasets', type=str,
-                        default=str(ROOT / 'mine/data/datasets/detection/Customdatasets.yaml'), help='')
+                        default=str(ROOT / 'mine/data/datasets/detection/Customdatasets.yaml'),
+                        help='The path of datasets.yaml')
     parser.add_argument('--save_name', type=str,
-                        default='exp', help='')
+                        default='exp', help='The name of save dir')
     parser.add_argument('--save_path', type=str,
-                        default=str(ROOT / 'runs/train/detect'), help='')
+                        default=str(ROOT / 'runs/train/detect'), help='The save path of results')
     parser.add_argument('--hyp', type=str,
-                        default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='')
+                        default=str(ROOT / 'data/hyp/hyp_detect_train.yaml'), help='The path of hyp.yaml')
     parser.add_argument('--augment', type=bool,
-                        default=False, help='whether random augment image')
+                        default=False, help='Use random augment image')
     parser.add_argument('--data_augment', type=str,
-                        default='mosaic', help='the kind of data augmentation mosaic / mixup / cutout')
+                        default='mosaic', help='The kind of data augmentation mosaic / mixup / cutout')
     parser.add_argument('--inc', type=int,
-                        default=3, help='')
+                        default=3, help='The image channel to input')
     parser.add_argument('--image_size', type=int,
-                        default=640, help='')
+                        default=640, help='The size of input image')
     parser.add_argument('--load_model', type=str,
-                        default='state_dict', help='')
+                        default='state_dict', help="The pattern of loading model 'model' / 'state_dict' / None")
     parser.add_argument('--load_optimizer', type=bool,
-                        default=False, help='')
+                        default=False, help='True / False')
     parser.add_argument('--load_lr_scheduler', type=bool,
-                        default=False, help='')
+                        default=False, help='True / False')
     parser.add_argument('--load_gradscaler', type=bool,
-                        default=False, help='')
+                        default=False, help='True / False')
     parser.add_argument('--load_start_epoch', type=str,
-                        default=None, help='')
+                        default=None, help="The pattern of start training 'continue' / 'add' / None")
     parser.add_argument('--load_best_fitness', type=bool,
-                        default=False, help='')
+                        default=False, help='True / False')
     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
     return namespace
 

@@ -61,6 +61,9 @@ class ModelDetect(MetaModelDetectAnchorBased):
         self.head = Head(self.head_in_channels, self.na, self.no)
 
     def forward(self, x):
+        return self.forward_alone(x)
+
+    def forward_alone(self, x):
         x = self.backbone(x)
         x = self.neck(x)
         x = self.head(x)

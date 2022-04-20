@@ -3,6 +3,8 @@ General utils.
 Consist of some general function.
 """
 
+import os
+import sys
 import yaml
 import time
 import torch
@@ -17,9 +19,28 @@ from functools import wraps
 from utils.log import LOGGER
 from utils.typeslib import int_or_None, strpath
 
-__all__ = ['timer', 'time_sync', 'make_divisible_up', 'to_tuplex', 'delete_list_indices',
+__all__ = ['HiddenPrints', 'timer', 'time_sync', 'make_divisible_up', 'to_tuplex', 'delete_list_indices',
            'save_all_txt', 'load_all_txt', 'load_all_yaml', 'save_all_yaml', 'save_matrix_excel',
            'init_seed', 'select_one_device', 'loss_to_mean']
+
+
+class HiddenPrints:
+    r"""
+    Control whether print.
+    """
+
+    def __init__(self, prints=False):
+        self.prints = prints
+        self._original_stdout = sys.stdout
+
+    def __enter__(self):
+        if not self.prints:
+            sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if not self.prints:
+            sys.stdout.close()
+            sys.stdout = self._original_stdout
 
 
 def timer(func):

@@ -23,10 +23,11 @@ from torch.utils.data import DataLoader
 from pycocotools.cocoeval import COCOeval
 
 from utils import WRITER
-from utils.log import LOGGER
+from utils.log import LOGGER, log_fps_time
+from utils.metrics import compute_fps
 from utils.check import check_only_one_set
 from utils.bbox import xyxy2x1y1wh, rescale_xyxy
-from utils.general import delete_list_indices, time_sync, loss_to_mean
+from utils.general import delete_list_indices, time_sync, loss_to_mean, HiddenPrints
 from utils.typeslib import optimizer_, lr_scheduler_, gradscaler_, dataset_, \
     module_or_None, str_or_None, pkt_or_None, tuple_or_list, strpath
 
@@ -774,10 +775,10 @@ class TrainDetectMixin(_TrainMixin):
                 loss_mean = loss_to_mean(index, loss_mean, loss_all)
                 self.show_loss_in_pbar(loss_mean, loss_name, pbar)
 
-            WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
-            WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
+        WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
+        WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
 
-            self.lr_scheduler.step()
+        self.lr_scheduler.step()
 
 
 class TrainClassifyMixin(_TrainMixin):
@@ -828,11 +829,11 @@ class TrainClassifyMixin(_TrainMixin):
                 loss_mean = loss_to_mean(index, loss_mean, _loss)
                 self.show_loss_in_pbar(loss_mean, loss_name, pbar)
 
-            WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
-            WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
+        WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
+        WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
 
-            # lr_scheduler
-            self.lr_scheduler.step()
+        # lr_scheduler
+        self.lr_scheduler.step()
         return loss_mean.tolist(), loss_name
 
 
@@ -900,18 +901,24 @@ class ValDetectMixin(_ValMixin):
                                                                self.epoch)
 
                 # add metrics data to json_dt
-                # TODO BUG the predictions maybe empty 2022.4.19
                 for idx, (p, img_id) in enumerate(zip(predictions, img_ids)):
                     self.seen += 1
                     p[:, :4] = rescale_xyxy(p[:, :4], shape_converts[idx])  # to original image shape
                     p[:, :4] = xyxy2x1y1wh(p[:, :4])
                     COCOEvaluateMixin.append_json_dt(p, img_id, json_dt)
 
-            WRITER.add_epoch_curve(self.writer, 'val_loss', loss_mean, loss_name, self.epoch)
+        fps_time = compute_fps(self.seen, self.time)
+        log_fps_time(fps_time)
+
+        WRITER.add_epoch_curve(self.writer, 'val_loss', loss_mean, loss_name, self.epoch)
+
+        # when empty to avoid bug
+        COCOEvaluateMixin.empty_append(json_dt)
 
         if self.epoch == -1:  # save json_dt in the test
-            with open(self.coco_json[1], 'w') as f:
+            with open(self.coco_json['dt'], 'w') as f:
                 json.dump(json_dt, f)
+            LOGGER.info(f"Save coco_dt json {self.coco_json['dt']} successfully")
 
         return json_dt
 
@@ -996,10 +1003,11 @@ class COCOEvaluateMixin(object):
         1. coco_evaluate
         2. save_coco_results
         3. append_json_dt
+        4. empty_append
     """
 
     @staticmethod
-    def coco_evaluate(coco_gt: strpath, coco_dt, img_ids: list, eval_type: str = 'bbox'):
+    def coco_evaluate(coco_gt: strpath, coco_dt, img_ids: list, eval_type: str = 'bbox', print_result: bool = False):
         r"""
         Evaluate by coco.
         Args:
@@ -1007,6 +1015,7 @@ class COCOEvaluateMixin(object):
             coco_dt: = StrPath of coco_dt json / list of coco_dt.
             img_ids: list = image id to evaluate.
             eval_type: str = evaluate type consist of ('segm', 'bbox', 'keypoints').
+            print_result: bool = whether print result in COCO.
 
         Returns:
             coco_results
@@ -1019,15 +1028,16 @@ class COCOEvaluateMixin(object):
             if not Path(coco_gt).exists():
                 raise FileExistsError(f'The coco_dt {coco_dt} json file do not exist')
 
-        coco_gt = COCO(coco_gt)
-        coco_dt = coco_gt.loadRes(coco_dt)
-        coco = COCOeval(coco_gt, coco_dt, iouType=eval_type)
-        coco.params.imgIds = img_ids
-        coco.evaluate()
-        coco.accumulate()
-        coco.summarize()
-        coco_results = coco.eval
-        return coco_results
+        with HiddenPrints(print_result):
+            coco_gt = COCO(coco_gt)
+            coco_dt = coco_gt.loadRes(coco_dt)
+            coco = COCOeval(coco_gt, coco_dt, iouType=eval_type)
+            coco.params.imgIds = img_ids
+            coco.evaluate()
+            coco.accumulate()
+            coco.summarize()
+
+        return coco.eval, coco.stats
 
     @staticmethod
     def save_coco_results(coco_results, path: strpath):
@@ -1057,7 +1067,7 @@ class COCOEvaluateMixin(object):
 
         with open(path, 'w') as f:
             json.dump(coco_results, f)
-            LOGGER.info(f"Save json coco_dt {path} successfully")
+            LOGGER.info(f"Save coco results json {path} successfully")
 
     @staticmethod
     def append_json_dt(predictions, image_id: int, json_dt: list):
@@ -1076,6 +1086,19 @@ class COCOEvaluateMixin(object):
                             'category_id': int(category_id),
                             'bbox': [round(x, 3) for x in bbox],  # Keep 3 decimal places to get more accurate mAP
                             'score': float(score)})
+
+    @staticmethod
+    def empty_append(json_dt: list):
+        r"""
+        Avoid bug that json_dt is empty when detect nothing.
+        Args:
+            json_dt: list = save prediction in coco json format.
+        """
+        if not json_dt:
+            json_dt.append({'image_id': 0,
+                            'category_id': 0,
+                            'bbox': [0., 0., 0., 0.],
+                            'score': 0})
 
 
 class ReleaseMixin(object):

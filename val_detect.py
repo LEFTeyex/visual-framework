@@ -8,13 +8,13 @@ import argparse
 
 from pathlib import Path
 
-from models.yolov5.yolov5_v6 import yolov5s_v6
-from utils.log import LOGGER, add_log_file, log_fps_time
-from utils.metrics import compute_fps
+from utils import WRITER
+from utils.log import LOGGER, add_log_file, log_results
 from utils.loss import LossDetectYolov5
 from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
 from utils.general import timer, select_one_device, save_all_yaml, load_all_yaml
 from metaclass.metavaler import MetaValDetect
+from models.yolov5.yolov5_v6 import yolov5s_v6
 
 __all__ = ['ValDetect']
 
@@ -101,7 +101,6 @@ class ValDetect(_Args, MetaValDetect):
 
             self.checkpoint = self.load_checkpoint(self.weights)
 
-            # TODO load='state_dict'
             self.model = self.load_model(
                 yolov5s_v6(self.inc, self.datasets['nc'], self.datasets['anchors'], self.image_size),
                 load='state_dict'
@@ -109,7 +108,7 @@ class ValDetect(_Args, MetaValDetect):
 
             self.loss_fn = LossDetectYolov5(self.model, self.hyp)
             self.dataloader = self.set_dataloader(
-                DatasetDetect(self.datasets, self.task, self.image_size, json_gt=self.coco_json['test']))
+                DatasetDetect(self.datasets, self.task, self.image_size, coco_gt=self.coco_json['test']))
 
             self.epoch = -1  # TODO a bug about super in subclass
             self.visual_image = None  # TODO a bug about super in subclass
@@ -117,21 +116,16 @@ class ValDetect(_Args, MetaValDetect):
     @torch.no_grad()
     def val_training(self):
         self.model.eval()
-        # TODO maybe save something or plot images below
         json_dt = self.val_once(('total_loss', 'bbox_loss', 'class_loss', 'object_loss'))
+        img_ids = self.dataloader.dataset.indices
 
         if self.epoch != -1:
-            coco_results = self.coco_evaluate(self.coco_json['val'], json_dt, self.dataloader.dataset.indices, 'bbox')
-            # TODO add log AP etc. 2022.4.19
+            coco_results = self.coco_evaluate(self.coco_json['val'], json_dt, img_ids, 'bbox')
+            self._log_writer(coco_results, writer=True)
         else:
-            coco_results = self.coco_evaluate(self.coco_json['test'], json_dt, self.dataloader.dataset.indices, 'bbox')
-            # TODO add log AP etc. 2022.4.19
-            self.save_coco_results(coco_results, self.path_dict['coco_results'])
-
-        fps_time = compute_fps(self.seen, self.time)
-        log_fps_time(fps_time)
+            coco_results = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox', print_result=True)
+            self._log_writer(coco_results, writer=True)
         # TODO confusion matrix needed
-        # TODO get the stats of the target number per class which detected correspond to label correctly
         self.model.float()
         return coco_results
 
@@ -139,12 +133,19 @@ class ValDetect(_Args, MetaValDetect):
     def val(self):
         self.model.eval()
         json_dt = self.val_once(('total_loss', 'bbox_loss', 'class_loss', 'object_loss'))
-        fps_time = compute_fps(self.seen, self.time)
-        log_fps_time(fps_time)
-        coco_results = self.coco_evaluate(self.coco_json['test'], json_dt, self.dataloader.dataset.indices, 'bbox')
-        # TODO add log AP etc.
+        img_ids = self.dataloader.dataset.indices
+        coco_results = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox', print_result=True)
+        self._log_writer(coco_results)
         self.save_coco_results(coco_results, self.path_dict['coco_results'])
         self.release_cuda_cache()
+
+    def _log_writer(self, coco_results, writer=False):
+        LOGGER.debug(f'{[v.tolist() for v in coco_results[1]]}')
+        result_names = ('AP5095', 'AP50', 'AP75')
+        results = [v.tolist() for v in coco_results[1][:3]]
+        log_results(results, result_names)
+        if writer:
+            WRITER.add_epoch_curve(self.writer, 'val_metrics', results, result_names, self.epoch)
 
 
 def parse_args_detect(known: bool = False):

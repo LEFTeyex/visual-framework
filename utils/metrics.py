@@ -168,6 +168,15 @@ def compute_fps(seen: int, time: float):
 
 
 def compute_fitness(results, weights):
+    r"""
+    Compute fitness for best results.
+    Args:
+        results: = [ AP5095, AP50, AP75 ].
+        weights: corresponding to the results.
+
+    Returns:
+        fitness
+    """
     if sum(weights) != 1:
         raise ValueError(f'The sum of weights must be 1 but got {weights}')
     weights = np.asarray(weights).reshape(-1)

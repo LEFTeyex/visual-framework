@@ -36,21 +36,21 @@ class DatasetDetect(Dataset):
         augment: = False/True whether data augment
         data_augment: str = 'cutout'/'mixup'/'mosaic' the kind of data augmentation
         hyp: = self.hyp in train hyperparameter augmentation
-        json_gt: = path for saving json whether create json coco format for using COCOeval
+        coco_gt: = path for saving json whether create json coco format for using COCOeval
     """
 
     # TODO upgrade val_from_train, test_from_train function in the future reference to random_split
     # TODO upgrade rectangular train shape for image model in the future reference to yolov5 rect=True
     # TODO upgrade .cache file in memory for faster training
     def __init__(self, datasets, name: str, img_size: int, augment=False, data_augment: str = '', hyp=None,
-                 json_gt=None):
+                 coco_gt=None):
         self.name = name
         self.datasets = datasets
         self.img_size = img_size
         self.augment = augment
         self.data_augment = data_augment.lower().replace(' ', '')
         self.hyp = hyp
-        self.json_gt = json_gt
+        self.coco_gt = coco_gt
         self.img_files = get_img_files(datasets[name])  # get the path tuple of image files
         # check img suffix and img_files(to str)
         self.img_files = tuple(str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS))
@@ -228,7 +228,7 @@ class DatasetDetect(Dataset):
                 assert c == channel, f'The channel of the image {ip} do not match with {channel}'
 
                 # create images the image_id is corresponding to the index of image_files
-                if self.json_gt:
+                if self.coco_gt:
                     image = {'file_name': Path(ip).name,
                              'height': height,
                              'width': width,
@@ -248,7 +248,7 @@ class DatasetDetect(Dataset):
                     labels.append(label)
 
                     # create annotations
-                    if self.json_gt:
+                    if self.coco_gt:
                         cls, x, y, w, h = label[:, 0], label[:, 1] * width, label[:, 2] * height, \
                                           label[:, 3] * width, label[:, 4] * height
                         # center to top-left
@@ -269,19 +269,21 @@ class DatasetDetect(Dataset):
                             ann_id += 1
 
         # create categories and save json for coco
-        if self.json_gt:
+        if self.coco_gt:
             for idx, name in enumerate(self.datasets['names']):
                 cat = {'supercategory': '0',
                        'id': idx,
                        'save_name': name}
                 categories.append(cat)
             categories.sort(key=lambda x: int(x['id']))
-            coco_json = {'images': images,
-                         'annotations': annotations,
-                         'categories': categories}
-            with open(self.json_gt, 'w') as f:
-                json.dump(coco_json, f)
-            LOGGER.info(f'Create json coco_gt {self.json_gt} successfully')
+
+            json_gt = {'images': images,
+                       'annotations': annotations,
+                       'categories': categories}
+
+            with open(self.coco_gt, 'w') as f:
+                json.dump(json_gt, f)
+            LOGGER.info(f'Create coco_gt json {self.coco_gt} successfully')
 
         return tuple(labels), nlabel
 

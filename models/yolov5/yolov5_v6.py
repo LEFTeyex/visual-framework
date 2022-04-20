@@ -1,7 +1,7 @@
 r"""
 YOLOv5 v6.0.
 Add in 2022.03.04.
-Upgrade in 2022.03.22.
+Upgrade in 2022.04.19.
 """
 
 import torch
