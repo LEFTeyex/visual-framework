@@ -665,13 +665,14 @@ class _TrainMixin(object):
     Methods:
         1. optimize_no_scale --- self.optimizer.
         2. optimize_scale --- self.scaler, self.optimizer.
-        3. show_loss_in_pbar --- self.epoch, self.epochs.
+        3. show_loss_in_pbar --- self.epoch, self.epochs, self.device.
     """
 
     def __init__(self):
         self.epoch = None
         self.epochs = None
         self.scaler = None
+        self.device = None
         self.optimizer = None
 
     def optimize_no_scale(self, loss):
@@ -688,7 +689,8 @@ class _TrainMixin(object):
 
     def show_loss_in_pbar(self, loss, loss_name, pbar):
         # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824
-        memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1073741824 if torch.cuda.is_available() else 0:.3f}GB'
+        memory = torch.cuda.memory_reserved(self.device) / 1073741824 if torch.cuda.is_available() else 0
+        memory_cuda = f'GPU: {memory:.3f}GB'
 
         # show in pbar
         space = ' ' * 11
@@ -702,13 +704,15 @@ class _ValMixin(object):
     r"""
     Consist of basic methods for validating.
     Methods:
-        1. show_loss_in_pbar.
+        1. show_loss_in_pbar --- self.device.
     """
 
-    @staticmethod
-    def show_loss_in_pbar(loss, loss_name, pbar):
-        # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824
-        memory_cuda = f'GPU: {torch.cuda.memory_reserved() / 1073741824 if torch.cuda.is_available() else 0:.3f}GB'
+    def __init__(self):
+        self.device = None
+
+    def show_loss_in_pbar(self, loss, loss_name, pbar):
+        memory = torch.cuda.memory_reserved(self.device) / 1073741824 if torch.cuda.is_available() else 0
+        memory_cuda = f'GPU: {memory:.3f}GB'
 
         # show in pbar
         space = ' ' * 11
@@ -844,6 +848,7 @@ class ValDetectMixin(_ValMixin):
     """
 
     def __init__(self):
+        super(ValDetectMixin, self).__init__()
         self.hyp = None
         self.time = None
         self.seen = None
@@ -925,6 +930,7 @@ class ValDetectMixin(_ValMixin):
 
 class ValClassifyMixin(_ValMixin):
     def __init__(self):
+        super(ValClassifyMixin, self).__init__()
         self.time = None
         self.seen = None
         self.half = None

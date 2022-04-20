@@ -275,11 +275,11 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--weights', type=str,
                         default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='The path of checkpoint')
     parser.add_argument('--freeze_names', type=list,
-                        default=['backbone', 'neck'], help='Layer name to freeze in model')
+                        default=[], help='Layer name to freeze in model')
     parser.add_argument('--device', type=str,
                         default='0', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=10, help='The epochs for training')
+                        default=100, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
                         default=8, help='The batch size in training')
     parser.add_argument('--workers', type=int,
