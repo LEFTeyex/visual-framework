@@ -258,9 +258,8 @@ class LoadAllCheckPointMixin(object):
                              " if load = None or 'state_dict'")
 
         if load is None:
-            LOGGER.info('Initializing model weights...')
-            model_instance.initialize_weights()
-            LOGGER.info('Initialize model weights successfully')
+            LOGGER.info('Initialize model successfully')  # model need to initial itself in its __init__()
+            LOGGER.info('Load None to model')
 
         elif load == 'state_dict':
             LOGGER.info('Loading model state_dict...')
@@ -295,7 +294,7 @@ class LoadAllCheckPointMixin(object):
         else:
             raise ValueError(f"The arg load: {load} do not match, "
                              f"please input one of  (None, 'model', 'state_dict')")
-        return model_instance.float().to(self.device)  # return model to self.device
+        return model_instance.float().to(self.device)  # return float model to self.device
 
     def load_optimizer(self, optim_instance: optimizer_, load: bool = True):
         r"""
@@ -775,7 +774,7 @@ class TrainDetectMixin(_TrainMixin):
                     self.optimize_scale(loss)
 
                 # mean total loss and loss items
-                loss_all = torch.cat((loss, loss_items), dim=0).detach()
+                loss_all = torch.cat((loss.detach(), loss_items), dim=0)
                 loss_mean = loss_to_mean(index, loss_mean, loss_all)
                 self.show_loss_in_pbar(loss_mean, loss_name, pbar)
 

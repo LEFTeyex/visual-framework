@@ -4,6 +4,7 @@ Add in 2022.03.04.
 Upgrade in 2022.04.19.
 """
 
+import math
 import torch
 import torch.nn as nn
 
@@ -89,6 +90,9 @@ class Head(nn.Module):
             y.append(tensor)
         return y
 
+    def __getitem__(self, item):
+        return self.m[item]
+
 
 class BaseYolov5V6(MetaModelDetectAnchorBased):
     r"""YOLOv5 v6.0"""
@@ -116,8 +120,10 @@ class BaseYolov5V6(MetaModelDetectAnchorBased):
                          g=g, act=act, bn=bn, bias=bias, shortcut=False)
         self.head = Head(self.head_in_channels, self.na, self.no)
 
-        self.scalings, self.image_size = self.get_register_scalings(img_size)
+        self.strides, self.image_size = self.get_register_strides(img_size)
         self.scale_anchors()
+
+        self.initialize_weights()
 
     def forward(self, x):
         return self.forward_alone(x)
@@ -130,9 +136,17 @@ class BaseYolov5V6(MetaModelDetectAnchorBased):
 
     def initialize_weights(self):
         self.apply(init_weights)
+        self._init_head_bias_cls()
+
+    def _init_head_bias_cls(self):
+        for m, s in zip(self.head, self.strides):  # from
+            b = m.bias.view(self.na, -1)  # conv.bias(255) to (3,85)
+            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+            b.data[:, 5:] += math.log(0.6 / (self.nc - 0.999999))
+            m.bias = nn.Parameter(b.view(-1), requires_grad=True)
 
     def decode(self, outputs, obj_thr, iou_thr, max_detect):
-        outputs = parse_outputs_yolov5(outputs, self.anchors, self.scalings)
+        outputs = parse_outputs_yolov5(outputs, self.anchors, self.strides)
         outputs = filter_outputs2predictions(outputs, obj_thr)
         outputs = non_max_suppression(outputs, iou_thr, max_detect)
         return outputs
@@ -144,18 +158,18 @@ class BaseYolov5V6(MetaModelDetectAnchorBased):
         return anchors, nl, na
 
     @torch.no_grad()
-    def get_register_scalings(self, image_size):
+    def get_register_strides(self, image_size):
         image = torch.zeros(1, self.inc, image_size, image_size)
         image_size = torch.tensor(image_size)
         outputs = self.forward_alone(image)
-        scalings = torch.tensor([image_size / x.shape[-2] for x in outputs])
-        self.register_buffer('scalings', scalings)
+        strides = torch.tensor([image_size / x.shape[-2] for x in outputs])
+        self.register_buffer('strides', strides)
         self.register_buffer('image_size', image_size)
-        return scalings, image_size
+        return strides, image_size
 
     def scale_anchors(self):
         r"""For anchor method but anchor free method"""
-        self.anchors /= self.scalings.view(-1, 1, 1)
+        self.anchors /= self.strides.view(-1, 1, 1)
 
     def _check_nl(self):
         if len(self.head_in_channels) != self.nl:
@@ -260,7 +274,8 @@ def _test():
                   yolov5l_v6(),
                   yolov5x_v6()]
     for model in model_list:
-        print(model)
+        # print(model)
+        print(list(model.head.m[0].bias))
 
 
 if __name__ == '__main__':

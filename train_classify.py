@@ -17,7 +17,7 @@ from utils.log import add_log_file
 from metaclass.metatrainer import MetaTrainClassify
 from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device
 
-from val_detect import ValClassify
+from val_classify import ValClassify
 
 from mine.SmartNet.smartnet import SmartNet
 

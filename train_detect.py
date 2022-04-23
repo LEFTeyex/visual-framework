@@ -274,20 +274,22 @@ def parse_args_detect(known: bool = False):
                         default=False, help='Make model graph visual')
     parser.add_argument('--weights', type=str,
                         default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='The path of checkpoint')
+    # parser.add_argument('--weights', type=str,
+    #                     default='', help='The path of checkpoint')
     parser.add_argument('--freeze_names', type=list,
                         default=[], help='Layer name to freeze in model')
     parser.add_argument('--device', type=str,
-                        default='0', help='Use cpu or cuda:0 or 0')
+                        default='3', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=100, help='The epochs for training')
+                        default=400, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
-                        default=8, help='The batch size in training')
+                        default=64, help='The batch size in training')
     parser.add_argument('--workers', type=int,
-                        default=0, help='For dataloader to load data')
+                        default=8, help='For dataloader to load data')
     parser.add_argument('--shuffle', type=bool,
                         default=True, help='Shuffle the training data')
     parser.add_argument('--pin_memory', type=bool,
-                        default=False, help='Load data to memory')
+                        default=True, help='Load data to memory')
     parser.add_argument('--datasets', type=str,
                         default=str(ROOT / 'mine/data/datasets/detection/Customdatasets.yaml'),
                         help='The path of datasets.yaml')
@@ -300,7 +302,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--augment', type=bool,
                         default=False, help='Use random augment image')
     parser.add_argument('--data_augment', type=str,
-                        default='mosaic', help='The kind of data augmentation mosaic / mixup / cutout')
+                        default='', help='The kind of data augmentation mosaic / mixup / cutout')
     parser.add_argument('--inc', type=int,
                         default=3, help='The image channel to input')
     parser.add_argument('--image_size', type=int,
@@ -344,3 +346,4 @@ if __name__ == '__main__':
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
     # TODO design model structure
+    # TODO BCEWithLogitsLoss

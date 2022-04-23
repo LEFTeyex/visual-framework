@@ -18,10 +18,10 @@ __all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predicti
            'non_max_suppression']
 
 
-def parse_outputs_yolov5(outputs: list, anchors: Tensor, scalings, reshape: bool = True):
+def parse_outputs_yolov5(outputs: list, anchors: Tensor, strides, reshape: bool = True):
     # output shape is (bs, layer, h, w, (xywh + obj + cls))
     output_all = []
-    for index, (output, anchor, scaling) in enumerate(zip(outputs, anchors, scalings)):
+    for index, (output, anchor, scaling) in enumerate(zip(outputs, anchors, strides)):
         bs, na, ny, nx, no = output.shape  # na-number of anchor, no-number of output
         anchor = anchor.view(1, na, 1, 1, 2)
 
@@ -38,7 +38,7 @@ def parse_outputs_yolov5(outputs: list, anchors: Tensor, scalings, reshape: bool
     return output_all
 
 
-def parse_bbox_yolov5(bbox: Tensor, anchor: Tensor, nxy_grid: tuple_or_None = None, scaling: int_or_Tensor = 1):
+def parse_bbox_yolov5(bbox: Tensor, anchor: Tensor, nxy_grid: tuple_or_None = None, strides: int_or_Tensor = 1):
     r"""
     Parse the bbox from output of model.
     Args:
@@ -46,7 +46,7 @@ def parse_bbox_yolov5(bbox: Tensor, anchor: Tensor, nxy_grid: tuple_or_None = No
         bbox: Tensor = shape(..., 4)
         anchor: Tensor = anchor which the shape must be corresponding to bbox (wh)
         nxy_grid: _tuple_or_None = (nx, ny) number of xy for grid
-        scaling: _int_or_Tensor = scale of image (xy)
+        strides: _int_or_Tensor = scale of image (xy)
 
     Return bbox is Tensor(..., 4)
     """
@@ -58,8 +58,8 @@ def parse_bbox_yolov5(bbox: Tensor, anchor: Tensor, nxy_grid: tuple_or_None = No
     else:
         grid_hwxy = 0
 
-    xy = (bbox[..., :2].sigmoid() * 2 - 0.5 + grid_hwxy) * scaling
-    wh = (bbox[..., 2:].sigmoid() * 2) ** 2 * anchor * scaling
+    xy = (bbox[..., :2].sigmoid() * 2 - 0.5 + grid_hwxy) * strides
+    wh = (bbox[..., 2:].sigmoid() * 2) ** 2 * anchor * strides
     bbox = torch.cat((xy, wh), dim=-1)
     return bbox
 

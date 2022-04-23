@@ -33,6 +33,7 @@ class LossDetectYolov5(object):
 
         # class positive, class negative for label smoothing
         self.cp, self.cn = label_smooth_yolov5(hyp['label_smoothing'])
+        self.balance = [4.0, 1.0, 0.4]
 
         # loss function
         self.loss_cls_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([hyp['cls_pw']], device=self.device))
@@ -65,19 +66,19 @@ class LossDetectYolov5(object):
 
             n = b.shape[0]
             if n:
-                output_filter = output[b, a, gy, gx]  # shape(n, nlabel+classes)
+                output_filtered = output[b, a, gy, gx]  # shape(n, nlabel+classes)
 
                 # bbox loss regression
-                bbox = parse_bbox_yolov5(output_filter[:, 0:4], anchors[index])
+                bbox = parse_bbox_yolov5(output_filtered[:, 0:4], anchors[index])
                 iou = bbox_iou(bbox, labels_bbox[index], xyxy=False, kind=self.hyp['iou_kind'])
                 loss_bbox += (1.0 - iou).mean()
 
                 # class loss
                 if self.nc > 1:
-                    labels_cls = torch.full_like(output_filter[:, 5:], self.cn, device=self.device)
+                    labels_cls = torch.full_like(output_filtered[:, 5:], self.cn, device=self.device)
                     labels_cls[range(n), index_cls[index]] = self.cp
                     # the sigmoid in loss_fn
-                    loss_cls += self.loss_cls_fn(output_filter[:, 5:], labels_cls)
+                    loss_cls += self.loss_cls_fn(output_filtered[:, 5:], labels_cls)
                 else:
                     raise NotImplementedError(f'The loss for {self.nc} class has not implemented')
 
@@ -87,15 +88,15 @@ class LossDetectYolov5(object):
 
             # object loss
             # the sigmoid in loss_fn
-            loss_obj += self.loss_obj_fn(output[..., 4], labels_obj)
+            loss_obj += self.loss_obj_fn(output[..., 4], labels_obj) * self.balance[index]
 
         # deal all loss
-        loss_bbox *= self.hyp['bbox'] * bs
-        loss_cls *= self.hyp['cls'] * bs
-        loss_obj *= self.hyp['obj'] * bs
+        loss_bbox *= self.hyp['bbox']
+        loss_cls *= self.hyp['cls']
+        loss_obj *= self.hyp['obj']
 
-        loss = loss_bbox + loss_cls + loss_obj
-        loss_items = torch.cat((loss_bbox, loss_cls, loss_obj))
+        loss = (loss_bbox + loss_cls + loss_obj) * bs
+        loss_items = torch.cat((loss_bbox, loss_cls, loss_obj)).detach()
         return loss, loss_items
 
     def convert_labels_for_loss_yolov5(self, outputs: tuple, labels: Tensor):

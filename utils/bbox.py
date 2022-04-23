@@ -158,7 +158,7 @@ def clip_bbox(bbox: Tensor_or_ndarray, shape):
 
 def bbox_iou(bbox1: Tensor, bbox2: Tensor, *, xyxy: bool = False, kind: str = 'iou', eps=1e-7):
     r"""
-    Compute iou between bbox1 and bbox2 that is corresponding to each other.
+    Compute iou between bbox1 and bbox2 that is corresponding to each other one by one.
     Args:
         bbox1: Tensor = shape(n, 4) xywh or xyxy
         bbox2: Tensor = shape(n, 4)
@@ -205,7 +205,7 @@ def bbox_iou(bbox1: Tensor, bbox2: Tensor, *, xyxy: bool = False, kind: str = 'i
                 v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
                 with torch.no_grad():
                     alpha = v / (v - iou + (eps + 1))
-                iou = iou - (d_distance / c_distance + alpha + v)  # CIoU
+                iou = iou - (d_distance / c_distance + alpha * v)  # CIoU
             else:
                 iou = iou - d_distance / c_distance  # DIoU
         else:

@@ -1,12 +1,12 @@
 # Training hyperparameter yaml
 
 # Parameters
-seed: null  # null is None in yaml
+seed: 0  # null is None in yaml
 
 lr0: 0.01
 momentum: 0.95
 weight_decay: 0.0005
-label_smoothing: 0.1
+label_smoothing: 0.0
 fl_gamma: 0.0
 
 # TODO need to scale for batch size in metaclass
@@ -15,8 +15,8 @@ bbox: 0.05
 cls: 0.5
 obj: 1.0
 
-cls_pw: 0.5
-obj_pw: 0.51728
+cls_pw: 1.0
+obj_pw: 1.0
 
 anchor_threshold: 4.0
 
