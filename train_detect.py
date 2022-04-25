@@ -85,8 +85,8 @@ class TrainDetect(_Args, MetaTrainDetect):
         self.writer = self.set_tensorboard_writer(self.path_dict['writer'])
 
         # Set one device
-        self.device = select_one_device(self.device)  # requires (model, images, labels).to(self.device)
         self.cuda = (self.device != 'cpu')
+        self.device = select_one_device(self.device)  # requires (model, images, labels).to(self.device)
 
         # Get datasets path dict
         self.datasets = get_and_check_datasets_yaml(self.datasets)
@@ -279,17 +279,17 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--freeze_names', type=list,
                         default=[], help='Layer name to freeze in model')
     parser.add_argument('--device', type=str,
-                        default='3', help='Use cpu or cuda:0 or 0')
+                        default='0', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=400, help='The epochs for training')
+                        default=100, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
-                        default=64, help='The batch size in training')
+                        default=16, help='The batch size in training')
     parser.add_argument('--workers', type=int,
-                        default=8, help='For dataloader to load data')
+                        default=0, help='For dataloader to load data')
     parser.add_argument('--shuffle', type=bool,
-                        default=True, help='Shuffle the training data')
+                        default=False, help='Shuffle the training data')
     parser.add_argument('--pin_memory', type=bool,
-                        default=True, help='Load data to memory')
+                        default=False, help='Load data to memory')
     parser.add_argument('--datasets', type=str,
                         default=str(ROOT / 'mine/data/datasets/detection/Customdatasets.yaml'),
                         help='The path of datasets.yaml')
@@ -346,4 +346,3 @@ if __name__ == '__main__':
     # TODO confusion matrix needed
     # TODO add plot curve functions for visual results
     # TODO design model structure
-    # TODO BCEWithLogitsLoss

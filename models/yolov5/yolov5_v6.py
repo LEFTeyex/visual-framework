@@ -135,7 +135,7 @@ class BaseYolov5V6(MetaModelDetectAnchorBased):
         return x
 
     def initialize_weights(self):
-        self.apply(init_weights)
+        # self.apply(init_weights)
         self._init_head_bias_cls()
 
     def _init_head_bias_cls(self):
@@ -275,7 +275,7 @@ def _test():
                   yolov5x_v6()]
     for model in model_list:
         # print(model)
-        print(list(model.head.m[0].bias))
+        print(model.anchors)
 
 
 if __name__ == '__main__':

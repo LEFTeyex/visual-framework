@@ -31,7 +31,7 @@ class DatasetDetect(Dataset):
     For labels, save it and convert labels when images resized or padded.
     Args:
         datasets: = datasets dict
-        name: = the save_name of dataset type
+        name: = the name of dataset type
         img_size: int = the largest edge of image size
         augment: = False/True whether data augment
         data_augment: str = 'cutout'/'mixup'/'mosaic' the kind of data augmentation
@@ -208,7 +208,7 @@ class DatasetDetect(Dataset):
         # for json coco format
         images = []  # consist of dict(file_name, height, width, id)
         annotations = []  # consist of dict(segmentation, area, iscrowd, image_id, bbox:list, category_id, id)
-        categories = []  # # consist of dict(supercategory, id, save_name)
+        categories = []  # # consist of dict(supercategory, id, name)
         ann_id = 0
 
         def xywh2segmentation(b):
@@ -273,7 +273,7 @@ class DatasetDetect(Dataset):
             for idx, name in enumerate(self.datasets['names']):
                 cat = {'supercategory': '0',
                        'id': idx,
-                       'save_name': name}
+                       'name': name}
                 categories.append(cat)
             categories.sort(key=lambda x: int(x['id']))
 
@@ -406,7 +406,7 @@ def get_img_files(path, file_path_is_absolute: bool = False):
 def img2label_files(img_files):
     r"""
     Change image path to label path from image paths.
-    The file save_name must be 'images' and 'labels'.
+    The file name must be 'images' and 'labels'.
     Args:
         img_files: = img_files
 
@@ -486,7 +486,7 @@ def get_and_check_datasets_yaml(path: strpath):
 
     datasets['train'], datasets['val'], datasets['test'] = train, val, test
 
-    # check number of classes and save_name
+    # check number of classes and name
     if not (datasets['nc'] == len(datasets['names'])):
         raise ValueError('There is no one-to-one correspondence '
                          'between the number of classes and its names')

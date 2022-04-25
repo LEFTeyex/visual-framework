@@ -58,7 +58,7 @@ class SetSavePathMixin(object):
             args: tuple_or_list = (save_name, path), ...
 
         Returns:
-            dict{'save_name': strpath, ...}
+            dict{'name': strpath, ...}
         """
         LOGGER.info('Setting save path...')
         self._set_save_name()
@@ -87,7 +87,7 @@ class SetSavePathMixin(object):
                         list_num.append(int(dir_name))
                     except ValueError:
                         # no really error
-                        LOGGER.error(f'The {dir_name} is an unexpected save_name '
+                        LOGGER.error(f'The {dir_name} is an unexpected name '
                                      f'in end of directory that starts with exp')
             if list_num:
                 self.save_name += str(max(list_num) + 1)  # set save_name, for example exp6
@@ -340,7 +340,7 @@ class LoadAllCheckPointMixin(object):
         # TODO Upgrade the algorithm in the future for filtering parameters from model.modules() better
         param_groups = []
         rest = []  # save_params the rest parameters that are not filtered
-        indices = []  # save_params parameters (save_name, ...) temporarily to delete
+        indices = []  # save_params parameters (name, ...) temporarily to delete
 
         # get all parameters from model and set one of ('weightbias', 'weight', 'bias') to its indices
         for element in self.model.modules():
@@ -392,8 +392,10 @@ class LoadAllCheckPointMixin(object):
 
             # add params to dict and add param_dict to param_groups
             param_dict['params'] = save_params
-            param_dict[
-                'save_name'] = f'{kind.__name__}.{name}'  # to record in tensorboard for lr corresponding to params
+
+            # to record in tensorboard for lr corresponding to params
+            param_dict['name'] = f'{kind.__name__}.{name}'
+
             param_groups.append(param_dict)
 
         # check whether rest is empty
@@ -447,7 +449,7 @@ class LoadAllCheckPointMixin(object):
             LOGGER.info('Load GradScaler state_dict successfully...')
 
         else:
-            LOGGER.info('Do not load lr_scheduler state_dict')
+            LOGGER.info('Do not load GradScaler state_dict')
         return gradscaler_instance
 
     def load_start_epoch(self, load: str_or_None = 'continue'):
@@ -539,7 +541,7 @@ class FreezeLayersMixin(object):
         r"""
         Freeze layers in model by names.
         Args:
-            layer_names: list = list consist of save_name in model layers.
+            layer_names: list = list consist of name in model layers.
         """
         if layer_names:
             LOGGER.info(f'Freezing name {layer_names} in model...')
@@ -557,7 +559,7 @@ class FreezeLayersMixin(object):
         r"""
         Unfreeze layers in model by names.
         Args:
-            layer_names: list = list consist of save_name in model layers.
+            layer_names: list = list consist of name in model layers.
         """
         if layer_names:
             LOGGER.info(f'Unfreezing name {layer_names} in model...')
@@ -673,6 +675,9 @@ class _TrainMixin(object):
         self.scaler = None
         self.device = None
         self.optimizer = None
+
+    def warmup(self):
+        pass
 
     def optimize_no_scale(self, loss):
         loss.backward()
@@ -974,7 +979,7 @@ class ValClassifyMixin(_ValMixin):
                     # TODO add image without label for classification
                     pass
 
-            WRITER.add_epoch_curve(self.writer, 'val_loss', loss_mean, loss_name, self.epoch)
+        WRITER.add_epoch_curve(self.writer, 'val_loss', loss_mean, loss_name, self.epoch)
 
         return loss_mean.tolist(), loss_name, stats
 

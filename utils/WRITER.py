@@ -47,36 +47,34 @@ def add_model_graph(writer, model, inc, image_size, epoch=0, verbose=False):
         writer.add_graph(model, image, verbose=verbose, use_strict_trace=False)
 
 
-def add_optimizer_lr(writer, optimizer, epoch, new_style=True):
+def add_optimizer_lr(writer, optimizer, epoch):
     r"""
     Add lr in optimizer of param_groups.
     Args:
         writer:
         optimizer:
         epoch:
-        new_style:
     """
     if writer:
         for index, param_group in enumerate(optimizer.param_groups):
             name = param_group.get('name', str(index))
             lr = param_group['lr']
-            writer.add_scalar(f'train_optimizer_lr/{name}', lr, epoch, new_style=new_style)
+            writer.add_scalar(f'train_optimizer_lr/{name}', lr, epoch)
 
 
-def add_epoch_curve(writer, title, value, value_name, epoch, new_style=True):
+def add_epoch_curve(writer, title, value, value_name, epoch):
     r"""
-    Add all train loss with save_name.
+    Add all train loss with name.
     Args:
         writer:
         title:
         value:
         value_name:
         epoch:
-        new_style:
     """
     if writer:
         for v, v_name in zip(value, value_name):
-            writer.add_scalar(f'{title}/{v_name}', v, epoch, new_style=new_style)
+            writer.add_scalar(f'{title}/{v_name}', v, epoch)
 
 
 @torch.no_grad()

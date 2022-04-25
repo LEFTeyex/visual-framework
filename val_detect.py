@@ -67,6 +67,9 @@ class ValDetect(_Args, MetaValDetect):
 
         else:
             super(ValDetect, self).__init__(args)
+            self.epoch = -1  # TODO a bug about super in subclass
+            self.visual_image = None  # TODO a bug about super in subclass
+
             self.path_dict = self.get_save_path(('hyp', 'hyp.yaml'),
                                                 ('logger', 'logger.log'),
                                                 ('args', 'args.yaml'),
@@ -110,9 +113,6 @@ class ValDetect(_Args, MetaValDetect):
             self.dataloader = self.set_dataloader(
                 DatasetDetect(self.datasets, self.task, self.image_size, coco_gt=self.coco_json['test']))
 
-            self.epoch = -1  # TODO a bug about super in subclass
-            self.visual_image = None  # TODO a bug about super in subclass
-
     @torch.no_grad()
     def val_training(self):
         self.model.eval()
@@ -120,29 +120,30 @@ class ValDetect(_Args, MetaValDetect):
         img_ids = self.dataloader.dataset.indices
 
         if self.epoch != -1:
-            coco_results = self.coco_evaluate(self.coco_json['val'], json_dt, img_ids, 'bbox')
-            self._log_writer(coco_results, writer=True)
+            coco_eval, coco_stats = self.coco_evaluate(self.coco_json['val'], json_dt, img_ids, 'bbox')
+            self._log_writer(coco_stats, writer=True)
         else:
-            coco_results = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox', print_result=True)
-            self._log_writer(coco_results, writer=True)
+            coco_eval, coco_stats = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox',
+                                                       print_result=True)
+            self._log_writer(coco_stats, writer=True)
         # TODO confusion matrix needed
         self.model.float()
-        return coco_results
+        return coco_eval, coco_stats
 
     @torch.inference_mode()
     def val(self):
         self.model.eval()
         json_dt = self.val_once(('total_loss', 'bbox_loss', 'class_loss', 'object_loss'))
         img_ids = self.dataloader.dataset.indices
-        coco_results = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox', print_result=True)
-        self._log_writer(coco_results)
-        self.save_coco_results(coco_results, self.path_dict['coco_results'])
+        coco_eval, coco_stats = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox', print_result=True)
+        self._log_writer(coco_stats)
+        self.save_coco_results(coco_eval, self.path_dict['coco_results'])
         self.release_cuda_cache()
 
-    def _log_writer(self, coco_results, writer=False):
-        LOGGER.debug(f'{[v.tolist() for v in coco_results[1]]}')
+    def _log_writer(self, coco_stats, writer=False):
+        LOGGER.debug(f'{[v.tolist() for v in coco_stats]}')
         result_names = ('AP5095', 'AP50', 'AP75')
-        results = [v.tolist() for v in coco_results[1][:3]]
+        results = [v.tolist() for v in coco_stats[:3]]
         log_results(results, result_names)
         if writer:
             WRITER.add_epoch_curve(self.writer, 'val_metrics', results, result_names, self.epoch)

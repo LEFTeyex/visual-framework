@@ -138,7 +138,7 @@ def parse_args_classify(known: bool = False):
                         help='whether make model graph visual in tensorboard')
     parser.add_argument('--weights', type=str, default='', help='')
     parser.add_argument('--freeze_names', type=list, default=[],
-                        help='save_name of freezing layers in model')
+                        help='name of freezing layers in model')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int, default=100, help='epochs for training')
     parser.add_argument('--batch_size', type=int, default=64, help='')

@@ -143,7 +143,7 @@ def non_max_suppression(predictions: list, iou_threshold: float = 0.5, max_detec
 
         # filter number
         if n > max_nms:
-            filter_num = pre[:, 4].argsort(descending=True)[:max_nms]
+            filter_num = pre[:, 4].argsort(descending=True)[:max_nms]  # by confidence
             pre = pre[filter_num]
 
         # batched nms in torchvision

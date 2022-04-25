@@ -18,7 +18,7 @@ def _set_logger(name: str, ch_level=logging.INFO, developing=True):
     r"""
     Set LOGGER with StreamHandler.
     Args:
-        name: str = __name__ usually use __name__ in log.py or other save_name.
+        name: str = __name__ usually use __name__ in log.py or other name.
         ch_level: = logging.DEBUG, logging.INFO etc.
 
     Return LOGGER
@@ -30,7 +30,7 @@ def _set_logger(name: str, ch_level=logging.INFO, developing=True):
     # create formatter for handler
     # todo args can change
     if developing:
-        fmt = '{asctime:<18} {levelname:<10} {filename:<20} {lineno:<4} {message:<80} {save_name}'
+        fmt = '{asctime:<18} {levelname:<10} {filename:<20} {lineno:<4} {message:<80} {name}'
     else:
         fmt = '{levelname:<10} {message:<80}'
     formatter = logging.Formatter(fmt=fmt,
@@ -72,7 +72,7 @@ def add_log_file(filepath, fh_level=logging.DEBUG, mode: str = 'a'):
 
 def logging_initialize(name: str_or_None = None):
     r"""
-    Decorator with parameter save_name.
+    Decorator with parameter name.
     Add LOGGER.info(f'Initialize {...}') in the beginning and end of func.
 
     Examples:
@@ -80,7 +80,7 @@ def logging_initialize(name: str_or_None = None):
         def test(): ...
 
     Args:
-        name: str_or_None = the func save_name for logging message.
+        name: str_or_None = the func name for logging message.
     """
 
     def function(func):
@@ -100,7 +100,7 @@ def logging_initialize(name: str_or_None = None):
 
 def logging_start_finish(name: str_or_None = None):
     r"""
-    Decorator with parameter save_name.
+    Decorator with parameter name.
     Add LOGGER.info(f'Start {...}') in the beginning and end of func.
 
     Examples:
@@ -108,7 +108,7 @@ def logging_start_finish(name: str_or_None = None):
         def test(): ...
 
     Args:
-        name: str_or_None = the func save_name for logging message.
+        name: str_or_None = the func name for logging message.
     """
 
     def function(func):
