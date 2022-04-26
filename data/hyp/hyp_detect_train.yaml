@@ -1,7 +1,7 @@
 # Training hyperparameter yaml
 
 # Parameters
-seed: null  # null is None in yaml
+seed: 0  # null is None in yaml
 
 lr0: 0.01
 momentum: 0.95
@@ -32,7 +32,7 @@ translate: 0.0
 flip: 0.0
 
 # val
-obj_threshold: 0.001
+obj_threshold: 0.25
 iou_threshold: 0.6
 max_detect: 300
 

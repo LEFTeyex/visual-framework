@@ -146,8 +146,9 @@ def non_max_suppression(predictions: list, iou_threshold: float = 0.5, max_detec
             filter_num = pre[:, 4].argsort(descending=True)[:max_nms]  # by confidence
             pre = pre[filter_num]
 
-        # batched nms in torchvision
-        boxes, scores, idxs = pre[:, :4], pre[:, 4], pre[:, 5]
+        # batched nms in torchvision for different classes
+        p = pre.float()  # to avoid bug when using half
+        boxes, scores, idxs = p[:, :4], p[:, 4], p[:, 5]
         filter_pre = batched_nms(boxes, scores, idxs, iou_threshold)
 
         # TODO add many different nms methods

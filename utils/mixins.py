@@ -137,7 +137,7 @@ class SaveCheckPointMixin(object):
     r"""
     Methods:
         1. get_checkpoint --- need self.* except self.epochs.
-        2. save_checkpoint --- need self.epoch, self.epochs, self.best_fitness.
+        2. save_checkpoint_best_last --- need self.epoch, self.epochs, self.best_fitness.
     """
 
     def __init__(self):
@@ -163,7 +163,7 @@ class SaveCheckPointMixin(object):
         LOGGER.debug('Get checkpoint successfully')
         return checkpoint
 
-    def save_checkpoint(self, fitness, best_path: strpath, last_path: strpath):
+    def save_checkpoint_best_last(self, fitness, best_path: strpath, last_path: strpath):
         r"""
         Save checkpoint when get better fitness or at last.
         Args:
@@ -174,17 +174,19 @@ class SaveCheckPointMixin(object):
         # save the best checkpoint
         if fitness > self.best_fitness:
             LOGGER.debug(f'Saving best checkpoint in epoch{self.epoch}...')
-            checkpoint = self.get_checkpoint()
             self.best_fitness = fitness
-            torch.save(checkpoint, best_path)
+            torch.save(self.get_checkpoint(), best_path)
             LOGGER.debug(f'Save best checkpoint in epoch{self.epoch} successfully')
 
         # save the last checkpoint
         if self.epoch + 1 == self.epochs:
             LOGGER.info('Saving last checkpoint')
-            checkpoint = self.get_checkpoint()
-            torch.save(checkpoint, last_path)
+            torch.save(self.get_checkpoint(), last_path)
             LOGGER.info('Save last checkpoint successfully')
+
+    def save_checkpoint(self, path: strpath):
+        # TODO if need
+        pass
 
 
 class LoadAllCheckPointMixin(object):
@@ -700,7 +702,7 @@ class _TrainMixin(object):
         space = ' ' * 11
         progress = f'{self.epoch}/{self.epochs - 1}:'
         pbar.set_description_str(f"{space}epoch {progress:<9}{memory_cuda}")
-        show = ''.join([f'{x}: {y:.3f} ' for x, y in zip(loss_name, loss)])
+        show = ''.join([f'{x}: {y:.5f} ' for x, y in zip(loss_name, loss)])
         pbar.set_postfix_str(show)
 
 
@@ -721,7 +723,7 @@ class _ValMixin(object):
         # show in pbar
         space = ' ' * 11
         pbar.set_description_str(f"{space}{'validating:':<15}{memory_cuda}")
-        show = ''.join([f'{x}: {y:.3f} ' for x, y in zip(loss_name, loss)])
+        show = ''.join([f'{x}: {y:.5f} ' for x, y in zip(loss_name, loss)])
         pbar.set_postfix_str(show)
 
 
@@ -886,7 +888,7 @@ class ValDetectMixin(_ValMixin):
                 labels = labels.to(self.device)
 
                 # to half16 or float32 and normalized 0.0-1.0
-                images = images.half() / 255 if self.half else images.float() / 255
+                images = (images.half() / 255) if self.half else (images.float() / 255)
 
                 # inference
                 predictions = self.model(images)
@@ -1034,9 +1036,8 @@ class COCOEvaluateMixin(object):
         if not Path(coco_gt).exists():
             raise FileExistsError(f'The coco_gt {coco_gt} json file do not exist')
 
-        if not isinstance(coco_dt, list):
-            if not Path(coco_gt).exists():
-                raise FileExistsError(f'The coco_dt {coco_dt} json file do not exist')
+        if not isinstance(coco_dt, list) and not Path(coco_gt).exists():
+            raise FileExistsError(f'The coco_dt {coco_dt} json file do not exist')
 
         with HiddenPrints(print_result):
             coco_gt = COCO(coco_gt)
@@ -1092,10 +1093,14 @@ class COCOEvaluateMixin(object):
         scores = predictions[:, 4]
         cls_id = predictions[:, 5]
         for category_id, bbox, score in zip(cls_id.tolist(), bboxes.tolist(), scores.tolist()):
-            json_dt.append({'image_id': int(image_id),
-                            'category_id': int(category_id),
-                            'bbox': [round(x, 3) for x in bbox],  # Keep 3 decimal places to get more accurate mAP
-                            'score': float(score)})
+            json_dt.append(
+
+                {'image_id': int(image_id),
+                 'category_id': int(category_id),
+                 'bbox': [round(x, 3) for x in bbox],  # Keep 3 decimal places to get more accurate mAP
+                 'score': round(score, 5)
+                 }
+            )
 
     @staticmethod
     def empty_append(json_dt: list):
@@ -1105,10 +1110,14 @@ class COCOEvaluateMixin(object):
             json_dt: list = save prediction in coco json format.
         """
         if not json_dt:
-            json_dt.append({'image_id': 0,
-                            'category_id': 0,
-                            'bbox': [0., 0., 0., 0.],
-                            'score': 0})
+            json_dt.append(
+
+                {'image_id': 0,
+                 'category_id': 0,
+                 'bbox': [0., 0., 0., 0.],
+                 'score': 0
+                 }
+            )
 
 
 class ReleaseMixin(object):

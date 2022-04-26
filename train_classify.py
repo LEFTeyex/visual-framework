@@ -61,7 +61,7 @@ class TrainClassify(MetaTrainClassify):
         save_all_yaml((vars(args), self.path_dict['args']),
                       (self.hyp, self.path_dict['hyp']),
                       (self.datasets, self.path_dict['datasets']))
-        args = self.empty()
+        args = self.release()
 
         # TODO auto compute anchors when anchors is None in self.datasets
 
@@ -89,7 +89,7 @@ class TrainClassify(MetaTrainClassify):
         self.optimizer = self.load_optimizer(SGD(self.param_groups,
                                                  lr=self.hyp['lr0'], momentum=self.hyp['momentum'], nesterov=True),
                                              load=self._load_optimizer)
-        self.param_groups = self.empty()
+        self.param_groups = self.release()
 
         # Initialize and load lr_scheduler
         self.lr_scheduler = self.load_lr_scheduler(StepLR(self.optimizer, 20), load=self._load_lr_scheduler)
@@ -105,7 +105,7 @@ class TrainClassify(MetaTrainClassify):
         self.best_fitness = self.load_best_fitness(load=self._load_best_fitness)
 
         # Empty self.checkpoint when load finished
-        self.checkpoint = self.empty()
+        self.checkpoint = self.release()
 
         # Get dataloader for training testing
         transform = transforms.Compose([transforms.ToTensor()])

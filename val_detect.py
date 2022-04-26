@@ -125,12 +125,13 @@ class ValDetect(_Args, MetaValDetect):
         else:
             coco_eval, coco_stats = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox',
                                                        print_result=True)
-            self._log_writer(coco_stats, writer=True)
+            self._log_writer(coco_stats)
         # TODO confusion matrix needed
         self.model.float()
         return coco_eval, coco_stats
 
-    @torch.inference_mode()
+    # @torch.inference_mode()
+    @torch.no_grad()
     def val(self):
         self.model.eval()
         json_dt = self.val_once(('total_loss', 'bbox_loss', 'class_loss', 'object_loss'))

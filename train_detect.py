@@ -169,39 +169,28 @@ class TrainDetect(_Args, MetaTrainDetect):
         # Get loss function
         self.loss_fn = LossDetectYolov5(self.model, self.hyp)
 
-        # Get dataloader for training testing
+        # Set coco json path dict
+        self.coco_json = {
+            'dt': self.path_dict['json_dt'],
+            'val': self.path_dict['json_gt_val'],
+            'test': self.path_dict['json_gt_test'] if self.datasets['test'] else self.path_dict['json_gt_val']
+        }
+
+        # Get dataloader for training validating testing
         self.train_dataloader = self.set_dataloader(
             DatasetDetect(self.datasets, 'train', self.image_size, self.augment, self.data_augment, self.hyp),
             shuffle=self.shuffle)
 
-        if self.datasets['test'] is not None:
+        self.val_dataloader = self.set_dataloader(
+            DatasetDetect(self.datasets, 'val', self.image_size, coco_gt=self.coco_json['val']))
 
-            self.coco_json = {
-                'val': self.path_dict['json_gt_val'],
-                'test': self.path_dict['json_gt_test'],
-                'dt': self.path_dict['json_dt']
-            }
-
-            self.val_dataloader = self.set_dataloader(
-                DatasetDetect(self.datasets, 'val', self.image_size, coco_gt=self.coco_json['val']))
-
-            self.test_dataloader = self.set_dataloader(
-                DatasetDetect(self.datasets, 'test', self.image_size, coco_gt=self.coco_json['test']))
-        else:
-
-            self.coco_json = {
-                'val': self.path_dict['json_gt_val'],
-                'test': self.path_dict['json_gt_val'],
-                'dt': self.path_dict['json_dt']
-            }
-
-            self.val_dataloader = self.set_dataloader(
-                DatasetDetect(self.datasets, 'val', self.image_size, coco_gt=self.coco_json['val']))
-            self.test_dataloader = None
+        self.test_dataloader = self.set_dataloader(
+            DatasetDetect(self.datasets, 'test', self.image_size, coco_gt=self.coco_json['test'])
+        ) if self.datasets['test'] else self.val_dataloader
 
         self.val_class = ValDetect
 
-        # TODO upgrade warmup
+    # TODO upgrade warmup
 
     @logging_start_finish('Training')
     def train(self):
@@ -210,7 +199,7 @@ class TrainDetect(_Args, MetaTrainDetect):
             _, coco_stats = self.val_training()
 
             fitness = compute_fitness(coco_stats[:3], self.hyp['fit_weights'])  # compute fitness for best save
-            self.save_checkpoint(fitness, self.path_dict['best'], self.path_dict['last'])
+            self.save_checkpoint_best_last(fitness, self.path_dict['best'], self.path_dict['last'])
             # TODO maybe need a auto stop function for bad training
 
         self.model = self.release()
@@ -232,22 +221,20 @@ class TrainDetect(_Args, MetaTrainDetect):
         results = valer.val_training()
         return results
 
-    @torch.inference_mode()
+    # @torch.inference_mode()
+    @torch.no_grad()
     def test_trained(self):
         self.epoch = -1
-        self.checkpoint = self.release()
         self.checkpoint = self.load_checkpoint(self.path_dict['best'])
         if self.checkpoint is None:
             self.checkpoint = self.load_checkpoint(self.path_dict['last'])
             LOGGER.info('Load last.pt for validating because of no best.pt')
         else:
             LOGGER.info('Load best.pt for validating')
+
         self.model = self.load_model(load='model')
-        if self.test_dataloader:
-            dataloader = self.test_dataloader
-        else:
-            dataloader = self.val_dataloader
-        tester = self.val_class(model=self.model, half=False, dataloader=dataloader,
+
+        tester = self.val_class(model=self.model, half=False, dataloader=self.test_dataloader,
                                 loss_fn=self.loss_fn, cls_names=self.datasets['names'],
                                 epoch=self.epoch, writer=self.writer, visual_image=self.visual_image,
                                 coco_json=self.coco_json, hyp=self.hyp)
@@ -274,10 +261,9 @@ def parse_args_detect(known: bool = False):
                         default=False, help='Make model graph visual')
     parser.add_argument('--weights', type=str,
                         default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='The path of checkpoint')
-    # parser.add_argument('--weights', type=str,
-    #                     default='', help='The path of checkpoint')
+    # parser.add_argument('--weights', type=str, default='', help='The path of checkpoint')
     parser.add_argument('--freeze_names', type=list,
-                        default=[], help='Layer name to freeze in model')
+                        default=['backbone', 'neck'], help='Layer name to freeze in model')
     parser.add_argument('--device', type=str,
                         default='0', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
@@ -287,7 +273,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--workers', type=int,
                         default=0, help='For dataloader to load data')
     parser.add_argument('--shuffle', type=bool,
-                        default=False, help='Shuffle the training data')
+                        default=True, help='Shuffle the training data')
     parser.add_argument('--pin_memory', type=bool,
                         default=False, help='Load data to memory')
     parser.add_argument('--datasets', type=str,

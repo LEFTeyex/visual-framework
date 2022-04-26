@@ -132,7 +132,8 @@ class MetaTrainClassify(
         results = valer.val_training()
         return results
 
-    @torch.inference_mode()
+    # @torch.inference_mode()
+    @torch.no_grad()
     def test_trained(self):
         self.epoch = -1
         self.checkpoint = self.release()
