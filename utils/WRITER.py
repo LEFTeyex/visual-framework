@@ -72,7 +72,7 @@ def add_epoch_curve(writer, title, value, value_name, epoch):
         value_name:
         epoch:
     """
-    if writer:
+    if writer and epoch != -1:
         for v, v_name in zip(value, value_name):
             writer.add_scalar(f'{title}/{v_name}', v, epoch)
 

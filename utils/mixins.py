@@ -678,9 +678,6 @@ class _TrainMixin(object):
         self.device = None
         self.optimizer = None
 
-    def warmup(self):
-        pass
-
     def optimize_no_scale(self, loss):
         loss.backward()
         self.optimizer.step()
@@ -730,7 +727,7 @@ class _ValMixin(object):
 class TrainDetectMixin(_TrainMixin):
     r"""
     Methods:
-        1. train_one_epoch --- need self.* except self.epochs.
+        1. train_one_epoch --- need all self.*.
     """
 
     def __init__(self):
@@ -748,6 +745,7 @@ class TrainDetectMixin(_TrainMixin):
         self.visual_graph = None
         self.lr_scheduler = None
         self.train_dataloader = None
+        self.warmup_lr_scheduler = None
 
     def train_one_epoch(self, loss_name: tuple_or_list):
         r"""
@@ -780,6 +778,9 @@ class TrainDetectMixin(_TrainMixin):
                 else:
                     self.optimize_scale(loss)
 
+                # warmup and lr_scheduler
+                self.warmup_lr_scheduler.step()
+
                 # mean total loss and loss items
                 loss_all = torch.cat((loss.detach(), loss_items), dim=0)
                 loss_mean = loss_to_mean(index, loss_mean, loss_all)
@@ -787,8 +788,6 @@ class TrainDetectMixin(_TrainMixin):
 
         WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
         WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
-
-        self.lr_scheduler.step()
 
 
 class TrainClassifyMixin(_TrainMixin):

@@ -17,6 +17,7 @@ from utils.loss import LossDetectYolov5
 from utils.metrics import compute_fitness
 from models.yolov5.yolov5_v6 import yolov5s_v6
 from metaclass.metatrainer import MetaTrainDetect
+from utils.lr_schedulers import WarmUpWithScheduler
 from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
 from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device
 
@@ -145,7 +146,7 @@ class TrainDetect(_Args, MetaTrainDetect):
         param_groups = self.release()
 
         # Initialize and load lr_scheduler
-        if self.hyp['lr_kind'] == 'lr_lambda':
+        if self.hyp['lr_scheduler'] == 'lr_lambda':
             self.lr_scheduler = self.load_lr_scheduler(
                 LambdaLR(self.optimizer, lambda x: (1 - x / self.epochs) * (1.0 - self.hyp['lrf']) + self.hyp['lrf']),
                 load=self._load_lr_scheduler)
@@ -187,6 +188,12 @@ class TrainDetect(_Args, MetaTrainDetect):
         self.test_dataloader = self.set_dataloader(
             DatasetDetect(self.datasets, 'test', self.image_size, coco_gt=self.coco_json['test'])
         ) if self.datasets['test'] else self.val_dataloader
+
+        self.warmup_lr_scheduler = WarmUpWithScheduler(self.optimizer, self.lr_scheduler,
+                                                       len_loader=len(self.train_dataloader),
+                                                       warmup_steps=self.hyp['warmup_steps'],
+                                                       warmup_start_lr=self.hyp['warmup_start_lr'],
+                                                       warmup_mode=self.hyp['warmup_mode'])
 
         self.val_class = ValDetect
 
@@ -267,7 +274,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--device', type=str,
                         default='0', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=100, help='The epochs for training')
+                        default=50, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
                         default=16, help='The batch size in training')
     parser.add_argument('--workers', type=int,
@@ -318,8 +325,10 @@ def train_detection():
 
 if __name__ == '__main__':
     train_detection()
+    import torch.optim.swa_utils
 
     # in the future
+    # TODO add ema_model by torch.optim.swa_utils.AveragedModel
     # TODO colour str
     # TODO learn moviepy library sometimes
 
