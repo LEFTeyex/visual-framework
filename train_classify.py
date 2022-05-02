@@ -120,8 +120,6 @@ class TrainClassify(MetaTrainClassify):
             self.val_dataloader = self.set_dataloader(MNIST(self.datasets['path'], self.datasets['val'], transform))
             self.test_dataloader = None
 
-        # TODO upgrade warmup
-
         # Get loss function
         self.loss_fn = nn.CrossEntropyLoss()
 

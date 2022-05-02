@@ -10,16 +10,17 @@ import torch.nn as nn
 from pathlib import Path
 from torch.optim import SGD
 from torch.cuda.amp import GradScaler
-from torch.optim.lr_scheduler import StepLR, LambdaLR
+from torch.optim.swa_utils import AveragedModel
+from warmup_scheduler_pytorch import WarmUpScheduler
 
 from utils.log import add_log_file, logging_start_finish, logging_initialize, LOGGER
 from utils.loss import LossDetectYolov5
 from utils.metrics import compute_fitness
 from models.yolov5.yolov5_v6 import yolov5s_v6
 from metaclass.metatrainer import MetaTrainDetect
-from utils.lr_schedulers import WarmUpWithScheduler
+from utils.lr_schedulers import select_lr_scheduler
 from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
-from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device
+from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device, loss_to_mean
 
 from val_detect import ValDetect
 
@@ -31,6 +32,7 @@ class _Args(object):
     def __init__(self, args):
         self.hyp = args.hyp
         self.inc = args.inc
+        self.swa_c = args.swa_c
         self.device = args.device
         self.epochs = args.epochs
         self.weights = args.weights
@@ -48,6 +50,7 @@ class _Args(object):
         self.visual_image = args.visual_image
         self.visual_graph = args.visual_graph
         self.data_augment = args.data_augment
+        self.swa_start_epoch = args.swa_start_epoch
 
         # Set load way
         self._load_model = args.load_model
@@ -56,6 +59,7 @@ class _Args(object):
         self._load_start_epoch = args.load_start_epoch
         self._load_best_fitness = args.load_best_fitness
         self._load_lr_scheduler = args.load_lr_scheduler
+        self._load_warmup_lr_scheduler = args.load_warmup_lr_scheduler
 
 
 class TrainDetect(_Args, MetaTrainDetect):
@@ -124,6 +128,14 @@ class TrainDetect(_Args, MetaTrainDetect):
             load=self._load_model
         )
 
+        # Initialize or load swa_model
+        self.swa_model = self.load_model(
+            AveragedModel(self.model, self.device),
+            load=self._load_model
+        )
+
+        self.swa_model.decode = self.model.decode
+
         # Unfreeze model
         self.unfreeze_model()
 
@@ -146,14 +158,10 @@ class TrainDetect(_Args, MetaTrainDetect):
         param_groups = self.release()
 
         # Initialize and load lr_scheduler
-        if self.hyp['lr_scheduler'] == 'lr_lambda':
-            self.lr_scheduler = self.load_lr_scheduler(
-                LambdaLR(self.optimizer, lambda x: (1 - x / self.epochs) * (1.0 - self.hyp['lrf']) + self.hyp['lrf']),
-                load=self._load_lr_scheduler)
-        else:
-            self.lr_scheduler = self.load_lr_scheduler(
-                StepLR(self.optimizer, self.hyp['step'], self.hyp['gamma']),
-                load=self._load_lr_scheduler)
+        self.lr_scheduler = self.load_lr_scheduler(
+            select_lr_scheduler(self.optimizer, hyp=self.hyp),
+            load=self._load_lr_scheduler
+        )
 
         # Initialize and load GradScaler
         self.scaler = self.load_gradscaler(GradScaler(enabled=self.cuda), load=self._load_gradscaler)
@@ -189,15 +197,17 @@ class TrainDetect(_Args, MetaTrainDetect):
             DatasetDetect(self.datasets, 'test', self.image_size, coco_gt=self.coco_json['test'])
         ) if self.datasets['test'] else self.val_dataloader
 
-        self.warmup_lr_scheduler = WarmUpWithScheduler(self.optimizer, self.lr_scheduler,
-                                                       len_loader=len(self.train_dataloader),
-                                                       warmup_steps=self.hyp['warmup_steps'],
-                                                       warmup_start_lr=self.hyp['warmup_start_lr'],
-                                                       warmup_mode=self.hyp['warmup_mode'])
+        self.warmup_lr_scheduler = self.load_warmup_lr_scheduler(
+            WarmUpScheduler(self.optimizer, self.lr_scheduler,
+                            len_loader=len(self.train_dataloader),
+                            warmup_steps=self.hyp['warmup_steps'],
+                            warmup_start_lr=self.hyp['warmup_start_lr'],
+                            warmup_mode=self.hyp['warmup_mode'],
+                            verbose=self.hyp['verbose']),
+            load=self._load_warmup_lr_scheduler
+        )
 
         self.val_class = ValDetect
-
-    # TODO upgrade warmup
 
     @logging_start_finish('Training')
     def train(self):
@@ -221,7 +231,11 @@ class TrainDetect(_Args, MetaTrainDetect):
 
     @torch.no_grad()
     def val_training(self):
-        valer = self.val_class(model=self.model, half=True, dataloader=self.val_dataloader,
+        if self.epoch > self.swa_start_epoch:
+            model = self.swa_model
+        else:
+            model = self.model
+        valer = self.val_class(model=model, half=True, dataloader=self.val_dataloader,
                                loss_fn=self.loss_fn, cls_names=self.datasets['names'],
                                epoch=self.epoch, writer=self.writer, visual_image=self.visual_image,
                                coco_json=self.coco_json, hyp=self.hyp)
@@ -239,7 +253,7 @@ class TrainDetect(_Args, MetaTrainDetect):
         else:
             LOGGER.info('Load best.pt for validating')
 
-        self.model = self.load_model(load='model')
+        self.model = self.load_model(load='model')  # TODO change model swa_model
 
         tester = self.val_class(model=self.model, half=False, dataloader=self.test_dataloader,
                                 loss_fn=self.loss_fn, cls_names=self.datasets['names'],
@@ -247,6 +261,19 @@ class TrainDetect(_Args, MetaTrainDetect):
                                 coco_json=self.coco_json, hyp=self.hyp)
         results = tester.val_training()
         return results
+
+    def preprocess(self, data):
+        x, labels, *_ = data
+        x = x.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
+        labels = labels.to(self.device)
+        return x, labels, _
+
+    @staticmethod
+    def mean_loss(index, loss_mean, loss, others_loss):
+        (loss_items,) = others_loss
+        loss = torch.cat((loss.detach(), loss_items.detach()))
+        loss_mean = loss_to_mean(index, loss_mean, loss)
+        return loss_mean
 
 
 def parse_args_detect(known: bool = False):
@@ -266,6 +293,10 @@ def parse_args_detect(known: bool = False):
                         default=True, help='Make image (train val test) visual')
     parser.add_argument('--visual_graph', type=bool,
                         default=False, help='Make model graph visual')
+    parser.add_argument('--swa_start_epoch', type=int,
+                        default=0, help='swa start')
+    parser.add_argument('--swa_c', type=int,
+                        default=1, help='swa cycle length')
     parser.add_argument('--weights', type=str,
                         default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='The path of checkpoint')
     # parser.add_argument('--weights', type=str, default='', help='The path of checkpoint')
@@ -274,7 +305,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--device', type=str,
                         default='0', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=50, help='The epochs for training')
+                        default=5, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
                         default=16, help='The batch size in training')
     parser.add_argument('--workers', type=int,
@@ -306,6 +337,8 @@ def parse_args_detect(known: bool = False):
                         default=False, help='True / False')
     parser.add_argument('--load_lr_scheduler', type=bool,
                         default=False, help='True / False')
+    parser.add_argument('--load_warmup_lr_scheduler', type=bool,
+                        default=False, help='True / False')
     parser.add_argument('--load_gradscaler', type=bool,
                         default=False, help='True / False')
     parser.add_argument('--load_start_epoch', type=str,
@@ -325,7 +358,6 @@ def train_detection():
 
 if __name__ == '__main__':
     train_detection()
-    import torch.optim.swa_utils
 
     # in the future
     # TODO add ema_model by torch.optim.swa_utils.AveragedModel

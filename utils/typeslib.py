@@ -9,7 +9,6 @@ from torch.optim import Optimizer
 from torch.utils.data import Dataset
 from torch.cuda.amp import GradScaler
 from torch.nn import Module, Parameter
-from torch.optim.lr_scheduler import _LRScheduler  # ignore _LRScheduler, no problem
 
 __all__ = [
     # strpath
@@ -21,7 +20,7 @@ __all__ = [
     'instance_',
     # pytorch
     'Tensor_or_None', 'int_or_Tensor', 'Tensor_or_ndarray',
-    'module_', 'optimizer_', 'lr_scheduler_', 'gradscaler_', 'parameter_', 'dataset_',
+    'module_', 'optimizer_', 'gradscaler_', 'parameter_', 'dataset_',
     'module_or_parameter', 'module_or_None',
     # special designed
     'pkt_or_None', 'tuple_or_list',
@@ -56,7 +55,6 @@ dataset_ = TypeVar('dataset_', bound=Dataset)
 optimizer_ = TypeVar('optimizer_', bound=Optimizer)
 parameter_ = TypeVar('parameter_', bound=Parameter)
 gradscaler_ = TypeVar('gradscaler_', bound=GradScaler)
-lr_scheduler_ = TypeVar('lr_scheduler_', bound=_LRScheduler)
 module_or_None = Optional[module_]
 module_or_parameter = Union[module_, parameter_]
 

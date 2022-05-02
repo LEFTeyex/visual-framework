@@ -7,7 +7,7 @@ import torch
 from utils.log import LOGGER, logging_initialize, logging_start_finish
 from utils.mixins import DataLoaderMixin, SetSavePathMixin, TrainDetectMixin, \
     SaveCheckPointMixin, LoadAllCheckPointMixin, FreezeLayersMixin, COCOEvaluateMixin, \
-    TensorboardWriterMixin, TrainClassifyMixin, ReleaseMixin
+    TensorboardWriterMixin, ReleaseMixin
 
 __all__ = ['MetaTrainDetect', 'MetaTrainClassify']
 
@@ -41,7 +41,6 @@ class MetaTrainClassify(
     DataLoaderMixin,
     SetSavePathMixin,
     FreezeLayersMixin,
-    TrainClassifyMixin,
     SaveCheckPointMixin,
     TensorboardWriterMixin,
     LoadAllCheckPointMixin

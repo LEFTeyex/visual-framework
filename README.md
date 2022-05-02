@@ -1,11 +1,10 @@
-# <center>Visual Framework</center>
+# Visual Framework
 
-[![](https://img.shields.io/badge/developed-75%25-bluegreen.svg)]()
-[![](https://img.shields.io/badge/coverage-0%25-red.svg)]()
-[![](https://img.shields.io/badge/license-MIT-black.svg)](https://choosealicense.com/licenses/mit/)
+[![github license](https://img.shields.io/github/license/LEFTeyex/visual-framework)](https://github.com/LEFTeyex/visual-framework/blob/master/LICENSE)
+[![github repository size](https://img.shields.io/github/repo-size/LEFTeyex/visual-framework)](https://github.com/LEFTeyex/visual-framework)
+[![](https://img.shields.io/badge/developing-55%25-bluegreen.svg)](https://github.com/LEFTeyex/visual-framework)
 [![](https://img.shields.io/badge/version-v1.6.1-blue.svg)]()
-[![](https://img.shields.io/badge/language-python>=v3.9.7-blue.svg)]()
-[![](https://img.shields.io/badge/Author-student-pink.svg)](https://github.com/LEFTeyex)
+[![](https://img.shields.io/badge/python-3.7|3.8|3.9-blue.svg)]()
 
 The visual framework is designed on the idea of module and implemented by mixin method. Its biggest feature is the
 mixins module which is the core of the framework.

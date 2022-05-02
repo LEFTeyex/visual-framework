@@ -19,7 +19,8 @@ from functools import wraps
 from utils.log import LOGGER
 from utils.typeslib import int_or_None, strpath
 
-__all__ = ['HiddenPrints', 'timer', 'time_sync', 'make_divisible_up', 'to_tuplex', 'delete_list_indices',
+__all__ = ['HiddenPrints', 'timer', 'time_sync', 'hasattr_not_none', 'make_divisible_up', 'to_tuplex',
+           'delete_list_indices',
            'save_all_txt', 'load_all_txt', 'load_all_yaml', 'save_all_yaml', 'save_matrix_excel',
            'init_seed', 'select_one_device', 'loss_to_mean']
 
@@ -67,6 +68,20 @@ def time_sync():
     return time.time()
 
 
+def hasattr_not_none(obj: object, attr_str: str):
+    r"""
+    Whether the object has the attr that is not None.
+    Args:
+        obj: object = object
+        attr_str: str = attribute name
+
+    Returns:
+        True / False
+    """
+    obj_attr = f'obj.{attr_str}'
+    return hasattr(obj, attr_str) and eval(obj_attr) is not None
+
+
 def make_divisible_up(x, divisor):
     r"""Make x divisible by divisor then return a number may be large"""
     return (x // divisor + 1) * divisor
@@ -83,8 +98,7 @@ def loss_to_mean(idx_loop: int, loss_mean, loss):
     Returns:
         loss_mean
     """
-    loss_mean = (loss_mean * idx_loop + loss) / (idx_loop + 1)
-    return loss_mean
+    return (loss_mean * idx_loop + loss) / (idx_loop + 1)
 
 
 def to_tuplex(value, n: int):
@@ -236,6 +250,7 @@ def init_seed(seed: int_or_None = None):
         seed: int_or_None =  integral number less than 32 bit better, Default=None(auto)
     Return seed
     """
+    # TODO set cudnn
     if seed is None:
         LOGGER.info('Setting seed(auto get) for all generator...')
         seed = torch.seed()

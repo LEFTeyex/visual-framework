@@ -21,21 +21,22 @@ from pycocotools.coco import COCO
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 from pycocotools.cocoeval import COCOeval
+from utils.swa import update_bn
 
 from utils import WRITER
 from utils.log import LOGGER, log_fps_time
 from utils.metrics import compute_fps
 from utils.check import check_only_one_set
 from utils.bbox import xyxy2x1y1wh, rescale_xyxy
-from utils.general import delete_list_indices, time_sync, loss_to_mean, HiddenPrints
-from utils.typeslib import optimizer_, lr_scheduler_, gradscaler_, dataset_, \
-    module_or_None, str_or_None, pkt_or_None, tuple_or_list, strpath
+from utils.general import delete_list_indices, time_sync, loss_to_mean, HiddenPrints, hasattr_not_none
+from utils.typeslib import optimizer_, gradscaler_, dataset_, \
+    module_or_None, str_or_None, pkt_or_None, tuple_or_list, strpath, instance_
 
 __all__ = ['SetSavePathMixin', 'TensorboardWriterMixin',
            'SaveCheckPointMixin', 'LoadAllCheckPointMixin',
            'FreezeLayersMixin', 'DataLoaderMixin',
            'TrainDetectMixin', 'ValDetectMixin',
-           'TrainClassifyMixin', 'ValClassifyMixin',
+           'ValClassifyMixin',
            'COCOEvaluateMixin',
            'ReleaseMixin'
            ]
@@ -146,19 +147,23 @@ class SaveCheckPointMixin(object):
         self.epochs = None
         self.scaler = None
         self.optimizer = None
+        self.swa_model = None
         self.lr_scheduler = None
         self.best_fitness = None
+        self.warmup_lr_scheduler = None
 
     def get_checkpoint(self):
         r"""Get checkpoint to save"""
         LOGGER.debug('Getting checkpoint...')
         checkpoint = {
-            'model': self.model,  # TODO de_parallel model in the future
+            'model': self.model.float(),  # TODO de_parallel model in the future
+            'swa_model_state_dict': self.swa_model.float().state_dict(),  # TODO add load
             'epoch': self.epoch,
             'best_fitness': self.best_fitness,
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'gradscaler_state_dict': self.scaler.state_dict(),
-            'lr_scheduler_state_dict': self.lr_scheduler.state_dict()
+            'optimizer': self.optimizer.state_dict(),
+            'gradscaler': self.scaler.state_dict(),
+            'lr_scheduler': self.lr_scheduler.state_dict(),
+            'warmup_lr_scheduler': self.warmup_lr_scheduler.state_dict()
         }
         LOGGER.debug('Get checkpoint successfully')
         return checkpoint
@@ -166,6 +171,7 @@ class SaveCheckPointMixin(object):
     def save_checkpoint_best_last(self, fitness, best_path: strpath, last_path: strpath):
         r"""
         Save checkpoint when get better fitness or at last.
+        Override get_checkpoint if necessary and the save checkpoint will be changed.
         Args:
             fitness: = a number to compare with best_fitness.
             best_path: strpath = StrPath to save best.pt.
@@ -197,9 +203,10 @@ class LoadAllCheckPointMixin(object):
         3. load_optimizer --- need self.checkpoint.
         4. set_param_groups --- need self.model.
         5. load_lr_scheduler ---- need self.checkpoint.
-        6. load_gradscaler --- need self.checkpoint.
-        7. load_start_epoch --- need self.checkpoint, self.epochs.
-        8. load_best_fitness --- need self.checkpoint.
+        6. load_warmup_lr_scheduler --- need self.checkpoint.
+        7. load_gradscaler --- need self.checkpoint.
+        8. load_start_epoch --- need self.checkpoint, self.epochs.
+        9. load_best_fitness --- need self.checkpoint.
     """
 
     def __init__(self):
@@ -314,7 +321,7 @@ class LoadAllCheckPointMixin(object):
             # load optimizer
             LOGGER.info('Loading optimizer state_dict...')
             self._check_checkpoint_not_none()
-            optim_instance.load_state_dict(self.checkpoint['optimizer_state_dict'])
+            optim_instance.load_state_dict(self.checkpoint['optimizer'])
             LOGGER.info('Load optimizer state_dict successfully...')
 
         else:
@@ -410,11 +417,11 @@ class LoadAllCheckPointMixin(object):
         LOGGER.info('Set param_groups successfully')
         return param_groups
 
-    def load_lr_scheduler(self, lr_scheduler_instance: lr_scheduler_, load: bool = True):
+    def load_lr_scheduler(self, lr_scheduler_instance, load: bool = True):
         r"""
         Load lr_scheduler from state_dict.
         Args:
-            lr_scheduler_instance: lr_scheduler_ = StepLR(self.optimizer, 30) etc. the instance of lr_scheduler.
+            lr_scheduler_instance: = StepLR(self.optimizer, 30) etc. the instance of lr_scheduler.
             load: bool = True / False, Default=True(load lr_scheduler state_dict).
 
         Returns:
@@ -425,12 +432,34 @@ class LoadAllCheckPointMixin(object):
             # load lr_scheduler
             LOGGER.info('Loading lr_scheduler state_dict...')
             self._check_checkpoint_not_none()
-            lr_scheduler_instance.load_state_dict(self.checkpoint['lr_scheduler_state_dict'])
+            lr_scheduler_instance.load_state_dict(self.checkpoint['lr_scheduler'])
             LOGGER.info('Load lr_scheduler state_dict successfully...')
 
         else:
             LOGGER.info('Do not load lr_scheduler state_dict')
         return lr_scheduler_instance
+
+    def load_warmup_lr_scheduler(self, warmup_lr_scheduler_instance: instance_, load: bool = True):
+        r"""
+        Load warmup_lr_scheduler from state_dict (pip install warmup_scheduler_pytorch).
+        Args:
+            warmup_lr_scheduler_instance: instance_ = WarmUpScheduler.
+            load: bool = True / False, Default=True(load warmup_lr_scheduler state_dict).
+
+        Returns:
+            scheduler_instance
+        """
+        LOGGER.info('Initialize warmup_lr_scheduler successfully')
+        if load:
+            # load warmup_lr_scheduler
+            LOGGER.info('Loading warmup_lr_scheduler state_dict...')
+            self._check_checkpoint_not_none()
+            warmup_lr_scheduler_instance.load_state_dict(self.checkpoint['warmup_lr_scheduler'])
+            LOGGER.info('Load warmup_lr_scheduler state_dict successfully...')
+
+        else:
+            LOGGER.info('Do not load warmup_lr_scheduler state_dict')
+        return warmup_lr_scheduler_instance
 
     def load_gradscaler(self, gradscaler_instance: gradscaler_, load: bool = True):
         r"""
@@ -447,7 +476,7 @@ class LoadAllCheckPointMixin(object):
             # load GradScaler
             LOGGER.info('Loading GradScaler state_dict...')
             self._check_checkpoint_not_none()
-            gradscaler_instance.load_state_dict(self.checkpoint['gradscaler_state_dict'])
+            gradscaler_instance.load_state_dict(self.checkpoint['gradscaler'])
             LOGGER.info('Load GradScaler state_dict successfully...')
 
         else:
@@ -662,47 +691,6 @@ class CheckMixin(object):
         raise NotImplementedError
 
 
-class _TrainMixin(object):
-    r"""
-    Consist of basic methods for training.
-    Methods:
-        1. optimize_no_scale --- self.optimizer.
-        2. optimize_scale --- self.scaler, self.optimizer.
-        3. show_loss_in_pbar --- self.epoch, self.epochs, self.device.
-    """
-
-    def __init__(self):
-        self.epoch = None
-        self.epochs = None
-        self.scaler = None
-        self.device = None
-        self.optimizer = None
-
-    def optimize_no_scale(self, loss):
-        loss.backward()
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-
-    def optimize_scale(self, loss):
-        self.scaler.scale(loss).backward()
-        # todo maybe accumulating gradient will be better (if index...: ...)
-        self.scaler.step(self.optimizer)  # optimizer.step()
-        self.scaler.update()
-        self.optimizer.zero_grad()  # improve a little performance when set_to_none=True
-
-    def show_loss_in_pbar(self, loss, loss_name, pbar):
-        # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824
-        memory = torch.cuda.memory_reserved(self.device) / 1073741824 if torch.cuda.is_available() else 0
-        memory_cuda = f'GPU: {memory:.3f}GB'
-
-        # show in pbar
-        space = ' ' * 11
-        progress = f'{self.epoch}/{self.epochs - 1}:'
-        pbar.set_description_str(f"{space}epoch {progress:<9}{memory_cuda}")
-        show = ''.join([f'{x}: {y:.5f} ' for x, y in zip(loss_name, loss)])
-        pbar.set_postfix_str(show)
-
-
 class _ValMixin(object):
     r"""
     Consist of basic methods for validating.
@@ -724,7 +712,7 @@ class _ValMixin(object):
         pbar.set_postfix_str(show)
 
 
-class TrainDetectMixin(_TrainMixin):
+class TrainDetectMixin(object):
     r"""
     Methods:
         1. train_one_epoch --- need all self.*.
@@ -734,16 +722,21 @@ class TrainDetectMixin(_TrainMixin):
         super(TrainDetectMixin, self).__init__()
         self.inc = None
         self.cuda = None
-        self.epoch = None
+        self.swa_c = None
         self.model = None
-        self.device = None
-        self.scaler = None
+        self.epoch = None
         self.writer = None
+        self.epochs = None
+        self.scaler = None
+        self.device = None
         self.loss_fn = None
         self.optimizer = None
+        self.swa_model = None
         self.image_size = None
         self.visual_graph = None
         self.lr_scheduler = None
+        self.swa_scheduler = None
+        self.swa_start_epoch = None
         self.train_dataloader = None
         self.warmup_lr_scheduler = None
 
@@ -754,96 +747,117 @@ class TrainDetectMixin(_TrainMixin):
             loss_name: tuple_or_list = the name of loss corresponding to the loss from loss_fn.
         """
         self.model.train()
-        if self.visual_graph:
-            WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
-
+        self.optimizer.zero_grad()
         loss_mean = torch.tensor(0., device=self.device)
 
         with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
                   bar_format='{l_bar}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels, _, _) in pbar:
-                images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
-                labels = labels.to(self.device)
-
-                # TODO warmup in the future
+            for index, data in pbar:
+                x, labels, others_data = self.preprocess(data)
 
                 # forward with mixed precision
                 with autocast(enabled=self.cuda):
-                    outputs = self.model(images)
-                    loss, loss_items = self.loss_fn(outputs, labels)
+                    outputs = self.forward_in_model(x)
+                    loss, others_loss = self.compute_loss(outputs, labels)
 
                 # backward and optimize
-                if self.scaler is None:
-                    self.optimize_no_scale(loss)
-                else:
-                    self.optimize_scale(loss)
+                self.backward_optimize(loss)
 
-                # warmup and lr_scheduler
+                # warmup_lr_scheduler step
+                self.warmup_lr_scheduler_step()
+
+                # mean loss
+                loss_mean = self.mean_loss(index, loss_mean, loss, others_loss)
+                self.show_loss_in_pbar(loss_mean, loss_name, pbar)
+
+        # lr_scheduler step without warmup_lr_scheduler
+        self.lr_scheduler_step_without_warmup()
+
+        # upgrade swa_model
+        self.swa_model_upgrade()
+
+        # visual model lr and loss
+        self.add_tensorboard_writer(loss_mean, loss_name)
+
+        return loss_mean.tolist(), loss_name
+
+    def preprocess(self, data):
+        r"""Need to override usually"""
+        x, labels, *others_data = data
+        x = x.to(self.device)
+        labels = labels.to(self.device)
+        return x, labels, others_data
+
+    def forward_in_model(self, x):
+        x = self.model(x)
+        return x
+
+    def compute_loss(self, outputs, labels):
+        loss, *others_loss = self.loss_fn(outputs, labels)
+        return loss, others_loss
+
+    def backward_optimize(self, loss):
+        if hasattr_not_none(self, 'scaler'):
+            self.scaler.scale(loss).backward()
+            # todo maybe accumulating gradient will be better (if index...)
+            self.scaler.step(self.optimizer)  # optimizer.step()
+            self.scaler.update()
+            self.optimizer.zero_grad()  # improve a little performance when set_to_none=True
+        else:
+            loss.backward()
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+
+    def warmup_lr_scheduler_step(self):
+        if hasattr_not_none(self, 'warmup_lr_scheduler'):
+            if not (hasattr_not_none(self, 'swa_scheduler') and self._swa_start()):
                 self.warmup_lr_scheduler.step()
 
-                # mean total loss and loss items
-                loss_all = torch.cat((loss.detach(), loss_items), dim=0)
-                loss_mean = loss_to_mean(index, loss_mean, loss_all)
-                self.show_loss_in_pbar(loss_mean, loss_name, pbar)
+    def lr_scheduler_step_without_warmup(self):
+        if hasattr_not_none(self, 'lr_scheduler') and not hasattr_not_none(self, 'warmup_lr_scheduler'):
+            if not (hasattr_not_none(self, 'swa_scheduler') and self._swa_start()):
+                self.lr_scheduler.step()
 
-        WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
-        WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
+    def swa_model_upgrade(self):
+        c = round(max(1, self.swa_c if hasattr_not_none(self, 'swa_c') else 1))
+        if hasattr_not_none(self, 'swa_model') and self._swa_start() and \
+                (self.epoch - self.swa_start_epoch) % c == 0:
+            self.swa_model.update_parameters(self.model)
+            # the last epoch
+            if self.epoch + 1 == self.epochs:
+                update_bn(self.train_dataloader, self.swa_model, self.device)
 
+        if hasattr_not_none(self, 'swa_scheduler') and self._swa_start():
+            self.swa_scheduler.step()
 
-class TrainClassifyMixin(_TrainMixin):
-    def __init__(self):
-        super(TrainClassifyMixin, self).__init__()
-        self.inc = None
-        self.cuda = None
-        self.model = None
-        self.epoch = None
-        self.scaler = None
-        self.device = None
-        self.writer = None
-        self.epochs = None
-        self.loss_fn = None
-        self.optimizer = None
-        self.image_size = None
-        self.lr_scheduler = None
-        self.visual_graph = None
-        self.train_dataloader = None
+    def _swa_start(self):
+        return self.epoch >= self.swa_start_epoch
 
-    def train_one_epoch(self):
-        self.model.train()
-        if self.visual_graph:
-            WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
+    @staticmethod
+    def mean_loss(index, loss_mean, loss, others_loss):
+        loss = loss.detach()
+        loss_mean = loss_to_mean(index, loss_mean, loss)
+        return loss_mean
 
-        loss_name = ('class_loss',)
-        loss_mean = torch.zeros(1, device=self.device)
+    def add_tensorboard_writer(self, loss_mean, loss_name):
+        if hasattr_not_none(self, 'writer'):
+            if self.visual_graph:
+                WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
 
-        with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
-                  bar_format='{l_bar}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels) in pbar:
-                # images = images.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
-                images = images.to(self.device)
-                labels = labels.to(self.device)
+            WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
+            WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
 
-                # forward with mixed precision
-                with autocast(enabled=self.cuda):
-                    outputs = self.model(images)
-                    loss = self.loss_fn(outputs, labels)
+    def show_loss_in_pbar(self, loss, loss_name, pbar):
+        # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824
+        memory = torch.cuda.memory_reserved(self.device) / 1073741824 if torch.cuda.is_available() else 0
+        memory_cuda = f'GPU: {memory:.3f}GB'
 
-                # backward and optimize
-                if self.scaler is None:
-                    self.optimize_no_scale(loss)
-                else:
-                    self.optimize_scale(loss)
-
-                _loss = loss.detach()
-                loss_mean = loss_to_mean(index, loss_mean, _loss)
-                self.show_loss_in_pbar(loss_mean, loss_name, pbar)
-
-        WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
-        WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
-
-        # lr_scheduler
-        self.lr_scheduler.step()
-        return loss_mean.tolist(), loss_name
+        # show in pbar
+        space = ' ' * 11
+        progress = f'{self.epoch}/{self.epochs - 1}:'
+        pbar.set_description_str(f"{space}epoch {progress:<9}{memory_cuda}")
+        show = ''.join([f'{x}: {y:.5f} ' for x, y in zip(loss_name, loss)])
+        pbar.set_postfix_str(show)
 
 
 class ValDetectMixin(_ValMixin):

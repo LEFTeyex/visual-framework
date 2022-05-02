@@ -8,20 +8,25 @@ lr0: 0.01
 momentum: 0.95
 weight_decay: 0.0005
 
+
 # lr_scheduler
-lr_scheduler: 'lr_lambda'  # lr_step / lr_lambda
+lr_scheduler: 'CosineAnnealingLR'
+lr_scheduler_kwargs:
+  {
+    T_max: 100,
+    eta_min: 0.0001
+  }
+verbose: False
 
-# lr_step
-step: 50
-gamma: 0.5
+# sub lr_scheduler if necessary
+# SequentialLR, ChainedScheduler
 
-# lr_lambda
-lrf: 0.1
 
 # warmup
 warmup_steps: 64
 warmup_start_lr: 0.001
 warmup_mode: 'linear'
+
 
 label_smoothing: 0.0
 fl_gamma: 0.0
