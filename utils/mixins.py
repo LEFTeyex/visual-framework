@@ -157,7 +157,8 @@ class SaveCheckPointMixin(object):
         LOGGER.debug('Getting checkpoint...')
         checkpoint = {
             'model': self.model.float(),  # TODO de_parallel model in the future
-            'swa_model_state_dict': self.swa_model.float().state_dict(),  # TODO add load
+            'swa_model': self.swa_model.module.float(),  # TODO add load
+            'n_averaged': self.swa_model.n_averaged,
             'epoch': self.epoch,
             'best_fitness': self.best_fitness,
             'optimizer': self.optimizer.state_dict(),
@@ -196,15 +197,17 @@ class SaveCheckPointMixin(object):
 
 
 class LoadAllCheckPointMixin(object):
+    # TODO change load way to control the key of checkpoint and .state_dict()
+    # TODO maybe load_model load_swa_model load_state_dict ...
     r"""
     Methods:
         1. load_checkpoint --- need self.device.
-        2. load_model --- need self.device, self.checkpoint.
-        3. load_optimizer --- need self.checkpoint.
+            2. load_model --- need self.device, self.checkpoint.
+            3. load_optimizer --- need self.checkpoint.
         4. set_param_groups --- need self.model.
-        5. load_lr_scheduler ---- need self.checkpoint.
-        6. load_warmup_lr_scheduler --- need self.checkpoint.
-        7. load_gradscaler --- need self.checkpoint.
+            5. load_lr_scheduler ---- need self.checkpoint.
+            6. load_warmup_lr_scheduler --- need self.checkpoint.
+            7. load_gradscaler --- need self.checkpoint.
         8. load_start_epoch --- need self.checkpoint, self.epochs.
         9. load_best_fitness --- need self.checkpoint.
     """
@@ -730,6 +733,7 @@ class TrainDetectMixin(object):
         self.scaler = None
         self.device = None
         self.loss_fn = None
+        self.update_bn_last = None
         self.optimizer = None
         self.swa_model = None
         self.image_size = None
@@ -810,27 +814,28 @@ class TrainDetectMixin(object):
 
     def warmup_lr_scheduler_step(self):
         if hasattr_not_none(self, 'warmup_lr_scheduler'):
-            if not (hasattr_not_none(self, 'swa_scheduler') and self._swa_start()):
+            if not (hasattr_not_none(self, 'swa_scheduler') and self.swa_start):
                 self.warmup_lr_scheduler.step()
 
     def lr_scheduler_step_without_warmup(self):
         if hasattr_not_none(self, 'lr_scheduler') and not hasattr_not_none(self, 'warmup_lr_scheduler'):
-            if not (hasattr_not_none(self, 'swa_scheduler') and self._swa_start()):
+            if not (hasattr_not_none(self, 'swa_scheduler') and self.swa_start):
                 self.lr_scheduler.step()
 
     def swa_model_upgrade(self):
         c = round(max(1, self.swa_c if hasattr_not_none(self, 'swa_c') else 1))
-        if hasattr_not_none(self, 'swa_model') and self._swa_start() and \
+        if hasattr_not_none(self, 'swa_model') and self.swa_start and \
                 (self.epoch - self.swa_start_epoch) % c == 0:
             self.swa_model.update_parameters(self.model)
             # the last epoch
-            if self.epoch + 1 == self.epochs:
+            if (self.epoch + 1 == self.epochs) and hasattr_not_none(self, 'update_bn_last') and self.update_bn_last:
                 update_bn(self.train_dataloader, self.swa_model, self.device)
 
-        if hasattr_not_none(self, 'swa_scheduler') and self._swa_start():
+        if hasattr_not_none(self, 'swa_scheduler') and self.swa_start:
             self.swa_scheduler.step()
 
-    def _swa_start(self):
+    @property
+    def swa_start(self):
         return self.epoch >= self.swa_start_epoch
 
     @staticmethod

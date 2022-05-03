@@ -4,7 +4,7 @@
 seed: 0  # null is None in yaml
 
 # optimizer
-lr0: 0.01
+lr: 0.01
 momentum: 0.95
 weight_decay: 0.0005
 
@@ -14,7 +14,7 @@ lr_scheduler: 'CosineAnnealingLR'
 lr_scheduler_kwargs:
   {
     T_max: 100,
-    eta_min: 0.0001
+    eta_min: 0.001
   }
 verbose: False
 

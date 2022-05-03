@@ -22,7 +22,7 @@ def select_lr_scheduler(optimizer_instance: optimizer_, hyp: dict):
         lr_scheduler instance
     """
 
-    _lr_lambda_dict = {}  # TODO need to add in the feature
+    _lr_lambda_dict = {}  # TODO need to add in the future
 
     lr_scheduler_name = hyp['lr_scheduler']
     kwargs = hyp['lr_scheduler_kwargs']
