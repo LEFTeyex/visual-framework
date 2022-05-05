@@ -212,11 +212,15 @@ def _xml2json_coco(xml_dir_path: str, image_name_txt: str, classes, supercategor
     print('Done')
 
 
-def _classify_datasets(path: str, save_path: str, seed: int, weights=(0.8, 0.1)):
+def _classify_datasets(path: str, save_path: str = None, seed: int = 0, weights=(0.8, 0.1)):
     r"""Get relative path for training images"""
     classify_to = ('train', 'val', 'test')
-    save_path = Path(save_path)
-    save_path.mkdir(parents=True, exist_ok=True)
+
+    if save_path is None:
+        save_path = Path(path)
+    else:
+        save_path = Path(save_path)
+        save_path.mkdir(parents=True, exist_ok=True)
 
     # set seed and save
     random.seed(seed)
@@ -413,7 +417,7 @@ def parse_args_detect(known: bool = False):
     Return namespace(for setting args)
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--kind', type=str, default='xml2coco', help='xml2coco / xml2txt / classify')
+    parser.add_argument('--kind', type=str, default='classify', help='xml2coco / xml2txt / classify')
 
     # xml2txt_yolo and xml2coco_json
     parser.add_argument('--path_parent', type=str,
@@ -451,10 +455,10 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--wh', type=tuple, default=(None, None), help='')
 
     # classify_datasets
-    parser.add_argument('--path_classify', type=str, default='F:/datasets/VOCdevkit/VOC2012/images', help='')
-    parser.add_argument('--save_path', type=str, default='', help='')
+    parser.add_argument('--path_classify', type=str, default='F:/datasets/ocean_comp/train_add/images', help='')
+    parser.add_argument('--save_path', type=str, default=None, help='')
     parser.add_argument('--seed', type=int, default=0, help='')
-    parser.add_argument('--weights', type=list, default=[0.8, 0.1],
+    parser.add_argument('--weights', type=list, default=[0.8, 0.2],
                         help='the proportion of train and val, the rest is test')
     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
     return namespace
@@ -472,7 +476,7 @@ def check_json_coco():
 
 
 if __name__ == '__main__':
-    # main()
-    check_json_coco()
+    main()
+    # check_json_coco()
     # deal_voc_detection(r'F:\datasets\good\VOCdevkit\VOC2012')
     # deal_coco_detection()

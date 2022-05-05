@@ -733,13 +733,13 @@ class TrainDetectMixin(object):
         self.scaler = None
         self.device = None
         self.loss_fn = None
-        self.update_bn_last = None
         self.optimizer = None
         self.swa_model = None
         self.image_size = None
         self.visual_graph = None
         self.lr_scheduler = None
         self.swa_scheduler = None
+        self.update_bn_last = None
         self.swa_start_epoch = None
         self.train_dataloader = None
         self.warmup_lr_scheduler = None
@@ -757,7 +757,7 @@ class TrainDetectMixin(object):
         with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
                   bar_format='{l_bar}{bar:10}{r_bar}') as pbar:
             for index, data in pbar:
-                x, labels, others_data = self.preprocess(data)
+                x, labels, others_data = self.preprocess_iter(data)
 
                 # forward with mixed precision
                 with autocast(enabled=self.cuda):
@@ -780,12 +780,12 @@ class TrainDetectMixin(object):
         # upgrade swa_model
         self.swa_model_upgrade()
 
-        # visual model lr and loss
-        self.add_tensorboard_writer(loss_mean, loss_name)
+        # postprocess for visual model lr and loss
+        self.postprocess((loss_mean, loss_name))
 
         return loss_mean.tolist(), loss_name
 
-    def preprocess(self, data):
+    def preprocess_iter(self, data):
         r"""Need to override usually"""
         x, labels, *others_data = data
         x = x.to(self.device)
@@ -844,7 +844,8 @@ class TrainDetectMixin(object):
         loss_mean = loss_to_mean(index, loss_mean, loss)
         return loss_mean
 
-    def add_tensorboard_writer(self, loss_mean, loss_name):
+    def postprocess(self, data):
+        loss_mean, loss_name, *others = data
         if hasattr_not_none(self, 'writer'):
             if self.visual_graph:
                 WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)

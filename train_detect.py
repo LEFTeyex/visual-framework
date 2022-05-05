@@ -264,7 +264,7 @@ class TrainDetect(_Args, MetaTrainDetect):
         results = tester.val_training()
         return results
 
-    def preprocess(self, data):
+    def preprocess_iter(self, data):
         x, labels, *_ = data
         x = x.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
         labels = labels.to(self.device)
@@ -296,7 +296,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--visual_graph', type=bool,
                         default=False, help='Make model graph visual')
     parser.add_argument('--swa_start_epoch', type=int,
-                        default=75, help='swa start')
+                        default=100, help='swa start')
     parser.add_argument('--swa_c', type=int,
                         default=1, help='swa cycle length')
     parser.add_argument('--update_bn_last', type=bool,
@@ -305,19 +305,19 @@ def parse_args_detect(known: bool = False):
                         default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='The path of checkpoint')
     # parser.add_argument('--weights', type=str, default='', help='The path of checkpoint')
     parser.add_argument('--freeze_names', type=list,
-                        default=['backbone', 'neck'], help='Layer name to freeze in model')
+                        default=['backbone'], help='Layer name to freeze in model')
     parser.add_argument('--device', type=str,
-                        default='0', help='Use cpu or cuda:0 or 0')
+                        default='3', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=100, help='The epochs for training')
+                        default=300, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
-                        default=16, help='The batch size in training')
+                        default=128, help='The batch size in training')
     parser.add_argument('--workers', type=int,
-                        default=0, help='For dataloader to load data')
+                        default=8, help='For dataloader to load data')
     parser.add_argument('--shuffle', type=bool,
                         default=True, help='Shuffle the training data')
     parser.add_argument('--pin_memory', type=bool,
-                        default=False, help='Load data to memory')
+                        default=True, help='Load data to memory')
     parser.add_argument('--datasets', type=str,
                         default=str(ROOT / 'mine/data/datasets/detection/Customdatasets.yaml'),
                         help='The path of datasets.yaml')

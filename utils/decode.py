@@ -21,12 +21,12 @@ __all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predicti
 def parse_outputs_yolov5(outputs: list, anchors: Tensor, strides, reshape: bool = True):
     # output shape is (bs, layer, h, w, (xywh + obj + cls))
     output_all = []
-    for index, (output, anchor, scaling) in enumerate(zip(outputs, anchors, strides)):
+    for index, (output, anchor, stride) in enumerate(zip(outputs, anchors, strides)):
         bs, na, ny, nx, no = output.shape  # na-number of anchor, no-number of output
         anchor = anchor.view(1, na, 1, 1, 2)
 
         # parse bbox
-        output[..., 0:4] = parse_bbox_yolov5(output[..., 0:4], anchor, (nx, ny), scaling)
+        output[..., 0:4] = parse_bbox_yolov5(output[..., 0:4], anchor, (nx, ny), stride)
         # parse others (object and classes)
         output[..., 4:] = output[..., 4:].sigmoid()
         if reshape:
