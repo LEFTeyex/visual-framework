@@ -185,7 +185,3 @@ def compute_fitness(results, weights):
         raise ValueError(f'The shape is not equal results shape {results.shape} and weights shape {weights.shape}')
     fitness = (results * weights).sum().tolist()
     return fitness
-
-
-if __name__ == '__main__':
-    pass

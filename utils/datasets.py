@@ -39,7 +39,6 @@ class DatasetDetect(Dataset):
         coco_gt: = path for saving json whether create json coco format for using COCOeval
     """
 
-    # TODO upgrade val_from_train, test_from_train function in the future reference to random_split
     # TODO upgrade rectangular train shape for image model in the future reference to yolov5 rect=True
     # TODO upgrade .cache file in memory for faster training
     def __init__(self, datasets, name: str, img_size: int, augment=False, data_augment: str = '', hyp=None,
@@ -53,9 +52,14 @@ class DatasetDetect(Dataset):
         self.coco_gt = coco_gt
         self.img_files = get_img_files(datasets[name])  # get the path tuple of image files
         # check img suffix and img_files(to str)
-        self.img_files = tuple(str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS))
+        self.img_files = [str(x) for x in self.img_files if (x.suffix.replace('.', '').lower() in IMAGE_FORMATS)]
+
+        # filter image error when open
+        self.img_files = filter_image_error(self.img_files)
+
         if not self.img_files:
             raise FileNotFoundError('No images found')
+
         self.indices = range(len(self.img_files))  # for choices in data augmentation and coco evaluation
 
         # get label_files that it is str and sorted with images_files
@@ -403,6 +407,21 @@ def get_img_files(path, file_path_is_absolute: bool = False):
     return tuple(img_files)  # to save memory
 
 
+def filter_image_error(img_files: list):
+    r"""Filter image that cv2.imread None or error"""
+    new_img_files = []
+    for x in img_files:
+        x: str
+        try:
+            if cv2.imread(x) is not None:
+                new_img_files.append(x)
+            else:
+                LOGGER.info(f"Del the open None image {x.rsplit('/', 1)[1]}")
+        except:
+            LOGGER.info(f"Del the open error image {x.rsplit('/', 1)[1]}")
+    return tuple(new_img_files)
+
+
 def img2label_files(img_files):
     r"""
     Change image path to label path from image paths.
@@ -493,7 +512,3 @@ def get_and_check_datasets_yaml(path: strpath):
 
     LOGGER.info('Get the path for training successfully')
     return datasets
-
-
-if __name__ == '__main__':
-    pass

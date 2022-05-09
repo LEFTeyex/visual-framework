@@ -210,7 +210,3 @@ class SPPF(nn.Module):
         y1 = self.m(x)
         y2 = self.m(y1)
         return self.conv2(torch.cat((x, y1, y2, self.m(y2)), dim=1))
-
-
-if __name__ == '__main__':
-    pass

@@ -21,38 +21,42 @@ from pycocotools.coco import COCO
 from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 from pycocotools.cocoeval import COCOeval
-from utils.swa import update_bn
+from torch.utils.tensorboard import SummaryWriter
 
 from utils import WRITER
 from utils.log import LOGGER, log_fps_time
+from utils.swa import update_bn
 from utils.metrics import compute_fps
 from utils.check import check_only_one_set
-from utils.bbox import xyxy2x1y1wh, rescale_xyxy
 from utils.general import delete_list_indices, time_sync, loss_to_mean, HiddenPrints, hasattr_not_none
-from utils.typeslib import optimizer_, gradscaler_, dataset_, \
-    module_or_None, str_or_None, pkt_or_None, tuple_or_list, strpath, instance_
+from utils.typeslib import strpath, instance_, module_, dataset_, dataloader_, module_or_None, \
+    str_or_None, tuple_or_list, pkt_or_None
 
-__all__ = ['SetSavePathMixin', 'TensorboardWriterMixin',
-           'SaveCheckPointMixin', 'LoadAllCheckPointMixin',
-           'FreezeLayersMixin', 'DataLoaderMixin',
-           'TrainDetectMixin', 'ValDetectMixin',
-           'ValClassifyMixin',
-           'COCOEvaluateMixin',
-           'ReleaseMixin'
-           ]
+__all__ = [
+    'SetSavePathMixin',
+    'TensorboardWriterMixin',
+    'SaveCheckPointMixin',
+    'LoadAllCheckPointMixin',
+    'FreezeLayersMixin',
+    'DataLoaderMixin',
+    'TrainMixin',
+    'ValMixin',
+    'COCOEvaluateMixin',
+    'ReleaseMixin'
+]
 
 
 class SetSavePathMixin(object):
     r"""
     Methods:
-        1. get_save_path --- need all self.*.
+        1. set_save_path --- need all self.*.
     """
 
     def __init__(self):
         self.save_name = None
         self.save_path = None
 
-    def get_save_path(self, *args: tuple_or_list):
+    def set_save_path(self, *args: tuple_or_list) -> dict:
         r"""
         Set save path to path_dict.
         Args:
@@ -114,17 +118,17 @@ class TensorboardWriterMixin(object):
         r"""
         Set tensorboard for self.writer.
         Args:
-            path: strpath = StrPath to save tensorboard file
+            path: strpath = StrPath to save tensorboard file.
         """
         if self.tensorboard:
             LOGGER.info('Setting tensorboard writer...')
-            writer = WRITER.set_writer(path)
+            writer = SummaryWriter(str(path))
             LOGGER.info('Setting tensorboard successfully')
             LOGGER.info(f"See tensorboard results please run "
                         f"'tensorboard --logdir={path}' in Terminal")
         else:
-            LOGGER.info('No tensorboard writer')
             writer = None
+            LOGGER.info('Set tensorboard writer none')
         return writer
 
     def close_tensorboard(self):
@@ -138,7 +142,8 @@ class SaveCheckPointMixin(object):
     r"""
     Methods:
         1. get_checkpoint --- need self.* except self.epochs.
-        2. save_checkpoint_best_last --- need self.epoch, self.epochs, self.best_fitness.
+        2. save_checkpoint_best_last --- need all self.*.
+        3. save_checkpoint --- need self.* except self.epochs.
     """
 
     def __init__(self):
@@ -152,20 +157,38 @@ class SaveCheckPointMixin(object):
         self.best_fitness = None
         self.warmup_lr_scheduler = None
 
-    def get_checkpoint(self):
-        r"""Get checkpoint to save"""
+    def get_checkpoint(self, model_state_dict: bool = False) -> dict:
+        # de_parallel model in the future
+        r"""
+        Get checkpoint to save.
+        Need different checkpoint to save please override the get_checkpoint method.
+        Args:
+            model_state_dict: bool = if True, checkpoint will save model.state_dict().
+
+        Returns:
+            checkpoint
+        """
         LOGGER.debug('Getting checkpoint...')
+
         checkpoint = {
-            'model': self.model.float(),  # TODO de_parallel model in the future
-            'swa_model': self.swa_model.module.float(),  # TODO add load
-            'n_averaged': self.swa_model.n_averaged,
+            'model': self.model.float().state_dict() if model_state_dict else self.model.float(),
             'epoch': self.epoch,
             'best_fitness': self.best_fitness,
             'optimizer': self.optimizer.state_dict(),
-            'gradscaler': self.scaler.state_dict(),
             'lr_scheduler': self.lr_scheduler.state_dict(),
-            'warmup_lr_scheduler': self.warmup_lr_scheduler.state_dict()
         }
+
+        if hasattr_not_none(self, 'swa_model'):
+            checkpoint['swa_model'] = self.swa_model.float().state_dict() if model_state_dict \
+                else self.swa_model.float()
+            checkpoint['n_averaged'] = self.swa_model.n_averaged
+
+        if hasattr_not_none(self, 'scaler'):
+            checkpoint['scaler'] = self.scaler.state_dict()
+
+        if hasattr_not_none(self, 'warmup_lr_scheduler'):
+            checkpoint['warmup_lr_scheduler'] = self.warmup_lr_scheduler.state_dict()
+
         LOGGER.debug('Get checkpoint successfully')
         return checkpoint
 
@@ -191,25 +214,23 @@ class SaveCheckPointMixin(object):
             torch.save(self.get_checkpoint(), last_path)
             LOGGER.info('Save last checkpoint successfully')
 
-    def save_checkpoint(self, path: strpath):
-        # TODO if need
-        pass
+    def save_checkpoint(self, save_path: strpath):
+        r"""Save checkpoint straightly"""
+        LOGGER.info('Saving checkpoint')
+        torch.save(self.get_checkpoint(), save_path)
+        LOGGER.info('Save checkpoint successfully')
 
 
 class LoadAllCheckPointMixin(object):
-    # TODO change load way to control the key of checkpoint and .state_dict()
-    # TODO maybe load_model load_swa_model load_state_dict ...
     r"""
     Methods:
         1. load_checkpoint --- need self.device.
-            2. load_model --- need self.device, self.checkpoint.
-            3. load_optimizer --- need self.checkpoint.
-        4. set_param_groups --- need self.model.
-            5. load_lr_scheduler ---- need self.checkpoint.
-            6. load_warmup_lr_scheduler --- need self.checkpoint.
-            7. load_gradscaler --- need self.checkpoint.
-        8. load_start_epoch --- need self.checkpoint, self.epochs.
-        9. load_best_fitness --- need self.checkpoint.
+        2. load_model --- need self.device, self.checkpoint.
+        3. load_swa_model --- need self.device, self.checkpoint.
+        4. load_state_dict --- need self.checkpoint.
+        5. load_start_epoch --- need self.checkpoint, self.epochs.
+        6. load_best_fitness --- need self.checkpoint.
+        7. set_param_groups --- need self.model.
     """
 
     def __init__(self):
@@ -218,25 +239,16 @@ class LoadAllCheckPointMixin(object):
         self.epochs = None
         self.checkpoint = None
 
-    def load_checkpoint(self, path: strpath, suffix: tuple = ('.pt', '.pth')):
+    def load_checkpoint(self, path: strpath, suffix: tuple = ('.pt', '.pth')) -> dict or None:
         r"""
         Load checkpoint from path '*.pt' or '*.pth' file.
-        Request:
-            checkpoint = {
-                            'model': self.model,
-                            'epoch': self.epoch,
-                            'best_fitness': self.best_fitness,
-                            'optimizer_state_dict': self.optimizer.state_dict(),
-                            'gradscaler_state_dict': self.scaler.state_dict(),
-                            'lr_scheduler_state_dict': self.lr_scheduler.state_dict()
-                         }
 
         Args:
-            path: strpath = StrPath of checkpoint.
+            path: strpath = the strpath of checkpoint.
             suffix: tuple = ('.pt', '.pth', ...) the suffix of checkpoint file.
 
         Returns:
-            checkpoint or None(when no file endwith the suffix)
+            checkpoint or None
         """
         LOGGER.info('Loading checkpoint...')
         path = Path(path)
@@ -250,17 +262,23 @@ class LoadAllCheckPointMixin(object):
                            'Check the path, if checkpoint wanted.')
             return
 
-    def load_model(self, model_instance: module_or_None = None, load: str_or_None = 'state_dict'):
+    def load_model(self,
+                   model_instance: module_or_None = None,
+                   load_key: str_or_None = None,
+                   state_dict_operation: bool = True,
+                   load: str_or_None = 'state_dict') -> module_:
         r"""
         Load model from 'model' or 'state_dict' or initialize model.
         Args:
-            model_instance: module_or_None = ModelDetect() the instance of model, Default=None(only when load='model').
-            load: str_or_None = None / 'model' / 'state_dict', Default='state_dict'(load model from state_dict).
+            model_instance: module_or_None = the instance of model.
+            load_key: str_or_None = the key of model in self.checkpoint.
+            state_dict_operation: bool = if True, do .state_dict() operation.
+            load: str_or_None = the load way of model, consist of None / 'model' / 'state_dict'.
 
         Returns:
-            model_instance in float
+            model_instance
         """
-        # check whether model_instance and load is conflict
+        # check whether model_instance, state_dict_operation and load are conflict
         if load == 'model':
             if not check_only_one_set(model_instance, load):
                 raise ValueError(f'Only one of {model_instance} '
@@ -269,94 +287,192 @@ class LoadAllCheckPointMixin(object):
             raise ValueError("The model_instance can not be None,"
                              " if load = None or 'state_dict'")
 
+        if load == 'model' and state_dict_operation:
+            state_dict_operation = False
+            LOGGER.info(f'Correct state_dict_operation=False, '
+                        f'please notice the load: {load} and '
+                        f'state_dict_operation: {state_dict_operation} is conflict now')
+
+        # get checkpoint to load
+        to_load = None
+        if load_key is not None:
+            self._check_checkpoint_not_none()
+            to_load = self.checkpoint[load_key].state_dict() if state_dict_operation else self.checkpoint[load_key]
+
         if load is None:
-            LOGGER.info('Initialize model successfully')  # model need to initial itself in its __init__()
-            LOGGER.info('Load None to model')
+            LOGGER.info('Initialize model successfully')
+            # model need to initial itself in its __init__()
+            LOGGER.info('Load nothing to model')
 
         elif load == 'state_dict':
-            LOGGER.info('Loading model state_dict...')
-            self._check_checkpoint_not_none()
-            state_dict = self.checkpoint['model'].state_dict()
-
             # delete the same keys but different weight shape
             model_ns = ((name, weight.shape) for name, weight in model_instance.state_dict().items())
             for name, shape in model_ns:
-                if name in state_dict and state_dict[name].shape != shape:
-                    del state_dict[name]
+                if name in to_load and to_load[name].shape != shape:
+                    del to_load[name]
                     LOGGER.warning(f'Delete the {name} in state_dict because of different weight shape')
 
-            # load model and get the rest of (0, missing_keys) and (1, unexpected_keys)
-            rest = model_instance.load_state_dict(state_dict, strict=False)
-            missing_keys, unexpected_keys = rest
-            if missing_keys or unexpected_keys:
-                LOGGER.warning(f'There are the rest of {len(missing_keys)} missing_keys'
-                               f' and {len(unexpected_keys)} unexpected_keys when load model')
-                LOGGER.warning(f'missing_keys: {missing_keys}')
-                LOGGER.warning(f'unexpected_keys: {unexpected_keys}')
-                LOGGER.info('Load model state_dict successfully with the rest of keys')
-            else:
-                LOGGER.info('Load model state_dict successfully without the rest of keys')
+            # load model and get the rest of (missing_keys, unexpected_keys)
+            model_instance = self._load_state_dict(model_instance, to_load, name_log=type(model_instance).__name__)
 
         elif load == 'model':
-            LOGGER.info('Loading total model from checkpoint...')
-            self._check_checkpoint_not_none()
-            model_instance = self.checkpoint['model']
+            LOGGER.info('Loading total model from self.checkpoint...')
+            model_instance = to_load
             LOGGER.info('Load total model successfully')
 
         else:
             raise ValueError(f"The arg load: {load} do not match, "
                              f"please input one of  (None, 'model', 'state_dict')")
-        return model_instance.float().to(self.device)  # return float model to self.device
+        return model_instance.to(self.device).float()  # return float model to self.device
 
-    def load_optimizer(self, optim_instance: optimizer_, load: bool = True):
+    def load_swa_model(self,
+                       model_instance: module_or_None = None,
+                       load_key: str_or_None = None,
+                       state_dict_operation: bool = True,
+                       load: str_or_None = 'state_dict',
+                       load_n_averaged_key: str_or_None = None) -> module_:
         r"""
-        Load optimizer from state_dict and add param_groups first.
+        Load model from 'model' or 'state_dict' or initialize model.
         Args:
-            optim_instance: optimizer_ = SGD(self.model.parameters(), lr=0.01) etc. the instance of optimizer.
-            load: bool = True / False, Default=True(load optimizer state_dict).
+            model_instance: module_or_None = the instance of model.
+            load_key: str_or_None = the key of model in self.checkpoint.
+            state_dict_operation: bool = if True, do .state_dict() operation.
+            load: str_or_None = the load way of model, consist of None / 'model' / 'state_dict'.
+            load_n_averaged_key: str_or_None = the key of n_averaged in checkpoint if load it.
 
         Returns:
-            optim_instance
+            model_instance
         """
-        LOGGER.info('Initialize optimizer successfully')
+        model_instance = self.load_model(model_instance, load_key, state_dict_operation, load)
 
-        if load:
-            # load optimizer
-            LOGGER.info('Loading optimizer state_dict...')
+        if load_n_averaged_key:
+            LOGGER.info('Loading swa_model n_averaged...')
             self._check_checkpoint_not_none()
-            optim_instance.load_state_dict(self.checkpoint['optimizer'])
-            LOGGER.info('Load optimizer state_dict successfully...')
+            model_instance.n_averaged = self.checkpoint[load_n_averaged_key]
+            LOGGER.info('Load swa_model n_averaged successfully')
+        return model_instance
+
+    def load_state_dict(self, instance: instance_, load_key: str_or_None = None) -> instance_:
+        r"""
+        Load state_dict for instance.
+        Args:
+            instance: instance_ = instance to load_state_dict.
+            load_key: str_or_None = the key in self.checkpoint to load, load nothing if None.
+
+        Returns:
+            instance
+        """
+        name = type(instance).__name__
+        if load_key:
+            self._check_checkpoint_not_none()
+            instance = self._load_state_dict(instance, self.checkpoint[load_key], name_log=name)
 
         else:
-            LOGGER.info('Do not load optimizer state_dict')
-        return optim_instance
+            LOGGER.info(f'Load nothing for {name} state_dict')
 
-    def set_param_groups(self, param_kind_tuple: pkt_or_None = None):
+        return instance
+
+    def load_start_epoch(self, load_key: str_or_None = None, load: str_or_None = 'continue') -> int:
+        r"""
+        Load start_epoch.
+        Args:
+            load_key: str_or_None = the key in self.checkpoint to load, initialize start_epoch if None.
+            load: str_or_None = the load way, consist of 'continue' / 'add' / None, Default='continue'.
+                continue: continue to train from start_epoch to self.epochs.
+                add: train self.epochs more times.
+                None: initialize start_epoch=0.
+
+        Returns:
+            start_epoch
+        """
+        if load is not None and load_key is None:
+            raise ValueError(f'The load_key can not be None when the load={load}')
+
+        to_load = None
+        if load_key is not None:
+            self._check_checkpoint_not_none()
+            to_load = self.checkpoint[load_key]
+
+        if load is None:
+            # initialize start_epoch
+            LOGGER.info('Initializing start_epoch...')
+            start_epoch = 0
+            LOGGER.info(f'Initialize start_epoch={start_epoch} successfully')
+            LOGGER.info(f'The Model will be trained {self.epochs} epochs')
+
+        elif load == 'continue':
+            # load start_epoch to continue
+            LOGGER.info('Loading start_epoch to continue...')
+
+            start_epoch = to_load + 1
+            if self.epochs < start_epoch:
+                raise ValueError(f'The epochs: {self.epochs} can not be '
+                                 f'less than the start_epoch: {start_epoch}')
+            LOGGER.info(f'Load start_epoch={start_epoch} to continue successfully')
+            LOGGER.info(f'The Model will be trained {self.epochs - start_epoch + 1} epochs')
+
+        elif load == 'add':
+            # load start_epoch to add epochs to train
+            LOGGER.info('Loading start_epoch to add epochs to train...')
+            start_epoch = to_load + 1
+            self.epochs += to_load
+            LOGGER.info(f'Load start_epoch={start_epoch} to add epochs to train successfully')
+            LOGGER.info(f'The Model will be trained {self.epochs} epochs')
+
+        else:
+            raise ValueError(f"The arg load: {load} do not match, "
+                             f"please input one of  (None, 'continue', 'add')")
+        return start_epoch
+
+    def load_best_fitness(self, load_key: str_or_None = None) -> float:
+        r"""
+        Load best_fitness for choosing which weights of model is best among epochs.
+        Args:
+            load_key: str_or_None = the key in self.checkpoint to load, initialize best_fitness if None.
+
+        Returns:
+            best_fitness
+        """
+        if load_key:
+            # load best_fitness
+            LOGGER.info('Loading best_fitness...')
+            self._check_checkpoint_not_none()
+            best_fitness = self.checkpoint[load_key]
+            LOGGER.info('Load best_fitness successfully')
+
+        else:
+            # initialize best_fitness
+            LOGGER.info('Initializing best_fitness...')
+            best_fitness = 0.0
+            LOGGER.info(f'Initialize best_fitness={best_fitness} successfully')
+        return best_fitness
+
+    def set_param_groups(self, param_kind_tuple: pkt_or_None = None) -> list or None:
+        # Upgrade the algorithm in the future for filtering parameters from model.modules() better
         r"""
         Set param_groups, need to know how to set param_kind_list.
         The parameters in param_groups will not repeat.
         Args:
-            param_kind_tuple: pkt_or_None = (('bias', nn.Parameter, {lr=0.01}),
-                                              ('weight', nn.BatchNorm2d, {lr=0.02})).
-                                             Default=None(do not set param_groups).
+            param_kind_tuple: pkt_or_None = (
+                                              ('bias', nn.Parameter, {lr=0.01}),
+                                              ('weight', nn.BatchNorm2d, {lr=0.02})
+                                            ).
 
         Returns:
             param_groups [{'params': nn.Parameter, 'lr': 0.01, ...}, ...]
         """
         # do not set param_groups
         if param_kind_tuple is None:
-            LOGGER.info('No param_groups set')
+            LOGGER.info('Set param_groups None')
             return
         # set param_groups
         LOGGER.info('Setting param_groups...')
-        # TODO Upgrade the algorithm in the future for filtering parameters from model.modules() better
         param_groups = []
         rest = []  # save_params the rest parameters that are not filtered
         indices = []  # save_params parameters (name, ...) temporarily to delete
 
         # get all parameters from model and set one of ('weightbias', 'weight', 'bias') to its indices
         for element in self.model.modules():
-            # todo args can change
             if hasattr(element, 'weight') or hasattr(element, 'bias'):
                 rest.append(element)
                 if element.weight is not None:
@@ -420,138 +536,21 @@ class LoadAllCheckPointMixin(object):
         LOGGER.info('Set param_groups successfully')
         return param_groups
 
-    def load_lr_scheduler(self, lr_scheduler_instance, load: bool = True):
-        r"""
-        Load lr_scheduler from state_dict.
-        Args:
-            lr_scheduler_instance: = StepLR(self.optimizer, 30) etc. the instance of lr_scheduler.
-            load: bool = True / False, Default=True(load lr_scheduler state_dict).
-
-        Returns:
-            scheduler_instance
-        """
-        LOGGER.info('Initialize lr_scheduler successfully')
-        if load:
-            # load lr_scheduler
-            LOGGER.info('Loading lr_scheduler state_dict...')
-            self._check_checkpoint_not_none()
-            lr_scheduler_instance.load_state_dict(self.checkpoint['lr_scheduler'])
-            LOGGER.info('Load lr_scheduler state_dict successfully...')
-
+    @staticmethod
+    def _load_state_dict(instance: instance_, state_dict, name_log: str, strict: bool = False) -> instance_:
+        r"""Load state_dict in detail for logger"""
+        LOGGER.info(f'Loading {name_log} state_dict...')
+        rest = instance.load_state_dict(state_dict, strict=strict)
+        missing_keys, unexpected_keys = rest
+        if missing_keys or unexpected_keys:
+            LOGGER.warning(f'There are the rest of {len(missing_keys)} missing_keys'
+                           f' and {len(unexpected_keys)} unexpected_keys when load {name_log}')
+            LOGGER.warning(f'missing_keys: {missing_keys}')
+            LOGGER.warning(f'unexpected_keys: {unexpected_keys}')
+            LOGGER.info(f'Load {name_log} state_dict successfully with the rest of keys')
         else:
-            LOGGER.info('Do not load lr_scheduler state_dict')
-        return lr_scheduler_instance
-
-    def load_warmup_lr_scheduler(self, warmup_lr_scheduler_instance: instance_, load: bool = True):
-        r"""
-        Load warmup_lr_scheduler from state_dict (pip install warmup_scheduler_pytorch).
-        Args:
-            warmup_lr_scheduler_instance: instance_ = WarmUpScheduler.
-            load: bool = True / False, Default=True(load warmup_lr_scheduler state_dict).
-
-        Returns:
-            scheduler_instance
-        """
-        LOGGER.info('Initialize warmup_lr_scheduler successfully')
-        if load:
-            # load warmup_lr_scheduler
-            LOGGER.info('Loading warmup_lr_scheduler state_dict...')
-            self._check_checkpoint_not_none()
-            warmup_lr_scheduler_instance.load_state_dict(self.checkpoint['warmup_lr_scheduler'])
-            LOGGER.info('Load warmup_lr_scheduler state_dict successfully...')
-
-        else:
-            LOGGER.info('Do not load warmup_lr_scheduler state_dict')
-        return warmup_lr_scheduler_instance
-
-    def load_gradscaler(self, gradscaler_instance: gradscaler_, load: bool = True):
-        r"""
-        Load GradScaler from state_dict.
-        Args:
-            gradscaler_instance: gradscaler_ = GradScaler(enabled=self.cuda) etc. the instance of GradScaler.
-            load: bool = True / False, Default=True(load GradScaler state_dict).
-
-        Returns:
-            gradscaler_instance
-        """
-        LOGGER.info('Initialize GradScaler successfully')
-        if load:
-            # load GradScaler
-            LOGGER.info('Loading GradScaler state_dict...')
-            self._check_checkpoint_not_none()
-            gradscaler_instance.load_state_dict(self.checkpoint['gradscaler'])
-            LOGGER.info('Load GradScaler state_dict successfully...')
-
-        else:
-            LOGGER.info('Do not load GradScaler state_dict')
-        return gradscaler_instance
-
-    def load_start_epoch(self, load: str_or_None = 'continue'):
-        r"""
-        Load start_epoch.
-        Args:
-            load: str_or_None = 'continue' / 'add' / None, Default='continue'.
-                continue: continue to train from start_epoch to self.epochs.
-                add: train self.epochs more times.
-                None: initialize start_epoch=0.
-
-        Returns:
-            start_epoch
-        """
-        if load is None:
-            # initialize start_epoch
-            LOGGER.info('Initializing start_epoch...')
-            start_epoch = 0
-            LOGGER.info(f'Initialize start_epoch={start_epoch} successfully')
-            LOGGER.info(f'The Model will be trained {self.epochs} times')
-
-        elif load == 'continue':
-            # load start_epoch to continue
-            LOGGER.info('Loading start_epoch to continue...')
-            self._check_checkpoint_not_none()
-            start_epoch = self.checkpoint['epoch'] + 1
-            if self.epochs < start_epoch:
-                raise ValueError(f'The epochs: {self.epochs} can not be '
-                                 f'less than the start_epoch: {start_epoch}')
-            LOGGER.info(f'Load start_epoch={start_epoch} to continue successfully')
-            LOGGER.info(f'The Model will be trained {self.epochs - start_epoch + 1} times')
-
-        elif load == 'add':
-            # load start_epoch to add epochs to train
-            LOGGER.info('Loading start_epoch to add epochs to train...')
-            self._check_checkpoint_not_none()
-            start_epoch = self.checkpoint['epoch'] + 1
-            self.epochs += self.checkpoint['epoch']
-            LOGGER.info(f'Load start_epoch={start_epoch} to add epochs to train successfully')
-            LOGGER.info(f'The Model will be trained {self.epochs} times')
-
-        else:
-            raise ValueError(f"The arg load: {load} do not match, "
-                             f"please input one of  (None, 'continue', 'add')")
-        return start_epoch
-
-    def load_best_fitness(self, load: bool = True):
-        r"""
-        Load best_fitness for choosing which weights of model is best among epochs.
-        Args:
-            load: bool = True / False, Default=True(load best_fitness).
-
-        Returns:
-            best_fitness
-        """
-        if load:
-            # load best_fitness
-            LOGGER.info('Loading best_fitness...')
-            self._check_checkpoint_not_none()
-            best_fitness = self.checkpoint['best_fitness']
-            LOGGER.info('Load best_fitness successfully')
-
-        else:
-            # initialize best_fitness
-            LOGGER.info('Initializing best_fitness...')
-            best_fitness = 0.0
-            LOGGER.info(f'Initialize best_fitness={best_fitness} successfully')
-        return best_fitness
+            LOGGER.info(f'Load {name_log} state_dict successfully without the rest of keys')
+        return instance
 
     def _check_checkpoint_not_none(self):
         r"""Check whether self.checkpoint exists"""
@@ -625,19 +624,20 @@ class FreezeLayersMixin(object):
 
 
 class DataLoaderMixin(object):
+    # upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
+    # upgrade add more augments for Dataloader
     r"""
     Methods:
         1. set_dataloader --- need all self.*.
     """
 
     def __init__(self):
-        self.writer = None
         self.workers = None
         self.batch_size = None
         self.pin_memory = None
         self.visual_image = None
 
-    def set_dataloader(self, dataset_instance: dataset_, shuffle: bool = False):
+    def set_dataloader(self, dataset_instance: dataset_, shuffle: bool = False) -> dataloader_:
         r"""
         Set dataloader.
         Args:
@@ -648,31 +648,34 @@ class DataLoaderMixin(object):
             dataloader instance
         """
         LOGGER.info(f'Initialize Dataloader...')
+
         # visualizing
         if self.visual_image:
-            LOGGER.info(f'Visualizing Dataset...')
-            name = dataset_instance.name
-            WRITER.add_datasets_images_labels_detect(self.writer, dataset_instance, name)
-            LOGGER.info(f'Visualize Dataset successfully')
+            if hasattr(dataset_instance, 'name'):
+                name = dataset_instance.name
+            else:
+                name = 'dataset'
+            self.visual_dataset(dataset_instance, name)
 
         # set dataloader
-        # TODO upgrade num_workers(deal and check) and sampler(distributed.DistributedSampler) for DDP
         if hasattr(dataset_instance, 'collate_fn'):
             collate_fn = dataset_instance.collate_fn
         else:
             collate_fn = None
         batch_size = min(self.batch_size, len(dataset_instance))
 
-        dataloader = DataLoader(dataset_instance, batch_size, shuffle,
+        dataloader = DataLoader(dataset_instance,
+                                batch_size=batch_size,
+                                shuffle=shuffle,
                                 num_workers=self.workers,
                                 pin_memory=self.pin_memory,
                                 collate_fn=collate_fn)
         LOGGER.info(f'Initialize Dataloader successfully')
         return dataloader
 
-
-class EMAModelMixin(object):
-    def get_ema_model(self):
+    def visual_dataset(self, dataset_instance, name: str):
+        r"""Set visual way for dataset"""
+        # WRITER.add_datasets_images_labels_detect(self.writer, dataset, name) for detection
         raise NotImplementedError
 
 
@@ -694,35 +697,40 @@ class CheckMixin(object):
         raise NotImplementedError
 
 
-class _ValMixin(object):
-    r"""
-    Consist of basic methods for validating.
-    Methods:
-        1. show_loss_in_pbar --- self.device.
-    """
+class _TrainValMixin(object):
+    r"""Consist of universal methods for training or validating iteration"""
 
     def __init__(self):
-        self.device = None
+        self.model = None
+        self.loss_fn = None
 
-    def show_loss_in_pbar(self, loss, loss_name, pbar):
-        memory = torch.cuda.memory_reserved(self.device) / 1073741824 if torch.cuda.is_available() else 0
-        memory_cuda = f'GPU: {memory:.3f}GB'
+    def forward_in_model(self, x, data_dict):
+        r"""Forward in model and has an interface data_dict"""
+        x = self.model(x)
+        return x, data_dict
 
-        # show in pbar
-        space = ' ' * 11
-        pbar.set_description_str(f"{space}{'validating:':<15}{memory_cuda}")
-        show = ''.join([f'{x}: {y:.5f} ' for x, y in zip(loss_name, loss)])
-        pbar.set_postfix_str(show)
+    def compute_loss(self, outputs, labels, data_dict):
+        r"""Compute loss for backward and has an interface data_dict"""
+        loss, *other_loss = self.loss_fn(outputs, labels)
+        return loss, other_loss, data_dict
+
+    @staticmethod
+    def mean_loss(index, loss_mean, loss, data_dict):
+        r"""Compute mean loss to show and has an interface data_dict"""
+        loss = loss.detach()
+        loss_mean = loss_to_mean(index, loss_mean, loss)
+        return loss_mean, data_dict
 
 
-class TrainDetectMixin(object):
+class TrainMixin(_TrainValMixin):
     r"""
     Methods:
         1. train_one_epoch --- need all self.*.
+        2. other methods can be overridden to change the operation mode.
     """
 
     def __init__(self):
-        super(TrainDetectMixin, self).__init__()
+        super(TrainMixin, self).__init__()
         self.inc = None
         self.cuda = None
         self.swa_c = None
@@ -739,30 +747,44 @@ class TrainDetectMixin(object):
         self.visual_graph = None
         self.lr_scheduler = None
         self.swa_scheduler = None
-        self.update_bn_last = None
         self.swa_start_epoch = None
         self.train_dataloader = None
         self.warmup_lr_scheduler = None
 
-    def train_one_epoch(self, loss_name: tuple_or_list):
+    def train_one_epoch(self, loss_name: tuple_or_list) -> dict:
         r"""
         Finish train one epoch.
+        It is flexible to change the operation mode by overriding the method.
+        The data_dict is the interface for extra data or other operation.
         Args:
-            loss_name: tuple_or_list = the name of loss corresponding to the loss from loss_fn.
-        """
-        self.model.train()
-        self.optimizer.zero_grad()
-        loss_mean = torch.tensor(0., device=self.device)
+            loss_name: tuple_or_list = the name of loss corresponding to the loss to show.
 
-        with tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader),
-                  bar_format='{l_bar}{bar:10}{r_bar}') as pbar:
+        Returns:
+            data_dict
+        """
+        # data_dict to save the data, and it is also an interface
+        # data_dict consist of (index, loss_name, loss_mean, other_data_iter, other_loss_iter)
+        data_dict = {
+            'index': None,
+            'loss_name': loss_name,
+            'loss_mean': torch.tensor(0., device=self.device),
+            'other_data_iter': None,
+            'other_loss_iter': None,
+        }
+        data_dict = self.preprocess(data_dict)  # preprocess for data_dict
+        with tqdm(enumerate(self.train_dataloader),
+                  total=len(self.train_dataloader),
+                  bar_format=self.bar_format_train()) as pbar:
             for index, data in pbar:
-                x, labels, others_data = self.preprocess_iter(data)
+                data_dict['index'] = index
+
+                # preprocess in iteration
+                x, labels, data_dict['other_data_iter'], data_dict = self.preprocess_iter(data, data_dict)
 
                 # forward with mixed precision
                 with autocast(enabled=self.cuda):
-                    outputs = self.forward_in_model(x)
-                    loss, others_loss = self.compute_loss(outputs, labels)
+                    outputs, data_dict = self.forward_in_model(x, data_dict)
+                    loss, data_dict['other_loss_iter'], data_dict = self.compute_loss(outputs, labels, data_dict)
 
                 # backward and optimize
                 self.backward_optimize(loss)
@@ -771,39 +793,65 @@ class TrainDetectMixin(object):
                 self.warmup_lr_scheduler_step()
 
                 # mean loss
-                loss_mean = self.mean_loss(index, loss_mean, loss, others_loss)
-                self.show_loss_in_pbar(loss_mean, loss_name, pbar)
+                data_dict['loss_mean'], data_dict = self.mean_loss(index, data_dict['loss_mean'], loss, data_dict)
+                data_dict = self.show_in_pbar(pbar, data_dict)
+
+                # postprocess in iteration for data_dict
+                data_dict = self.postprocess_iter(data_dict)
 
         # lr_scheduler step without warmup_lr_scheduler
         self.lr_scheduler_step_without_warmup()
 
         # upgrade swa_model
-        self.swa_model_upgrade()
+        self.swa_model_update()
 
-        # postprocess for visual model lr and loss
-        self.postprocess((loss_mean, loss_name))
+        # postprocess for data_dict
+        data_dict = self.postprocess(data_dict)
+        return data_dict
 
-        return loss_mean.tolist(), loss_name
+    @staticmethod
+    def bar_format_train():
+        r"""The bar_format in tqdm"""
+        return '{l_bar}{bar:10}{r_bar}'
 
-    def preprocess_iter(self, data):
-        r"""Need to override usually"""
-        x, labels, *others_data = data
+    def preprocess(self, data_dict) -> dict:
+        r"""It is a preprocessing in the epoch and has an interface data_dict"""
+        self.model.train()
+        self.optimizer.zero_grad()
+        return data_dict
+
+    def preprocess_iter(self, data, data_dict):
+        r"""It is a preprocessing in training iteration and has an interface data_dict"""
+        x, labels, *other_data = data
         x = x.to(self.device)
         labels = labels.to(self.device)
-        return x, labels, others_data
+        data_dict['batch_size_iter'] = x.shape[0]
+        return x, labels, other_data, data_dict
 
-    def forward_in_model(self, x):
-        x = self.model(x)
-        return x
+    def postprocess_iter(self, data_dict) -> dict:
+        r"""It is a postprocessing in training iteration and has an interface data_dict"""
+        # visual in tensorboard pytorch
+        if hasattr_not_none(self, 'writer'):
+            epoch = self.epoch + data_dict['index'] / data_dict['batch_size_iter']
+            WRITER.add_optimizer_lr(self.writer, self.optimizer, epoch)
+        return data_dict
 
-    def compute_loss(self, outputs, labels):
-        loss, *others_loss = self.loss_fn(outputs, labels)
-        return loss, others_loss
+    def postprocess(self, data_dict) -> dict:
+        r"""It is a postprocessing in the epoch and has an interface data_dict"""
+        # visual in tensorboard pytorch
+        if hasattr_not_none(self, 'writer'):
+            loss_mean, loss_name = data_dict['loss_mean'], data_dict['loss_name']
+            WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
+
+            if self.visual_graph:
+                WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
+        return data_dict
 
     def backward_optimize(self, loss):
+        # maybe accumulating gradient will be better (if index...)
+        r"""Backward loss and optimize parameters in model"""
         if hasattr_not_none(self, 'scaler'):
             self.scaler.scale(loss).backward()
-            # todo maybe accumulating gradient will be better (if index...)
             self.scaler.step(self.optimizer)  # optimizer.step()
             self.scaler.update()
             self.optimizer.zero_grad()  # improve a little performance when set_to_none=True
@@ -813,47 +861,49 @@ class TrainDetectMixin(object):
             self.optimizer.zero_grad()
 
     def warmup_lr_scheduler_step(self):
+        r"""Step warmup lr scheduler if it has the attribute warmup_lr_scheduler"""
         if hasattr_not_none(self, 'warmup_lr_scheduler'):
             if not (hasattr_not_none(self, 'swa_scheduler') and self.swa_start):
                 self.warmup_lr_scheduler.step()
 
     def lr_scheduler_step_without_warmup(self):
+        r"""Step lr scheduler if it has no attribute warmup_lr_scheduler"""
         if hasattr_not_none(self, 'lr_scheduler') and not hasattr_not_none(self, 'warmup_lr_scheduler'):
             if not (hasattr_not_none(self, 'swa_scheduler') and self.swa_start):
                 self.lr_scheduler.step()
 
-    def swa_model_upgrade(self):
+    def swa_model_update(self):
+        r"""Update swa_model, bn, attr and step swa_scheduler if it has the attribute swa_model and swa_scheduler"""
         c = round(max(1, self.swa_c if hasattr_not_none(self, 'swa_c') else 1))
         if hasattr_not_none(self, 'swa_model') and self.swa_start and \
                 (self.epoch - self.swa_start_epoch) % c == 0:
             self.swa_model.update_parameters(self.model)
-            # the last epoch
-            if (self.epoch + 1 == self.epochs) and hasattr_not_none(self, 'update_bn_last') and self.update_bn_last:
-                update_bn(self.train_dataloader, self.swa_model, self.device)
+            self.update_swa_bn()
+            self.update_swa_attr()
 
         if hasattr_not_none(self, 'swa_scheduler') and self.swa_start:
             self.swa_scheduler.step()
 
+    def update_swa_bn(self):
+        r"""Update swa model bn"""
+        update_bn(self.train_dataloader, self.swa_model, self.device)
+
+    def update_swa_attr(self):
+        r"""
+        Update swa_model attr, an example as follow:
+        update_attr(self.swa_model.module, self.model, include=(...)).
+        """
+        if hasattr_not_none(self, 'swa_model'):
+            raise NotImplementedError
+
     @property
-    def swa_start(self):
+    def swa_start(self) -> bool:
+        r"""Whether swa model start"""
         return self.epoch >= self.swa_start_epoch
 
-    @staticmethod
-    def mean_loss(index, loss_mean, loss, others_loss):
-        loss = loss.detach()
-        loss_mean = loss_to_mean(index, loss_mean, loss)
-        return loss_mean
-
-    def postprocess(self, data):
-        loss_mean, loss_name, *others = data
-        if hasattr_not_none(self, 'writer'):
-            if self.visual_graph:
-                WRITER.add_model_graph(self.writer, self.model, self.inc, self.image_size, self.epoch)
-
-            WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
-            WRITER.add_epoch_curve(self.writer, 'train_loss', loss_mean, loss_name, self.epoch)
-
-    def show_loss_in_pbar(self, loss, loss_name, pbar):
+    def show_in_pbar(self, pbar, data_dict) -> dict:
+        r"""Show something in pbar and has an interface data_dict"""
+        loss_mean, loss_name = data_dict['loss_mean'], data_dict['loss_name']
         # GPU memory used which an accurate value because of 1024 * 1024 * 1024 = 1073741824
         memory = torch.cuda.memory_reserved(self.device) / 1073741824 if torch.cuda.is_available() else 0
         memory_cuda = f'GPU: {memory:.3f}GB'
@@ -862,170 +912,144 @@ class TrainDetectMixin(object):
         space = ' ' * 11
         progress = f'{self.epoch}/{self.epochs - 1}:'
         pbar.set_description_str(f"{space}epoch {progress:<9}{memory_cuda}")
-        show = ''.join([f'{x}: {y:.5f} ' for x, y in zip(loss_name, loss)])
+        show = ''.join([f'{x}: {y:.5f} ' for x, y in zip(loss_name, loss_mean)])
         pbar.set_postfix_str(show)
+        return data_dict
 
 
-class ValDetectMixin(_ValMixin):
+class ValMixin(_TrainValMixin):
     r"""
     Methods:
         1. val_once --- need all self.*.
+        2. other methods can be overridden to change the operation mode.
     """
 
     def __init__(self):
-        super(ValDetectMixin, self).__init__()
-        self.hyp = None
-        self.time = None
-        self.seen = None
+        super(ValMixin, self).__init__()
         self.half = None
         self.model = None
         self.epoch = None
         self.writer = None
         self.device = None
         self.loss_fn = None
-        self.coco_json = None
         self.dataloader = None
-        self.visual_image = None
 
-    def val_once(self, loss_name: tuple_or_list):
+    def val_once(self, loss_name: tuple_or_list) -> dict:
         r"""
         Finish val once.
+        It is flexible to change the operation mode by overriding the method.
+        The data_dict is the interface for extra data or other operation.
         Args:
-            loss_name: tuple_or_list = the name of loss corresponding to the loss from loss_fn.
+            loss_name: tuple_or_list = the name of loss corresponding to the loss to show.
 
         Returns:
-            json_dt list
+            data_dict
         """
-        loss_mean = torch.tensor(0., device=self.device).half() if self.half else torch.tensor(0., device=self.device)
-        json_dt = []  # save detection truth for COCO eval
-        with tqdm(enumerate(self.dataloader), total=len(self.dataloader),
-                  bar_format='{l_bar:>42}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels, shape_converts, img_ids) in pbar:
-                # get current for computing FPs but maybe not accurate maybe
-                t0 = time_sync()
-                images = images.to(self.device)
-                labels = labels.to(self.device)
+        # data_dict to save the data, and it is also an interface
+        # data_dict consist of (index, time, seen, loss_name, loss_mean, stats, other_data_iter, other_loss_iter)
+        data_dict = {
+            'index': None,
+            'time': 0.0,
+            'seen': 0,
+            'loss_name': loss_name,
+            'loss_mean': torch.tensor(0., device=self.device),
+            # 'stats_name': [],  # for saving stats data to evaluate in method process_eval_stats
+            'other_data_iter': None,
+            'other_loss_iter': None,
+        }
+        data_dict = self.preprocess(data_dict)  # preprocess for data_dict
 
-                # to half16 or float32 and normalized 0.0-1.0
-                images = (images.half() / 255) if self.half else (images.float() / 255)
+        with tqdm(enumerate(self.dataloader),
+                  total=len(self.dataloader),
+                  bar_format=self.bar_format_val()) as pbar:
+            for index, data in pbar:
+                time_start = time_sync()
+                data_dict['index'] = index
 
-                # inference
-                predictions = self.model(images)
-                loss, loss_items = self.loss_fn(predictions, labels)
-
-                # mean total loss and loss items
-                loss_all = torch.cat((loss, loss_items), dim=0).detach()
-                loss_mean = loss_to_mean(index, loss_mean, loss_all)
-                self.show_loss_in_pbar(loss_mean, loss_name, pbar)
-
-                # parse outputs to predictions bbox is xyxy
-                predictions = self.model.decode(predictions,
-                                                self.hyp['obj_threshold'],
-                                                self.hyp['iou_threshold'],
-                                                self.hyp['max_detect'])
-
-                self.time += time_sync() - t0
-
-                if self.visual_image:
-                    WRITER.add_batch_images_predictions_detect(self.writer, 'test_pred', index, images, predictions,
-                                                               self.epoch)
-
-                # add metrics data to json_dt
-                for idx, (p, img_id) in enumerate(zip(predictions, img_ids)):
-                    self.seen += 1
-                    p[:, :4] = rescale_xyxy(p[:, :4], shape_converts[idx])  # to original image shape
-                    p[:, :4] = xyxy2x1y1wh(p[:, :4])
-                    COCOEvaluateMixin.append_json_dt(p, img_id, json_dt)
-
-        fps_time = compute_fps(self.seen, self.time)
-        log_fps_time(fps_time)
-
-        WRITER.add_epoch_curve(self.writer, 'val_loss', loss_mean, loss_name, self.epoch)
-
-        # when empty to avoid bug
-        COCOEvaluateMixin.empty_append(json_dt)
-
-        if self.epoch == -1:  # save json_dt in the test
-            with open(self.coco_json['dt'], 'w') as f:
-                json.dump(json_dt, f)
-            LOGGER.info(f"Save coco_dt json {self.coco_json['dt']} successfully")
-
-        return json_dt
-
-
-class ValClassifyMixin(_ValMixin):
-    def __init__(self):
-        super(ValClassifyMixin, self).__init__()
-        self.time = None
-        self.seen = None
-        self.half = None
-        self.model = None
-        self.epoch = None
-        self.writer = None
-        self.device = None
-        self.loss_fn = None
-        self.dataloader = None
-        self.visual_image = None
-
-    def val_once(self):
-        loss_name = ('class_loss',)
-        loss_mean = torch.zeros(1, device=self.device).half() if self.half else torch.zeros(1, device=self.device)
-        stats = []
-        with tqdm(enumerate(self.dataloader), total=len(self.dataloader),
-                  bar_format='{l_bar:>42}{bar:10}{r_bar}') as pbar:
-            for index, (images, labels) in pbar:
-                # get current for computing FPs but maybe not accurate maybe
-                t0 = time_sync()
-                images = images.to(self.device)
-                labels = labels.to(self.device)
-
-                # to half16 or float32 and normalized 0.0-1.0
-                # images = images.half() / 255 if self.half else images.float() / 255
-                images = images.half() if self.half else images.float()
+                # preprocess in iteration
+                x, labels, data_dict['other_data_iter'], data_dict = self.preprocess_iter(data, data_dict)
 
                 # inference
-                outputs = self.model(images)
-                loss = self.loss_fn(outputs, labels)
+                outputs, data_dict = self.forward_in_model(x, data_dict)
 
-                # mean total loss and loss items
-                _loss = loss.detach()
-                loss_mean = loss_to_mean(index, loss_mean, _loss)
-                self.show_loss_in_pbar(loss_mean, loss_name, pbar)
+                # compute loss
+                loss, data_dict['other_loss_iter'], data_dict = self.compute_loss(outputs, labels, data_dict)
 
-                self.time += time_sync() - t0
-                self.seen += images.shape[0]
-                self._get_metrics_stats(outputs, labels, stats)
+                # mean loss
+                data_dict['loss_mean'], data_dict = self.mean_loss(index, data_dict['loss_mean'], loss, data_dict)
+                data_dict = self.show_in_pbar(pbar, data_dict)
 
-                if self.visual_image:
-                    # TODO add image without label for classification
-                    pass
+                # parse outputs
+                predictions, data_dict = self.decode_iter(outputs, data_dict)
 
-        WRITER.add_epoch_curve(self.writer, 'val_loss', loss_mean, loss_name, self.epoch)
+                # process for evaluating stats and save to data_dict['stats']
+                data_dict = self.process_stats(predictions, data_dict)
 
-        return loss_mean.tolist(), loss_name, stats
+                # get time difference and seen
+                data_dict['time'] += time_sync() - time_start
+                data_dict['seen'] += x.shape[0]
 
-    def compute_metrics(self, stats):
-        stats = [np.concatenate(x, 0) for x in zip(*stats)]
-        nc = self.model.nc
-        pre, conf, labels = stats
-        cls_number = np.bincount(labels.astype(np.int64), minlength=nc)
-        cls_top1_number = np.zeros_like(cls_number)
-        for cls in range(nc):
-            filter_cls = labels == cls
-            top1_number = np.sum(pre[filter_cls] == labels[filter_cls]).tolist()
-            cls_top1_number[cls] = top1_number
-        top1 = (cls_top1_number.sum() / cls_number.sum()).tolist()
-        top1_cls = (cls_top1_number / cls_number).tolist()
+                # postprocess in iteration for data_dict
+                data_dict = self.postprocess_iter(data_dict)
 
-        fmt = '<10.3f'
-        space = ' ' * 50
-        LOGGER.info(f'{space}top1: {top1:{fmt}}')
-        return top1, top1_cls, cls_number
+        # postprocess for data_dict
+        data_dict = self.postprocess(data_dict)
+        return data_dict
 
     @staticmethod
-    def _get_metrics_stats(predictions, labels, stats):
-        cls_conf, cls_pre = torch.max(predictions, dim=1)
-        stats.append((cls_pre.cpu(), cls_conf.cpu(), labels.cpu()))
+    def bar_format_val():
+        r"""The bar_format in tqdm"""
+        return '{l_bar:>42}{bar:10}{r_bar}'
+
+    def preprocess(self, data_dict) -> dict:
+        r"""It is a preprocessing in the validating and has an interface data_dict"""
+        self.model.eval()
+        return data_dict
+
+    def preprocess_iter(self, data, data_dict):
+        r"""It is a preprocessing in validating iteration and has an interface data_dict"""
+        x, labels, *other_data = data
+        x = x.to(self.device)
+        labels = labels.to(self.device)
+        x = x.half() if self.half else x.float()
+        return x, labels, other_data, data_dict
+
+    def postprocess_iter(self, data_dict) -> dict:
+        r"""It is a postprocessing in validating iteration and has an interface data_dict"""
+        return data_dict
+
+    def postprocess(self, data_dict) -> dict:
+        r"""It is a postprocessing in the validating and has an interface data_dict"""
+        # visual in tensorboard pytorch
+        if hasattr_not_none(self, 'writer'):
+            loss_mean, loss_name = data_dict['loss_mean'], data_dict['loss_name']
+            WRITER.add_epoch_curve(self.writer, 'val_loss', loss_mean, loss_name, self.epoch)
+
+        # compute fps time and make it log
+        fps_time = compute_fps(data_dict['seen'], data_dict['time'])
+        log_fps_time(fps_time)
+        return data_dict
+
+    def decode_iter(self, outputs, data_dict):
+        r"""Decode outputs from model and has an interface data_dict"""
+        return outputs, data_dict
+
+    def process_stats(self, predictions, data_dict) -> dict:
+        r"""The interface of processing stats for evaluating"""
+        return data_dict
+
+    def show_in_pbar(self, pbar, data_dict) -> dict:
+        r"""Show something in pbar and has an interface data_dict"""
+        loss_mean, loss_name = data_dict['loss_mean'], data_dict['loss_name']
+        memory = torch.cuda.memory_reserved(self.device) / 1073741824 if torch.cuda.is_available() else 0
+        memory_cuda = f'GPU: {memory:.3f}GB'
+
+        # show in pbar
+        space = ' ' * 11
+        pbar.set_description_str(f"{space}{'validating:':<15}{memory_cuda}")
+        show = ''.join([f'{x}: {y:.5f} ' for x, y in zip(loss_name, loss_mean)])
+        pbar.set_postfix_str(show)
+        return data_dict
 
 
 class COCOEvaluateMixin(object):
@@ -1038,18 +1062,22 @@ class COCOEvaluateMixin(object):
     """
 
     @staticmethod
-    def coco_evaluate(coco_gt: strpath, coco_dt, img_ids: list, eval_type: str = 'bbox', print_result: bool = False):
+    def coco_evaluate(coco_gt: strpath,
+                      coco_dt,
+                      img_ids: list,
+                      eval_type: str = 'bbox',
+                      print_result: bool = False):
         r"""
         Evaluate by coco.
         Args:
             coco_gt: strpath = StrPath of coco_gt json.
-            coco_dt: = StrPath of coco_dt json / list of coco_dt.
+            coco_dt: = StrPath of coco_dt json / coco_dt list.
             img_ids: list = image id to evaluate.
             eval_type: str = evaluate type consist of ('segm', 'bbox', 'keypoints').
             print_result: bool = whether print result in COCO.
 
         Returns:
-            coco_results
+            (coco.eval, coco.stats)
         """
 
         if not Path(coco_gt).exists():
@@ -1066,19 +1094,18 @@ class COCOEvaluateMixin(object):
             coco.evaluate()
             coco.accumulate()
             coco.summarize()
-
         return coco.eval, coco.stats
 
     @staticmethod
-    def save_coco_results(coco_results, path: strpath):
+    def save_coco_results(coco_eval, path: strpath):
         r"""
         Save coco_results.
         Args:
-            coco_results: = coco.eval.
+            coco_eval: = coco.eval.
             path: strpath = save path.
         """
         path = str(path)
-        params = coco_results['params']
+        params = coco_eval['params']
         new_params = {}
         for k, v in params.__dict__.items():
             if isinstance(v, np.ndarray):
@@ -1086,32 +1113,31 @@ class COCOEvaluateMixin(object):
             elif isinstance(v, (list, tuple)):
                 v = np.asarray(v).tolist()
             new_params[k] = v
-        coco_results['params'] = new_params
+        coco_eval['params'] = new_params
 
-        for k, v in coco_results.items():
+        for k, v in coco_eval.items():
             if isinstance(v, np.ndarray):
                 v = v.tolist()
             elif isinstance(v, datetime):
                 v = str(v)
-            coco_results[k] = v
+            coco_eval[k] = v
 
         with open(path, 'w') as f:
-            json.dump(coco_results, f)
+            json.dump(coco_eval, f)
             LOGGER.info(f"Save coco results json {path} successfully")
 
     @staticmethod
-    def append_json_dt(predictions, image_id: int, json_dt: list):
+    def append_json_dt(bboxes, scores, cls_ids, image_id: int, json_dt: list):
         r"""
         Append predictions to json_dt list.
         Args:
-            predictions: = list of prediction ( n, 6(x1, y1, w, h, conf, cls_idx) ) corresponding to original label.
+            bboxes: = shape(n, 4) the x1y1wh to real coordinate.
+            scores: = shape(n,) the confidence.
+            cls_ids: = shape(n,) the class id.
             image_id: int = image id.
-            json_dt: list = save prediction in coco json format.
+            json_dt: list = a list to save prediction in coco json format.
         """
-        bboxes = predictions[:, :4]
-        scores = predictions[:, 4]
-        cls_id = predictions[:, 5]
-        for category_id, bbox, score in zip(cls_id.tolist(), bboxes.tolist(), scores.tolist()):
+        for bbox, score, category_id in zip(bboxes.tolist(), scores.tolist(), cls_ids.tolist()):
             json_dt.append(
 
                 {'image_id': int(image_id),
@@ -1126,7 +1152,7 @@ class COCOEvaluateMixin(object):
         r"""
         Avoid bug that json_dt is empty when detect nothing.
         Args:
-            json_dt: list = save prediction in coco json format.
+            json_dt: list = a list to save prediction in coco json format.
         """
         if not json_dt:
             json_dt.append(
@@ -1140,6 +1166,12 @@ class COCOEvaluateMixin(object):
 
 
 class ReleaseMixin(object):
+    r"""
+    Methods:
+        1. release_cuda_cache.
+        2. release.
+    """
+
     @staticmethod
     def release_cuda_cache():
         r"""Release cuda cache"""
@@ -1149,7 +1181,3 @@ class ReleaseMixin(object):
     def release(var=None):
         r"""Set variable None"""
         return var
-
-
-if __name__ == '__main__':
-    pass

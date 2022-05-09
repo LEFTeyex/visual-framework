@@ -26,7 +26,3 @@ class ModelClassify(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         return x
-
-
-if __name__ == '__main__':
-    pass

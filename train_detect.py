@@ -13,6 +13,7 @@ from torch.cuda.amp import GradScaler
 from torch.optim.swa_utils import AveragedModel
 from warmup_scheduler_pytorch import WarmUpScheduler
 
+from utils import WRITER
 from utils.log import add_log_file, logging_start_finish, logging_initialize, LOGGER
 from utils.loss import LossDetectYolov5
 from utils.metrics import compute_fitness
@@ -50,7 +51,6 @@ class _Args(object):
         self.visual_image = args.visual_image
         self.visual_graph = args.visual_graph
         self.data_augment = args.data_augment
-        self.update_bn_last = args.update_bn_last
         self.swa_start_epoch = args.swa_start_epoch
 
         # Set load way
@@ -73,17 +73,11 @@ class TrainDetect(_Args, MetaTrainDetect):
         # TODO design a way to get all parameters in train setting for research if possible
 
         # Get path_dict
-        self.path_dict = self.get_save_path(('hyp', 'hyp.yaml'),
-                                            ('logger', 'logger.log'),
-                                            ('writer', 'tensorboard'),
-                                            ('args', 'args.yaml'),
-                                            ('datasets', 'datasets.yaml'),
-                                            ('last', 'weights/last.pt'),
-                                            ('best', 'weights/best.pt'),
-                                            ('json_gt_val', 'json_gt_val.json'),
-                                            ('json_gt_test', 'json_gt_test.json'),
-                                            ('json_dt', 'json_dt.json'),
-                                            ('coco_results', 'coco_results.json'))
+        self.path_dict = self.set_save_path(('hyp', 'hyp.yaml'), ('logger', 'logger.log'), ('writer', 'tensorboard'),
+                                            ('args', 'args.yaml'), ('datasets', 'datasets.yaml'),
+                                            ('last', 'weights/last.pt'), ('best', 'weights/best.pt'),
+                                            ('json_gt_val', 'json_gt_val.json'), ('json_gt_test', 'json_gt_test.json'),
+                                            ('json_dt', 'json_dt.json'), ('coco_results', 'coco_results.json'))
 
         # Add FileHandler for logger
         add_log_file(self.path_dict['logger'])
@@ -102,7 +96,7 @@ class TrainDetect(_Args, MetaTrainDetect):
         self.hyp = load_all_yaml(self.hyp)
 
         # Initialize or auto seed manual and save in self.hyp
-        self.hyp['seed'] = init_seed(self.hyp['seed'])
+        self.hyp['seed'] = init_seed(self.hyp['seed'], self.hyp['deterministic'])
 
         nl = int(len(self.datasets['anchors']))
         self.hyp['bbox'] *= 3 / nl
@@ -131,7 +125,6 @@ class TrainDetect(_Args, MetaTrainDetect):
         )
 
         # Initialize or load swa_model
-        # TODO add load_swa_model in the future
         self.swa_model = AveragedModel(self.model, self.device)
         if self._load_swa_model:
             self.swa_model.module = self.checkpoint['swa_model']
@@ -264,18 +257,21 @@ class TrainDetect(_Args, MetaTrainDetect):
         results = tester.val_training()
         return results
 
-    def preprocess_iter(self, data):
-        x, labels, *_ = data
+    def visual_dataset(self, dataset, name):
+        WRITER.add_datasets_images_labels_detect(self.writer, dataset, name)
+
+    def preprocess_iter(self, data, data_dict):
+        x, labels, *other_data = data
         x = x.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
         labels = labels.to(self.device)
-        return x, labels, _
+        return x, labels, other_data, data_dict
 
     @staticmethod
-    def mean_loss(index, loss_mean, loss, others_loss):
-        (loss_items,) = others_loss
+    def mean_loss(index, loss_mean, loss, data_dict):
+        (loss_items,) = data_dict['other_loss_iter']
         loss = torch.cat((loss.detach(), loss_items.detach()))
         loss_mean = loss_to_mean(index, loss_mean, loss)
-        return loss_mean
+        return loss_mean, data_dict
 
 
 def parse_args_detect(known: bool = False):
@@ -296,28 +292,28 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--visual_graph', type=bool,
                         default=False, help='Make model graph visual')
     parser.add_argument('--swa_start_epoch', type=int,
-                        default=100, help='swa start')
+                        default=1, help='swa start')
     parser.add_argument('--swa_c', type=int,
                         default=1, help='swa cycle length')
-    parser.add_argument('--update_bn_last', type=bool,
-                        default=False, help='upgrade in last')
     parser.add_argument('--weights', type=str,
                         default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='The path of checkpoint')
+    # parser.add_argument('--weights', type=str,
+    #                     default=str(ROOT / 'runs/train/detect/exp8/weights/best.pt'), help='The path of checkpoint')
     # parser.add_argument('--weights', type=str, default='', help='The path of checkpoint')
     parser.add_argument('--freeze_names', type=list,
-                        default=['backbone'], help='Layer name to freeze in model')
+                        default=['backbone', 'neck'], help='Layer name to freeze in model')
     parser.add_argument('--device', type=str,
-                        default='3', help='Use cpu or cuda:0 or 0')
+                        default='0', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=300, help='The epochs for training')
+                        default=100, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
-                        default=128, help='The batch size in training')
+                        default=16, help='The batch size in training')
     parser.add_argument('--workers', type=int,
-                        default=8, help='For dataloader to load data')
+                        default=0, help='For dataloader to load data')
     parser.add_argument('--shuffle', type=bool,
                         default=True, help='Shuffle the training data')
     parser.add_argument('--pin_memory', type=bool,
-                        default=True, help='Load data to memory')
+                        default=False, help='Load data to memory')
     parser.add_argument('--datasets', type=str,
                         default=str(ROOT / 'mine/data/datasets/detection/Customdatasets.yaml'),
                         help='The path of datasets.yaml')

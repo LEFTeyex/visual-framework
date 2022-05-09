@@ -2,6 +2,10 @@ r"""
 Consist of the functions for dealing labels for training.
 1.Deal labels from xml to txt_yolo.
 2.Classify datasets as train/val/test datasets.
+The format of dataset label:
+    xml bbox is real from 1 to max.
+    coco bbox is real from 0 to max.
+    txt bbox is relative from 0 to 1.
 """
 import json
 import random
@@ -298,14 +302,14 @@ def convert_xml2txt_yolo_or_xml2json_coco_or_classify_datasets(args):
         raise ValueError(f'The input kind {args.kind} is wrong')
 
 
-def add_suffix_for_path_txt(list_str: list, suffix: str):
+def _add_suffix_for_path_txt(list_str: list, suffix: str):
     new_list = []
     for idx, x in enumerate(list_str):
         new_list.append([f'{x}{suffix}'])
     return new_list
 
 
-def deal_voc_detection(path: str, filter_difficult: bool = True):
+def deal_voc_detection(path: str, filter_difficult: bool = True, suffix='.jpg'):
     r"""
     Deal VOC datasets to yolo(from xml to txt).
     Path like ../VOC2012
@@ -337,7 +341,6 @@ def deal_voc_detection(path: str, filter_difficult: bool = True):
     # deal train and val txt
     deal_txt = ['trainval.txt', 'train.txt', 'val.txt', 'test.txt']
     deal_txt = [path / 'ImageSets/Main' / txt for txt in deal_txt]
-    suffix = '.jpg'
 
     # check and filter deal_txt exists
     deal_txt = [x for x in deal_txt if x.exists()]
@@ -349,7 +352,7 @@ def deal_voc_detection(path: str, filter_difficult: bool = True):
         all_txt_list = load_all_txt(*deal_txt)
 
     for idx, txt_list in enumerate(all_txt_list):
-        all_txt_list[idx] = add_suffix_for_path_txt(txt_list, suffix)
+        all_txt_list[idx] = _add_suffix_for_path_txt(txt_list, suffix)
     save_all_txt(*zip(all_txt_list, save_txt_path))
 
     # reset name for JPEGImages and Annotations_yolo

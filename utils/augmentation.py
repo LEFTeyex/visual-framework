@@ -43,7 +43,7 @@ def random_affine_or_perspective(img, label, filter_bbox=True,
     r = np.eye(3)
     angle = random.uniform(-angle, angle)  # angle to rotate
     scale = random.uniform(1 - scale, 1 + scale)  # scale ot resize
-    r[:2] = cv2.getRotationMatrix2D(angle=angle, center=(w / 2, h / 2), scale=scale)  # todo center to check
+    r[:2] = cv2.getRotationMatrix2D(angle=angle, center=(w / 2, h / 2), scale=scale)
 
     # shear
     s = np.eye(3)
@@ -224,7 +224,3 @@ def mosaic(img4, label4, shape4, img_size):
     label_out = np.concatenate(label_out, axis=0)
     label_out[:, 1:].clip(0, s_s)
     return img_out, label_out
-
-
-if __name__ == '__main__':
-    pass

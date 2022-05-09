@@ -2,10 +2,11 @@
 
 # Parameters
 seed: 0  # null is None in yaml
+deterministic: True
 
 # optimizer
 lr: 0.01
-momentum: 0.95
+momentum: 0.90
 weight_decay: 0.0005
 
 
@@ -13,7 +14,7 @@ weight_decay: 0.0005
 lr_scheduler: 'CosineAnnealingLR'
 lr_scheduler_kwargs:
   {
-    T_max: 300,
+    T_max: 100,
     eta_min: 0.001
   }
 verbose: False
@@ -23,12 +24,12 @@ verbose: False
 
 
 # warmup
-warmup_steps: 100
+warmup_steps: 10
 warmup_start_lr: 0.001
 warmup_mode: 'linear'
 
 
-label_smoothing: 0.05
+label_smoothing: 0.0
 fl_gamma: 0.0
 
 # TODO need to scale for batch size in metaclass
@@ -44,7 +45,7 @@ anchor_threshold: 4.0
 
 fit_weights: [ 0.9, 0.1, 0.0 ]  # for [ AP5095, AP50, AP75 ]
 
-# augmentation
+# augmentation probability
 filter_bbox: true
 perspective: 0.0
 angle: 0.0
@@ -54,7 +55,7 @@ translate: 0.0
 flip: 0.0
 
 # val
-obj_threshold: 0.5
+obj_threshold: 0.25
 iou_threshold: 0.6
 max_detect: 300
 

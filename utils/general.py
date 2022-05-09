@@ -17,10 +17,11 @@ from copy import deepcopy
 from functools import wraps
 
 from utils.log import LOGGER
+from utils.check import check_only_one_set
 from utils.typeslib import int_or_None, strpath
 
 __all__ = ['HiddenPrints', 'timer', 'time_sync', 'hasattr_not_none', 'make_divisible_up', 'to_tuplex',
-           'delete_list_indices',
+           'delete_list_indices', 'update_attr',
            'save_all_txt', 'load_all_txt', 'load_all_yaml', 'save_all_yaml', 'save_matrix_excel',
            'init_seed', 'select_one_device', 'loss_to_mean']
 
@@ -80,6 +81,28 @@ def hasattr_not_none(obj: object, attr_str: str):
     """
     obj_attr = f'obj.{attr_str}'
     return hasattr(obj, attr_str) and eval(obj_attr) is not None
+
+
+def update_attr(a, b, include=None, exclude=None):
+    r"""Update a class attribute from b class"""
+    if not check_only_one_set(include, exclude):
+        raise AttributeError('Only one of include and exclude can be set, please reset it')
+
+    if include is None:
+        include = ()
+    elif not isinstance(include, (list, tuple)):
+        include = (include,)
+
+    if exclude is None:
+        exclude = ()
+    elif not isinstance(exclude, (list, tuple)):
+        exclude = (exclude,)
+
+    for k, v in b.__dict__.items():
+        if len(include) and k in include:
+            setattr(a, k, v)
+        elif len(exclude) and k not in exclude:
+            setattr(a, k, v)
 
 
 def make_divisible_up(x, divisor):
@@ -243,23 +266,29 @@ def save_matrix_excel(path, matrix: list, sheets: list):
     LOGGER.info(f'Save matrix to excel successfully')
 
 
-def init_seed(seed: int_or_None = None):
+def init_seed(seed: int_or_None = None, deterministic: bool = True):
     r"""
     Initialize the seed of torch(CPU), torch(GPU), random, numpy by manual or auto(seed=None).
     Args:
-        seed: int_or_None =  integral number less than 32 bit better, Default=None(auto)
+        seed: int_or_None =  integral number less than 32 bit better, Default=None(auto).
+        deterministic: bool = if True, the conv will be slower but repeatable,
+                              otherwise faster and may be not repeatable.
     Return seed
     """
-    # TODO set cudnn
+    from torch.backends import cudnn
+    cudnn.benchmark, cudnn.deterministic = (False, True) if deterministic else (True, False)
+
     if seed is None:
         LOGGER.info('Setting seed(auto get) for all generator...')
         seed = torch.seed()
+        torch.cuda.manual_seed_all(seed)
         random.seed(seed)
         np.random.seed(deal_seed_by_bit(seed))
     else:
         seed = abs(seed)
         LOGGER.info(f'Setting seed(manual): {seed} for all generator...')
         torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
         random.seed(seed)
         np.random.seed(deal_seed_by_bit(seed))
     LOGGER.info(f'Set seed: {seed} successfully')
@@ -311,7 +340,3 @@ def deal_seed_by_bit(seed: int, bit: int = 32):
         # todo args can change
         seed = int(str(seed)[0:9])  # [0:9] is for 32 bit
     return seed
-
-
-if __name__ == '__main__':
-    pass

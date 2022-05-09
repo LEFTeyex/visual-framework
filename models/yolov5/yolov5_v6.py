@@ -268,15 +268,42 @@ def yolov5x_v6(inc: int = None, num_class: int = None, anchors: list = None,
 
 
 def _test():
-    model_list = [yolov5n_v6(),
-                  yolov5s_v6(),
-                  yolov5m_v6(),
-                  yolov5l_v6(),
-                  yolov5x_v6()]
+    model_list = [
+        yolov5n_v6(),
+        yolov5s_v6(),
+        yolov5m_v6(),
+        yolov5l_v6(),
+        yolov5x_v6()
+    ]
     for model in model_list:
         # print(model)
         print(model.anchors)
 
 
+def transform():
+    from pathlib import Path
+    root = Path.cwd()
+
+    model_path = root / 'best.pt'
+    save_path = root / 'best_trans.pt'
+    dev = torch.device('cpu')
+
+    model = yolov5s_v6(num_class=10).to(dev)
+    checkpoint = torch.load(model_path, map_location=dev)
+    state_dict = checkpoint['model'].state_dict()
+
+    # delete the same keys but different weight shape
+    model_ns = ((name, weight.shape) for name, weight in model.state_dict().items())
+    for name, shape in model_ns:
+        if name in state_dict and state_dict[name].shape != shape:
+            del state_dict[name]
+            print(name)
+    rest = model.load_state_dict(state_dict, strict=False)
+
+    torch.save({'model_state_dict': model.state_dict()}, save_path)
+    print(rest)
+
+
 if __name__ == '__main__':
     _test()
+    # transform()

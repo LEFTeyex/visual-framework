@@ -3,6 +3,7 @@ For validating model.
 Consist of some Valers.
 """
 
+import json
 import torch
 import argparse
 
@@ -11,8 +12,9 @@ from pathlib import Path
 from utils import WRITER
 from utils.log import LOGGER, add_log_file, log_results
 from utils.loss import LossDetectYolov5
+from utils.bbox import rescale_xyxy, xyxy2x1y1wh
 from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
-from utils.general import timer, select_one_device, save_all_yaml, load_all_yaml
+from utils.general import timer, select_one_device, save_all_yaml, load_all_yaml, loss_to_mean, hasattr_not_none
 from metaclass.metavaler import MetaValDetect
 from models.yolov5.yolov5_v6 import yolov5s_v6
 
@@ -42,17 +44,15 @@ class _Args(object):
 
 class ValDetect(_Args, MetaValDetect):
     def __init__(self, args=None, model=None, writer=None, half=True, dataloader=None, loss_fn=None,
-                 cls_names=None, epoch=None, visual_image=None, coco_json=None, hyp=None):
+                 cls_names=None, epoch=-1, visual_image=None, coco_json=None, hyp=None):
         # all need
-        self.seen = 0
-        self.time = 0.0
+        self.epoch = epoch
         self.writer = writer
         self.training = model is not None
 
         if self.training:
             self.hyp = hyp
             self.half = half
-            self.epoch = epoch
             self.loss_fn = loss_fn
             self.cls_names = cls_names
             self.coco_json = coco_json
@@ -67,16 +67,9 @@ class ValDetect(_Args, MetaValDetect):
 
         else:
             super(ValDetect, self).__init__(args)
-            self.epoch = -1  # TODO a bug about super in subclass
-            self.visual_image = None  # TODO a bug about super in subclass
-
-            self.path_dict = self.get_save_path(('hyp', 'hyp.yaml'),
-                                                ('logger', 'logger.log'),
-                                                ('args', 'args.yaml'),
-                                                ('datasets', 'datasets.yaml'),
-                                                ('json_gt', 'json_gt.json'),
-                                                ('json_dt', 'json_dt.json'),
-                                                ('coco_results', 'coco_results.json'))
+            self.path_dict = self.set_save_path(('hyp', 'hyp.yaml'), ('logger', 'logger.log'), ('args', 'args.yaml'),
+                                                ('datasets', 'datasets.yaml'), ('json_gt', 'json_gt.json'),
+                                                ('json_dt', 'json_dt.json'), ('coco_results', 'coco_results.json'))
             # Add FileHandler for logger
             add_log_file(self.path_dict['logger'])
 
@@ -108,6 +101,7 @@ class ValDetect(_Args, MetaValDetect):
                 yolov5s_v6(self.inc, self.datasets['nc'], self.datasets['anchors'], self.image_size),
                 load='state_dict'
             )
+            self.model = model.half() if self.half else model.float()
 
             self.loss_fn = LossDetectYolov5(self.model, self.hyp)
             self.dataloader = self.set_dataloader(
@@ -126,8 +120,8 @@ class ValDetect(_Args, MetaValDetect):
             coco_eval, coco_stats = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox',
                                                        print_result=True)
             self._log_writer(coco_stats)
-        # TODO confusion matrix needed
-        self.model.float()
+        if self.half:
+            self.model.float()
         return coco_eval, coco_stats
 
     # @torch.inference_mode()
@@ -148,6 +142,61 @@ class ValDetect(_Args, MetaValDetect):
         log_results(results, result_names)
         if writer:
             WRITER.add_epoch_curve(self.writer, 'val_metrics', results, result_names, self.epoch)
+
+    def preprocess(self, data_dict):
+        self.model.eval()
+        data_dict['json_dt'] = []
+        return data_dict
+
+    def preprocess_iter(self, data, data_dict):
+        # data (images, labels, shape_converts, img_ids)
+        x, labels, shape_converts, img_ids = data
+        data_dict['shape_converts'] = shape_converts
+        data_dict['img_ids'] = img_ids
+        x = x.to(self.device)
+        labels = labels.to(self.device)
+        x = (x.half() / 255) if self.half else (x.float() / 255)
+        data_dict['x'] = x
+        return x, labels, None, data_dict
+
+    @staticmethod
+    def mean_loss(index, loss_mean, loss, data_dict):
+        (loss_items,) = data_dict['other_loss_iter']
+        loss = torch.cat((loss.detach(), loss_items.detach()))
+        loss_mean = loss_to_mean(index, loss_mean, loss)
+        return loss_mean, data_dict
+
+    def decode_iter(self, outputs, data_dict):
+        # parse outputs to predictions bbox is xyxy
+        outputs = self.model.decode(outputs,
+                                    self.hyp['obj_threshold'],
+                                    self.hyp['iou_threshold'],
+                                    self.hyp['max_detect'])
+        return outputs, data_dict
+
+    def process_stats(self, predictions, data_dict):
+        if hasattr_not_none(self, 'writer') and self.visual_image:
+            images = data_dict['x']
+            WRITER.add_batch_images_predictions_detect(self.writer, 'test_pred', data_dict['index'],
+                                                       images, predictions, self.epoch)
+        # add metrics data to json_dt
+        shape_converts = data_dict['shape_converts']
+        img_ids = data_dict['img_ids']
+        for idx, (p, img_id) in enumerate(zip(predictions, img_ids)):
+            p[:, :4] = rescale_xyxy(p[:, :4], shape_converts[idx])  # to original image shape and is real
+            p[:, :4] = xyxy2x1y1wh(p[:, :4])
+            self.append_json_dt(p[:, :4], p[:, 4], p[:, 5], img_id, data_dict['json_dt'])
+        return data_dict
+
+    def postprocess(self, data_dict):
+        # when json_dt empty to avoid bug
+        self.empty_append(data_dict['json_dt'])
+
+        if self.epoch == -1:  # save json_dt in the test
+            with open(self.coco_json['dt'], 'w') as f:
+                json.dump(data_dict['json_dt'], f)
+            LOGGER.info(f"Save coco_dt json {self.coco_json['dt']} successfully")
+        return data_dict
 
 
 def parse_args_detect(known: bool = False):

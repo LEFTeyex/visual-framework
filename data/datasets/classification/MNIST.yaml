@@ -3,11 +3,11 @@
 # the parent path
 path: .../mnist
 
-train: train.txt
+#train: train.txt
 
-val: val.txt
+#val: val.txt
 
-test: test.txt
+#test: test.txt
 
 # number of classes
 nc: 10

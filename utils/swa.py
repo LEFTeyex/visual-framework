@@ -1,13 +1,17 @@
+r"""
+SWA module.
+"""
+
 import math
 import torch
 
 from torch.nn.modules.batchnorm import _BatchNorm
 
-__all__ = ['EMAFunction', 'update_bn']
+__all__ = ['EMADecayFunction', 'EMABNFunction', 'update_bn']
 
 
-class EMAFunction(object):
-    r"""Use in AveragedModel avg_fn=EMAFunction()"""
+class EMADecayFunction(object):
+    r"""Use in AveragedModel avg_fn=EMADecayFunction()"""
 
     def __init__(self, decay=0.9999, tau=2000):
         self.decay = lambda x: decay * (1 - math.exp(-x / tau))  # to more
@@ -19,9 +23,41 @@ class EMAFunction(object):
         return averaged_model_parameter * d + (1 - d) * model_parameter
 
 
+class EMABNFunction(object):
+    r"""A function of update_bn"""
+
+    def __init__(self, avg_fn=None):
+        if avg_fn is None:
+            def avg_fn(averaged_model_parameter, model_parameter, num_averaged):
+                return averaged_model_parameter + \
+                       (model_parameter - averaged_model_parameter) / (num_averaged + 1)
+        self.avg_fn = avg_fn
+        self.n_averaged = 0
+
+    @torch.no_grad()
+    def update_bn(self, swa_model, model):
+        r"""The parameters of them must be corresponding to each other"""
+        device = next(swa_model.parameters()).device
+        for swa_module, module in zip(swa_model.modules(), model.modules()):
+            if isinstance(swa_module, _BatchNorm) and isinstance(module, _BatchNorm):
+                if self.n_averaged == 0:
+                    swa_module.running_mean = module.running_mean.to(device)
+                    swa_module.running_var = module.running_var.to(device)
+                    swa_module.num_batches_tracked = module.num_batches_tracked.to(device)
+                else:
+                    swa_module.running_mean = self.avg_fn(swa_module.running_mean, module.running_mean.to(device),
+                                                          self.n_averaged)
+                    swa_module.running_var = self.avg_fn(swa_module.running_var, module.running_var.to(device),
+                                                         self.n_averaged)
+                    swa_module.num_batches_tracked = module.num_batches_tracked.to(device)
+
+        self.n_averaged += 1
+
+
 @torch.no_grad()
 def update_bn(loader, model, device=None, norm=True):
     r"""
+    https://arxiv.org/abs/1803.05407
     Updates BatchNorm running_mean, running_var buffers in the model.
     """
     momenta = {}

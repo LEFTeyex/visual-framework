@@ -57,7 +57,3 @@ def select_act(act_name_or_module):
     else:
         raise TypeError(f'The input act_name: {act_name_or_module} is error, please correct it')
     return act
-
-
-if __name__ == '__main__':
-    pass

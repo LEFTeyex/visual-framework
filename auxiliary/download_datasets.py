@@ -34,14 +34,5 @@ def download_cifar10():
         path_error(path)
 
 
-def download_voc_detection():
-    path = Path(PATH)
-    if path.exists():
-        path = str(path)
-        datasets.VOCDetection(root=path, download=True)
-    else:
-        path_error(path)
-
-
 if __name__ == '__main__':
     pass

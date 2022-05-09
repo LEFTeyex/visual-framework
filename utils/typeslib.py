@@ -6,9 +6,9 @@ from numpy import ndarray
 from typing import Union, Optional, TypeVar, Type, Tuple
 
 from torch.optim import Optimizer
-from torch.utils.data import Dataset
 from torch.cuda.amp import GradScaler
 from torch.nn import Module, Parameter
+from torch.utils.data import Dataset, DataLoader
 
 __all__ = [
     # strpath
@@ -17,7 +17,7 @@ __all__ = [
     'int_or_None', 'str_or_None', 'float_or_None', 'complex_or_None',
     'set_or_None', 'list_or_None', 'dict_or_None', 'tuple_or_None',
     'int_or_tuple',
-    'instance_',
+    'instance_', 'dataloader_',
     # pytorch
     'Tensor_or_None', 'int_or_Tensor', 'Tensor_or_ndarray',
     'module_', 'optimizer_', 'gradscaler_', 'parameter_', 'dataset_',
@@ -52,6 +52,7 @@ Tensor_or_ndarray = Union[Tensor, ndarray]
 # pytorch instance
 module_ = TypeVar('module_', bound=Module)
 dataset_ = TypeVar('dataset_', bound=Dataset)
+dataloader_ = TypeVar('dataloader_', bound=DataLoader)
 optimizer_ = TypeVar('optimizer_', bound=Optimizer)
 parameter_ = TypeVar('parameter_', bound=Parameter)
 gradscaler_ = TypeVar('gradscaler_', bound=GradScaler)
