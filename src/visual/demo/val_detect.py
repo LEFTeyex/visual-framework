@@ -9,14 +9,14 @@ import argparse
 
 from pathlib import Path
 
-from ..utils import WRITER
-from ..utils.log import LOGGER, add_log_file, log_results
-from ..utils.loss import LossDetectYolov5
-from ..utils.bbox import rescale_xyxy, xyxy2x1y1wh
-from ..utils.datasets import get_and_check_datasets_yaml, DatasetDetect
-from ..utils.general import timer, select_one_device, save_all_yaml, load_all_yaml, loss_to_mean, hasattr_not_none
-from ..metaclass.metavaler import MetaValDetect
-from ..models.yolov5.yolov5_v6 import yolov5s_v6
+from visual.utils import WRITER
+from visual.utils.log import LOGGER, add_log_file, log_results
+from visual.utils.loss import LossDetectYolov5
+from visual.utils.bbox import rescale_xyxy, xyxy2x1y1wh
+from visual.utils.datasets import get_and_check_datasets_yaml, DatasetDetect
+from visual.utils.general import timer, select_one_device, save_all_yaml, load_all_yaml, loss_to_mean, hasattr_not_none
+from visual.metaclass.metavaler import MetaValDetect
+from visual.models.yolov5.yolov5_v6 import yolov5s_v6
 
 __all__ = ['ValDetect']
 

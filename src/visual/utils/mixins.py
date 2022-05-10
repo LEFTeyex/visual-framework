@@ -390,7 +390,7 @@ class LoadAllCheckPointMixin(object):
             raise ValueError(f'The load_key can not be None when the load={load}')
 
         to_load = None
-        if load_key is not None:
+        if load is not None and load_key is not None:
             self._check_checkpoint_not_none()
             to_load = self.checkpoint[load_key]
 

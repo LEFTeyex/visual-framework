@@ -12,7 +12,21 @@ from .bbox import bbox_iou
 from .decode import parse_bbox_yolov5
 from .typeslib import module_
 
-__all__ = ['LossDetectYolov5']
+__all__ = ['select_loss_fn', 'LossDetectYolov5']
+
+
+def select_loss_fn(loss_name: str, kwargs: dict):
+    r"""
+    Select optimizer.
+    Args:
+        loss_name: str = loss name corresponding to optimizer module in pytorch.
+        kwargs: dict = the hyperparameter corresponding to the loss.
+
+    Returns:
+        loss instance
+    """
+    loss_class = eval(f'nn.{loss_name}')
+    return loss_class(**kwargs)
 
 
 class LossDetectYolov5(object):

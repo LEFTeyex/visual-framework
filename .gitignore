@@ -4,7 +4,10 @@
 # file/**
 .idea/**
 __pycache__/**
-runs/**
+**/runs
+**/runs/**
+**/try
+**/try/**
 
 # *.py
 try.py

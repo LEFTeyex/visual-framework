@@ -8,7 +8,7 @@ import torch
 
 from collections import OrderedDict
 
-from src.visual.utils import LOGGER
+from src.visual.utils.log import LOGGER
 from src.visual.utils.general import delete_list_indices
 
 

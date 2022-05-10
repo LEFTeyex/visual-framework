@@ -12,7 +12,7 @@ from typing import List
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
-from src.visual.utils import load_image_correct_rect
+from ..datasets import load_image_correct_rect
 
 __all__ = ['get_attention_map', 'get_feature_map']
 
@@ -155,7 +155,7 @@ def get_feature_map(img_path, img_size, model_instance, target_layers: list, sep
 def demo_attention_map():
     from src.visual.models.yolov5.yolov5_v6 import yolov5s_v6
 
-    path = '../data/images/dog.jpg'
+    path = '../../../../data/images/dog.jpg'
     img_size = 640
     weights = torch.load('../../models/yolov5/yolov5s_v6.pt')['model'].state_dict()
     model_instance = yolov5s_v6(num_class=80, decode=True)
@@ -180,7 +180,7 @@ def demo_feature_map():
             # TODO need to decode a little
             raise NotImplementedError
 
-    path = '../data/images/dog.jpg'
+    path = '../../../../data/images/dog.jpg'
     img_size = 640
     weights = torch.load('../../models/yolov5/yolov5s_v6.pt')['model'].state_dict()
     model_instance = yolov5s_v6(num_class=80, decode=True)

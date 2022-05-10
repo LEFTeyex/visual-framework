@@ -8,20 +8,20 @@ import argparse
 import torch.nn as nn
 
 from pathlib import Path
-from torch.optim import SGD
 from torch.cuda.amp import GradScaler
 from torch.optim.swa_utils import AveragedModel
 from warmup_scheduler_pytorch import WarmUpScheduler
 
-from ..utils import WRITER
-from ..utils.log import add_log_file, logging_start_finish, logging_initialize, LOGGER
-from ..utils.loss import LossDetectYolov5
-from ..utils.metrics import compute_fitness
-from ..models.yolov5.yolov5_v6 import yolov5s_v6
-from ..metaclass.metatrainer import MetaTrainDetect
-from ..utils.lr_schedulers import select_lr_scheduler
-from ..utils.datasets import get_and_check_datasets_yaml, DatasetDetect
-from ..utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device, loss_to_mean
+from visual.utils import WRITER
+from visual.utils.log import add_log_file, logging_start_finish, logging_initialize, LOGGER
+from visual.utils.loss import LossDetectYolov5
+from visual.utils.metrics import compute_fitness
+from visual.models.yolov5.yolov5_v6 import yolov5s_v6
+from visual.metaclass.metatrainer import MetaTrainDetect
+from visual.utils.optimizers import select_optimizer
+from visual.utils.lr_schedulers import select_lr_scheduler
+from visual.utils.datasets import get_and_check_datasets_yaml, DatasetDetect
+from visual.utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device, loss_to_mean
 
 from val_detect import ValDetect
 
@@ -144,7 +144,7 @@ class TrainDetect(_Args, MetaTrainDetect):
 
         # Initialize and load optimizer
         self.optimizer = self.load_state_dict(
-            SGD(param_groups, lr=self.hyp['lr'], momentum=self.hyp['momentum'], nesterov=True),
+            select_optimizer(param_groups, self.hyp['optimizer'], self.hyp['optimizer_kwargs']),
             **self._load_optimizer
         )
 
@@ -152,7 +152,7 @@ class TrainDetect(_Args, MetaTrainDetect):
 
         # Initialize and load lr_scheduler
         self.lr_scheduler = self.load_state_dict(
-            select_lr_scheduler(self.optimizer, hyp=self.hyp),
+            select_lr_scheduler(self.optimizer, self.hyp['lr_scheduler'], self.hyp['lr_scheduler_kwargs']),
             **self._load_lr_scheduler
         )
 
@@ -298,7 +298,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--swa_c', type=int,
                         default=1, help='swa cycle length')
     parser.add_argument('--weights', type=str,
-                        default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='The path of checkpoint')
+                        default='F:/weights/yolov5/yolov5s_v6_sd.pt', help='The path of checkpoint')
     # parser.add_argument('--weights', type=str,
     #                     default=str(ROOT / 'runs/train/detect/exp8/weights/best.pt'), help='The path of checkpoint')
     # parser.add_argument('--weights', type=str, default='', help='The path of checkpoint')
@@ -307,7 +307,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--device', type=str,
                         default='0', help='Use cpu or cuda:0 or 0')
     parser.add_argument('--epochs', type=int,
-                        default=100, help='The epochs for training')
+                        default=10, help='The epochs for training')
     parser.add_argument('--batch_size', type=int,
                         default=16, help='The batch size in training')
     parser.add_argument('--workers', type=int,
@@ -317,7 +317,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--pin_memory', type=bool,
                         default=False, help='Load data to memory')
     parser.add_argument('--datasets', type=str,
-                        default=str(ROOT / 'mine/data/datasets/detection/Customdatasets.yaml'),
+                        default=str(ROOT / 'data/datasets/detection/Customdatasets.yaml'),
                         help='The path of datasets.yaml')
     parser.add_argument('--save_name', type=str,
                         default='exp', help='The name of save dir')
@@ -337,7 +337,7 @@ def parse_args_detect(known: bool = False):
                         default=False, help='save model state_dict or model')
 
     parser.add_argument('--load_model',
-                        default={'load_key': 'model', 'state_dict_operation': True, 'load': 'state_dict'},
+                        default={'load_key': 'model_state_dict', 'state_dict_operation': False, 'load': 'state_dict'},
                         help='')
     parser.add_argument('--load_swa_model',
                         default={'load_key': 'swa_model', 'state_dict_operation': True, 'load': None,
