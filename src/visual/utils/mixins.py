@@ -23,13 +23,13 @@ from torch.utils.data import DataLoader
 from pycocotools.cocoeval import COCOeval
 from torch.utils.tensorboard import SummaryWriter
 
-from utils import WRITER
-from utils.log import LOGGER, log_fps_time
-from utils.swa import update_bn
-from utils.metrics import compute_fps
-from utils.check import check_only_one_set
-from utils.general import delete_list_indices, time_sync, loss_to_mean, HiddenPrints, hasattr_not_none
-from utils.typeslib import strpath, instance_, module_, dataset_, dataloader_, module_or_None, \
+from . import WRITER
+from .log import LOGGER, log_fps_time
+from .swa import update_bn
+from .metrics import compute_fps
+from .check import check_only_one_set
+from .general import delete_list_indices, time_sync, loss_to_mean, HiddenPrints, hasattr_not_none
+from .typeslib import strpath, instance_, module_, dataset_, dataloader_, module_or_None, \
     str_or_None, tuple_or_list, pkt_or_None
 
 __all__ = [
@@ -179,8 +179,8 @@ class SaveCheckPointMixin(object):
         }
 
         if hasattr_not_none(self, 'swa_model'):
-            checkpoint['swa_model'] = self.swa_model.float().state_dict() if model_state_dict \
-                else self.swa_model.float()
+            checkpoint['swa_model'] = self.swa_model.module.float().state_dict() if model_state_dict \
+                else self.swa_model.module.float()
             checkpoint['n_averaged'] = self.swa_model.n_averaged
 
         if hasattr_not_none(self, 'scaler'):
@@ -192,7 +192,7 @@ class SaveCheckPointMixin(object):
         LOGGER.debug('Get checkpoint successfully')
         return checkpoint
 
-    def save_checkpoint_best_last(self, fitness, best_path: strpath, last_path: strpath):
+    def save_checkpoint_best_last(self, fitness, best_path: strpath, last_path: strpath, model_state_dict: bool):
         r"""
         Save checkpoint when get better fitness or at last.
         Override get_checkpoint if necessary and the save checkpoint will be changed.
@@ -200,24 +200,25 @@ class SaveCheckPointMixin(object):
             fitness: = a number to compare with best_fitness.
             best_path: strpath = StrPath to save best.pt.
             last_path: strpath = StrPath to save last.pt.
+            model_state_dict: bool = if True, checkpoint will save model.state_dict().
         """
         # save the best checkpoint
         if fitness > self.best_fitness:
             LOGGER.debug(f'Saving best checkpoint in epoch{self.epoch}...')
             self.best_fitness = fitness
-            torch.save(self.get_checkpoint(), best_path)
+            torch.save(self.get_checkpoint(model_state_dict), best_path)
             LOGGER.debug(f'Save best checkpoint in epoch{self.epoch} successfully')
 
         # save the last checkpoint
         if self.epoch + 1 == self.epochs:
             LOGGER.info('Saving last checkpoint')
-            torch.save(self.get_checkpoint(), last_path)
+            torch.save(self.get_checkpoint(model_state_dict), last_path)
             LOGGER.info('Save last checkpoint successfully')
 
-    def save_checkpoint(self, save_path: strpath):
+    def save_checkpoint(self, save_path: strpath, model_state_dict: bool):
         r"""Save checkpoint straightly"""
         LOGGER.info('Saving checkpoint')
-        torch.save(self.get_checkpoint(), save_path)
+        torch.save(self.get_checkpoint(model_state_dict), save_path)
         LOGGER.info('Save checkpoint successfully')
 
 
@@ -295,14 +296,14 @@ class LoadAllCheckPointMixin(object):
 
         # get checkpoint to load
         to_load = None
-        if load_key is not None:
+        if load is not None and load_key is not None:
             self._check_checkpoint_not_none()
             to_load = self.checkpoint[load_key].state_dict() if state_dict_operation else self.checkpoint[load_key]
 
         if load is None:
-            LOGGER.info('Initialize model successfully')
+            LOGGER.info(f'Initialize {load_key} successfully')
             # model need to initial itself in its __init__()
-            LOGGER.info('Load nothing to model')
+            LOGGER.info(f'Load nothing to {load_key}')
 
         elif load == 'state_dict':
             # delete the same keys but different weight shape
@@ -316,9 +317,9 @@ class LoadAllCheckPointMixin(object):
             model_instance = self._load_state_dict(model_instance, to_load, name_log=type(model_instance).__name__)
 
         elif load == 'model':
-            LOGGER.info('Loading total model from self.checkpoint...')
+            LOGGER.info(f'Loading total {load_key} from self.checkpoint...')
             model_instance = to_load
-            LOGGER.info('Load total model successfully')
+            LOGGER.info(f'Load total {load_key} successfully')
 
         else:
             raise ValueError(f"The arg load: {load} do not match, "
@@ -343,13 +344,13 @@ class LoadAllCheckPointMixin(object):
         Returns:
             model_instance
         """
-        model_instance = self.load_model(model_instance, load_key, state_dict_operation, load)
+        model_instance.module = self.load_model(model_instance.module, load_key, state_dict_operation, load)
 
         if load_n_averaged_key:
-            LOGGER.info('Loading swa_model n_averaged...')
+            LOGGER.info(f'Loading {load_key} n_averaged...')
             self._check_checkpoint_not_none()
             model_instance.n_averaged = self.checkpoint[load_n_averaged_key]
-            LOGGER.info('Load swa_model n_averaged successfully')
+            LOGGER.info(f'Load {load_key} n_averaged successfully')
         return model_instance
 
     def load_state_dict(self, instance: instance_, load_key: str_or_None = None) -> instance_:
@@ -823,17 +824,16 @@ class TrainMixin(_TrainValMixin):
     def preprocess_iter(self, data, data_dict):
         r"""It is a preprocessing in training iteration and has an interface data_dict"""
         x, labels, *other_data = data
-        x = x.to(self.device)
+        x = x.to(self.device).float()
         labels = labels.to(self.device)
-        data_dict['batch_size_iter'] = x.shape[0]
+
+        # visual in tensorboard pytorch
+        if hasattr_not_none(self, 'writer') and self.epoch == (self.epoch + data_dict['index']):
+            WRITER.add_optimizer_lr(self.writer, self.optimizer, self.epoch)
         return x, labels, other_data, data_dict
 
     def postprocess_iter(self, data_dict) -> dict:
         r"""It is a postprocessing in training iteration and has an interface data_dict"""
-        # visual in tensorboard pytorch
-        if hasattr_not_none(self, 'writer'):
-            epoch = self.epoch + data_dict['index'] / data_dict['batch_size_iter']
-            WRITER.add_optimizer_lr(self.writer, self.optimizer, epoch)
         return data_dict
 
     def postprocess(self, data_dict) -> dict:
@@ -1169,7 +1169,7 @@ class ReleaseMixin(object):
     r"""
     Methods:
         1. release_cuda_cache.
-        2. release.
+        2. release_attr.
     """
 
     @staticmethod
@@ -1178,6 +1178,6 @@ class ReleaseMixin(object):
         torch.cuda.empty_cache()
 
     @staticmethod
-    def release(var=None):
+    def release_attr(var=None):
         r"""Set variable None"""
         return var

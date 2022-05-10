@@ -8,8 +8,8 @@ import torch
 
 from collections import OrderedDict
 
-from utils.log import LOGGER
-from utils.general import delete_list_indices
+from src.visual.utils import LOGGER
+from src.visual.utils.general import delete_list_indices
 
 
 def get_name_weights_list_len(x, is_model: bool = True, require_print: bool = False):
@@ -218,7 +218,7 @@ def run():
     """
     # =========================================================================
     from pathlib import Path
-    from models.yolov5 import yolov5_v6
+    from src.visual.models.yolov5 import yolov5_v6
 
     # the parameters needed to set consist of first, second and last
     first = True
@@ -226,7 +226,7 @@ def run():
     last = True
 
     # first
-    state_dict_path = '../models/yolov5/yolov5x_v6.pt'
+    state_dict_path = '../weights/yolov5x_v6.pt'
     model = yolov5_v6.yolov5x_v6()  # the instance model
     x_position = 50
     y_position = 50

@@ -5,8 +5,8 @@ It is built by units.py or torch.nn Module.
 
 import torch.nn as nn
 
-from models.model_utils import init_weights
-from metaclass.metamodel import MetaModelDetectAnchorBased
+from .model_utils import init_weights
+from ..metaclass.metamodel import MetaModelDetectAnchorBased
 
 
 class Backbone(nn.Module):

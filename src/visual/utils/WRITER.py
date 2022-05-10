@@ -7,7 +7,7 @@ import torch
 
 from tqdm import tqdm
 
-from utils.bbox import xywh2xyxy
+from .bbox import xywh2xyxy
 
 __all__ = ['add_model_graph', 'add_optimizer_lr', 'add_epoch_curve',
            'add_datasets_images_labels_detect', 'add_batch_images_predictions_detect']

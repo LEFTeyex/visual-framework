@@ -1,8 +1,8 @@
 # pip install -r requirements.txt
 
 # Base ---------------------------
-# python>=3.9.7
-# torch>=1.7.1
+# ---python>=3.9.7---
+# ---torch>=1.7.1---
 
 tensorboard==2.8.0
 numpy==1.21.5

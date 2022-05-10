@@ -9,14 +9,14 @@ import argparse
 
 from pathlib import Path
 
-from utils import WRITER
-from utils.log import LOGGER, add_log_file, log_results
-from utils.loss import LossDetectYolov5
-from utils.bbox import rescale_xyxy, xyxy2x1y1wh
-from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
-from utils.general import timer, select_one_device, save_all_yaml, load_all_yaml, loss_to_mean, hasattr_not_none
-from metaclass.metavaler import MetaValDetect
-from models.yolov5.yolov5_v6 import yolov5s_v6
+from ..utils import WRITER
+from ..utils.log import LOGGER, add_log_file, log_results
+from ..utils.loss import LossDetectYolov5
+from ..utils.bbox import rescale_xyxy, xyxy2x1y1wh
+from ..utils.datasets import get_and_check_datasets_yaml, DatasetDetect
+from ..utils.general import timer, select_one_device, save_all_yaml, load_all_yaml, loss_to_mean, hasattr_not_none
+from ..metaclass.metavaler import MetaValDetect
+from ..models.yolov5.yolov5_v6 import yolov5s_v6
 
 __all__ = ['ValDetect']
 
@@ -40,6 +40,7 @@ class _Args(object):
         self.image_size = args.image_size
         self.batch_size = args.batch_size
         self.pin_memory = args.pin_memory
+        self._load_model = args.load_model
 
 
 class ValDetect(_Args, MetaValDetect):
@@ -99,7 +100,7 @@ class ValDetect(_Args, MetaValDetect):
 
             self.model = self.load_model(
                 yolov5s_v6(self.inc, self.datasets['nc'], self.datasets['anchors'], self.image_size),
-                load='state_dict'
+                **self._load_model
             )
             self.model = model.half() if self.half else model.float()
 
@@ -110,7 +111,8 @@ class ValDetect(_Args, MetaValDetect):
     @torch.no_grad()
     def val_training(self):
         self.model.eval()
-        json_dt = self.val_once(('total_loss', 'bbox_loss', 'class_loss', 'object_loss'))
+        data_dict = self.val_once(('total', 'bbox', 'class', 'object'))
+        json_dt = data_dict['json_dt']
         img_ids = self.dataloader.dataset.indices
 
         if self.epoch != -1:
@@ -128,7 +130,8 @@ class ValDetect(_Args, MetaValDetect):
     @torch.no_grad()
     def val(self):
         self.model.eval()
-        json_dt = self.val_once(('total_loss', 'bbox_loss', 'class_loss', 'object_loss'))
+        data_dict = self.val_once(('total', 'bbox', 'class', 'object'))
+        json_dt = data_dict['json_dt']
         img_ids = self.dataloader.dataset.indices
         coco_eval, coco_stats = self.coco_evaluate(self.coco_json['test'], json_dt, img_ids, 'bbox', print_result=True)
         self._log_writer(coco_stats)
@@ -142,6 +145,9 @@ class ValDetect(_Args, MetaValDetect):
         log_results(results, result_names)
         if writer:
             WRITER.add_epoch_curve(self.writer, 'val_metrics', results, result_names, self.epoch)
+
+    def visual_dataset(self, dataset, name):
+        pass
 
     def preprocess(self, data_dict):
         self.model.eval()
@@ -189,6 +195,7 @@ class ValDetect(_Args, MetaValDetect):
         return data_dict
 
     def postprocess(self, data_dict):
+        data_dict = super(ValDetect, self).postprocess(data_dict)
         # when json_dt empty to avoid bug
         self.empty_append(data_dict['json_dt'])
 
@@ -209,6 +216,9 @@ def parse_args_detect(known: bool = False):
     Return namespace(for setting args)
     """
     parser = argparse.ArgumentParser()
+    parser.add_argument('--load_model',
+                        default={'load_key': 'model', 'state_dict_operation': True, 'load': 'state_dict'},
+                        help='')
     parser.add_argument('--weights', type=str, default=str(ROOT / 'models/yolov5/yolov5s_v6.pt'), help='')
     parser.add_argument('--half', type=bool, default=False, help='')
     parser.add_argument('--device', type=str, default='0', help='cpu or cuda:0 or 0')

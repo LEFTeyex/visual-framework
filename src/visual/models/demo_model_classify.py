@@ -5,8 +5,8 @@ It is built by units.py or torch.nn Module.
 
 import torch.nn as nn
 
-from utils.log import LOGGER
-from models.units import Conv
+from ..utils.log import LOGGER
+from .units import Conv
 
 __all__ = ['ModelClassify']
 

@@ -9,7 +9,7 @@ import numpy as np
 
 from torch import Tensor
 
-from utils.typeslib import Tensor_or_ndarray
+from .typeslib import Tensor_or_ndarray
 
 __all__ = ['xywh2xyxy', 'xywhn2xyxy', 'xyxy2x1y1wh', 'xyxy2xywhn',
            'rescale_xywhn', 'rescale_xyxy', 'clip_bbox', 'bbox_iou']

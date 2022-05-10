@@ -8,11 +8,10 @@ import math
 import torch
 import torch.nn as nn
 
-from utils.log import logging_initialize
-from utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
-from models.units import Conv, C3, SPPF
-from models.model_utils import init_weights
-from metaclass.metamodel import MetaModelDetectAnchorBased
+from ...utils.log import logging_initialize
+from ...utils.decode import parse_outputs_yolov5, filter_outputs2predictions, non_max_suppression
+from ..units import Conv, C3, SPPF
+from ...metaclass.metamodel import MetaModelDetectAnchorBased
 
 __all__ = ['yolov5n_v6', 'yolov5s_v6', 'yolov5m_v6', 'yolov5l_v6', 'yolov5x_v6']
 

@@ -13,15 +13,15 @@ from torch.cuda.amp import GradScaler
 from torch.optim.swa_utils import AveragedModel
 from warmup_scheduler_pytorch import WarmUpScheduler
 
-from utils import WRITER
-from utils.log import add_log_file, logging_start_finish, logging_initialize, LOGGER
-from utils.loss import LossDetectYolov5
-from utils.metrics import compute_fitness
-from models.yolov5.yolov5_v6 import yolov5s_v6
-from metaclass.metatrainer import MetaTrainDetect
-from utils.lr_schedulers import select_lr_scheduler
-from utils.datasets import get_and_check_datasets_yaml, DatasetDetect
-from utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device, loss_to_mean
+from ..utils import WRITER
+from ..utils.log import add_log_file, logging_start_finish, logging_initialize, LOGGER
+from ..utils.loss import LossDetectYolov5
+from ..utils.metrics import compute_fitness
+from ..models.yolov5.yolov5_v6 import yolov5s_v6
+from ..metaclass.metatrainer import MetaTrainDetect
+from ..utils.lr_schedulers import select_lr_scheduler
+from ..utils.datasets import get_and_check_datasets_yaml, DatasetDetect
+from ..utils.general import timer, load_all_yaml, save_all_yaml, init_seed, select_one_device, loss_to_mean
 
 from val_detect import ValDetect
 
@@ -52,6 +52,7 @@ class _Args(object):
         self.visual_graph = args.visual_graph
         self.data_augment = args.data_augment
         self.swa_start_epoch = args.swa_start_epoch
+        self.model_state_dict = args.model_state_dict
 
         # Set load way
         self._load_model = args.load_model
@@ -98,6 +99,7 @@ class TrainDetect(_Args, MetaTrainDetect):
         # Initialize or auto seed manual and save in self.hyp
         self.hyp['seed'] = init_seed(self.hyp['seed'], self.hyp['deterministic'])
 
+        # scale loss
         nl = int(len(self.datasets['anchors']))
         self.hyp['bbox'] *= 3 / nl
         self.hyp['cls'] *= self.datasets['nc'] / 80 * 3. / nl
@@ -109,7 +111,7 @@ class TrainDetect(_Args, MetaTrainDetect):
             (vars(args), self.path_dict['args']),
             (self.datasets, self.path_dict['datasets'])
         )
-        args = self.release()
+        args = self.release_attr()
 
         # TODO auto compute anchors when anchors is None in self.datasets
 
@@ -121,14 +123,11 @@ class TrainDetect(_Args, MetaTrainDetect):
         # Initialize or load model
         self.model = self.load_model(
             yolov5s_v6(self.inc, self.datasets['nc'], self.datasets['anchors'], self.image_size),
-            load=self._load_model
+            **self._load_model
         )
 
         # Initialize or load swa_model
-        self.swa_model = AveragedModel(self.model, self.device)
-        if self._load_swa_model:
-            self.swa_model.module = self.checkpoint['swa_model']
-            # self.swa_model.n_averaged = self.checkpoint['n_averaged']
+        self.swa_model = self.load_swa_model(AveragedModel(self.model, self.device), **self._load_swa_model)
 
         # Unfreeze model
         self.unfreeze_model()
@@ -144,30 +143,30 @@ class TrainDetect(_Args, MetaTrainDetect):
         )
 
         # Initialize and load optimizer
-        self.optimizer = self.load_optimizer(
+        self.optimizer = self.load_state_dict(
             SGD(param_groups, lr=self.hyp['lr'], momentum=self.hyp['momentum'], nesterov=True),
-            load=self._load_optimizer
+            **self._load_optimizer
         )
 
-        param_groups = self.release()
+        param_groups = self.release_attr()
 
         # Initialize and load lr_scheduler
-        self.lr_scheduler = self.load_lr_scheduler(
+        self.lr_scheduler = self.load_state_dict(
             select_lr_scheduler(self.optimizer, hyp=self.hyp),
-            load=self._load_lr_scheduler
+            **self._load_lr_scheduler
         )
 
         # Initialize and load GradScaler
-        self.scaler = self.load_gradscaler(GradScaler(enabled=self.cuda), load=self._load_gradscaler)
+        self.scaler = self.load_state_dict(GradScaler(enabled=self.cuda), **self._load_gradscaler)
 
         # Initialize or load start_epoch
-        self.start_epoch = self.load_start_epoch(load=self._load_start_epoch)
+        self.start_epoch = self.load_start_epoch(**self._load_start_epoch)
 
         # Initialize or load best_fitness
-        self.best_fitness = self.load_best_fitness(load=self._load_best_fitness)
+        self.best_fitness = self.load_best_fitness(**self._load_best_fitness)
 
         # Release self.checkpoint when load finished
-        self.checkpoint = self.release()
+        self.checkpoint = self.release_attr()
 
         # Get loss function
         self.loss_fn = LossDetectYolov5(self.model, self.hyp)
@@ -191,14 +190,14 @@ class TrainDetect(_Args, MetaTrainDetect):
             DatasetDetect(self.datasets, 'test', self.image_size, coco_gt=self.coco_json['test'])
         ) if self.datasets['test'] else self.val_dataloader
 
-        self.warmup_lr_scheduler = self.load_warmup_lr_scheduler(
+        self.warmup_lr_scheduler = self.load_state_dict(
             WarmUpScheduler(self.optimizer, self.lr_scheduler,
                             len_loader=len(self.train_dataloader),
                             warmup_steps=self.hyp['warmup_steps'],
                             warmup_start_lr=self.hyp['warmup_start_lr'],
                             warmup_mode=self.hyp['warmup_mode'],
                             verbose=self.hyp['verbose']),
-            load=self._load_warmup_lr_scheduler
+            **self._load_warmup_lr_scheduler
         )
 
         self.val_class = ValDetect
@@ -206,14 +205,15 @@ class TrainDetect(_Args, MetaTrainDetect):
     @logging_start_finish('Training')
     def train(self):
         for self.epoch in range(self.start_epoch, self.epochs):
-            self.train_one_epoch(('total_loss', 'bbox_loss', 'class_loss', 'object_loss'))
+            self.train_one_epoch(('total', 'bbox', 'class', 'object'))
             _, coco_stats = self.val_training()
 
             fitness = compute_fitness(coco_stats[:3], self.hyp['fit_weights'])  # compute fitness for best save
-            self.save_checkpoint_best_last(fitness, self.path_dict['best'], self.path_dict['last'])
+            self.save_checkpoint_best_last(fitness, self.path_dict['best'], self.path_dict['last'],
+                                           self.model_state_dict)
             # TODO maybe need a auto stop function for bad training
 
-        self.model = self.release()
+        self.model = self.release_attr()
         coco_eval, _ = self.test_trained()
 
         # save coco results
@@ -260,10 +260,12 @@ class TrainDetect(_Args, MetaTrainDetect):
     def visual_dataset(self, dataset, name):
         WRITER.add_datasets_images_labels_detect(self.writer, dataset, name)
 
+    def update_swa_attr(self):
+        pass
+
     def preprocess_iter(self, data, data_dict):
-        x, labels, *other_data = data
-        x = x.to(self.device).float() / 255  # to float32 and normalized 0.0-1.0
-        labels = labels.to(self.device)
+        x, labels, other_data, data_dict = super(TrainDetect, self).preprocess_iter(data, data_dict)
+        x /= 255
         return x, labels, other_data, data_dict
 
     @staticmethod
@@ -292,7 +294,7 @@ def parse_args_detect(known: bool = False):
     parser.add_argument('--visual_graph', type=bool,
                         default=False, help='Make model graph visual')
     parser.add_argument('--swa_start_epoch', type=int,
-                        default=1, help='swa start')
+                        default=50, help='swa start')
     parser.add_argument('--swa_c', type=int,
                         default=1, help='swa cycle length')
     parser.add_argument('--weights', type=str,
@@ -331,22 +333,34 @@ def parse_args_detect(known: bool = False):
                         default=3, help='The image channel to input')
     parser.add_argument('--image_size', type=int,
                         default=640, help='The size of input image')
-    parser.add_argument('--load_model', type=str,
-                        default='state_dict', help="The pattern of loading model 'model' / 'state_dict' / None")
-    parser.add_argument('--load_swa_model', type=bool,
-                        default=False, help='True / False')
-    parser.add_argument('--load_optimizer', type=bool,
-                        default=False, help='True / False')
-    parser.add_argument('--load_lr_scheduler', type=bool,
-                        default=False, help='True / False')
-    parser.add_argument('--load_warmup_lr_scheduler', type=bool,
-                        default=False, help='True / False')
-    parser.add_argument('--load_gradscaler', type=bool,
-                        default=False, help='True / False')
-    parser.add_argument('--load_start_epoch', type=str,
-                        default=None, help="The pattern of start training 'continue' / 'add' / None")
-    parser.add_argument('--load_best_fitness', type=bool,
-                        default=False, help='True / False')
+    parser.add_argument('--model_state_dict', type=bool,
+                        default=False, help='save model state_dict or model')
+
+    parser.add_argument('--load_model',
+                        default={'load_key': 'model', 'state_dict_operation': True, 'load': 'state_dict'},
+                        help='')
+    parser.add_argument('--load_swa_model',
+                        default={'load_key': 'swa_model', 'state_dict_operation': True, 'load': None,
+                                 'load_n_averaged_key': None},
+                        help='')
+    parser.add_argument('--load_optimizer',
+                        default={'load_key': None},
+                        help='')
+    parser.add_argument('--load_lr_scheduler',
+                        default={'load_key': None},
+                        help='')
+    parser.add_argument('--load_warmup_lr_scheduler',
+                        default={'load_key': None},
+                        help='')
+    parser.add_argument('--load_gradscaler',
+                        default={'load_key': None},
+                        help='')
+    parser.add_argument('--load_start_epoch',
+                        default={'load_key': None, 'load': None},
+                        help='')
+    parser.add_argument('--load_best_fitness',
+                        default={'load_key': None},
+                        help='')
     namespace = parser.parse_known_args()[0] if known else parser.parse_args()
     return namespace
 

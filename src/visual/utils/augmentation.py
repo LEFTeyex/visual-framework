@@ -8,7 +8,7 @@ import math
 import random
 import numpy as np
 
-from utils.bbox import rescale_xywhn
+from .bbox import rescale_xywhn
 
 __all__ = ['random_affine_or_perspective', 'cutout', 'mixup', 'mosaic']
 

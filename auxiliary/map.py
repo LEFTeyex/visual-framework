@@ -12,7 +12,7 @@ from typing import List
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
-from utils.datasets import load_image_correct_rect
+from src.visual.utils import load_image_correct_rect
 
 __all__ = ['get_attention_map', 'get_feature_map']
 
@@ -153,7 +153,7 @@ def get_feature_map(img_path, img_size, model_instance, target_layers: list, sep
 
 
 def demo_attention_map():
-    from models.yolov5.yolov5_v6 import yolov5s_v6
+    from src.visual.models.yolov5.yolov5_v6 import yolov5s_v6
 
     path = '../data/images/dog.jpg'
     img_size = 640
@@ -170,7 +170,7 @@ def demo_attention_map():
 
 
 def demo_feature_map():
-    from models.yolov5.yolov5_v6 import yolov5s_v6
+    from src.visual.models.yolov5.yolov5_v6 import yolov5s_v6
 
     class Model:
         def __init__(self, *args, **kwargs):

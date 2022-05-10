@@ -17,7 +17,7 @@ from pathlib import Path
 from pycocotools.coco import COCO
 from typing import Optional
 
-from utils.general import save_all_txt, load_all_txt
+from src.visual.utils.general import save_all_txt, load_all_txt
 
 _int_or_None = Optional[int]
 

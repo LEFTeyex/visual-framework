@@ -4,9 +4,7 @@ Consist of some easy call lr_scheduler by hyp(hyperparameter)
 and some Lambda function for LambdaLR.
 """
 
-import torch.optim.lr_scheduler as lr_scheduler
-
-from utils.typeslib import optimizer_
+from .typeslib import optimizer_
 
 __all__ = ['select_lr_scheduler']
 

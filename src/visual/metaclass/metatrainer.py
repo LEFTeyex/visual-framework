@@ -2,7 +2,7 @@ r"""
 Meta Trainer module for building all trainer class.
 """
 
-from utils.mixins import DataLoaderMixin, SetSavePathMixin, TrainMixin, \
+from ..utils.mixins import DataLoaderMixin, SetSavePathMixin, TrainMixin, \
     SaveCheckPointMixin, LoadAllCheckPointMixin, FreezeLayersMixin, COCOEvaluateMixin, \
     TensorboardWriterMixin, ReleaseMixin
 

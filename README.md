@@ -3,8 +3,8 @@
 [![github license](https://img.shields.io/github/license/LEFTeyex/visual-framework)](https://github.com/LEFTeyex/visual-framework/blob/master/LICENSE)
 [![github repository size](https://img.shields.io/github/repo-size/LEFTeyex/visual-framework)](https://github.com/LEFTeyex/visual-framework)
 [![](https://img.shields.io/badge/developing-55%25-bluegreen.svg)](https://github.com/LEFTeyex/visual-framework)
-[![](https://img.shields.io/badge/version-v1.6.1-blue.svg)]()
-[![](https://img.shields.io/badge/python-3.7|3.8|3.9-blue.svg)]()
+[![](https://img.shields.io/badge/version-v0.0.0-blue.svg)]()
+[![](https://img.shields.io/badge/python-3.6|3.7|3.8|3.9-blue.svg)]()
 
 The visual framework is designed on the idea of module and implemented by mixin method. Its biggest feature is the
 mixins module which is the core of the framework.

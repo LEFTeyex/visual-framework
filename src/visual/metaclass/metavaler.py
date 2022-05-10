@@ -2,7 +2,7 @@ r"""
 Meta Valer module for building all valer class.
 """
 
-from utils.mixins import ValMixin, SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, \
+from ..utils.mixins import ValMixin, SetSavePathMixin, LoadAllCheckPointMixin, DataLoaderMixin, \
     COCOEvaluateMixin, ReleaseMixin
 
 __all__ = ['MetaValDetect']

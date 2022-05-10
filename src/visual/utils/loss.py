@@ -8,9 +8,9 @@ import torch.nn as nn
 
 from torch import Tensor
 
-from utils.bbox import bbox_iou
-from utils.decode import parse_bbox_yolov5
-from utils.typeslib import module_
+from .bbox import bbox_iou
+from .decode import parse_bbox_yolov5
+from .typeslib import module_
 
 __all__ = ['LossDetectYolov5']
 

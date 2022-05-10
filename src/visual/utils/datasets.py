@@ -13,11 +13,11 @@ from tqdm import tqdm
 from pathlib import Path
 from torch.utils.data import Dataset
 
-from utils.log import LOGGER
-from utils.bbox import xywhn2xyxy, xyxy2xywhn, rescale_xywhn
-from utils.general import load_all_yaml, to_tuplex, make_divisible_up
-from utils.augmentation import random_affine_or_perspective, cutout, mixup, mosaic
-from utils.typeslib import strpath, int_or_tuple
+from .log import LOGGER
+from .bbox import xywhn2xyxy, xyxy2xywhn, rescale_xywhn
+from .general import load_all_yaml, to_tuplex, make_divisible_up
+from .augmentation import random_affine_or_perspective, cutout, mixup, mosaic
+from .typeslib import strpath, int_or_tuple
 
 __all__ = ['DatasetDetect', 'get_and_check_datasets_yaml', 'load_image_resize', 'load_image_correct_rect']
 

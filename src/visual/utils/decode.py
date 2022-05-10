@@ -9,10 +9,10 @@ import torch
 from torch import Tensor
 from torchvision.ops import batched_nms
 
-from utils.log import LOGGER
-from utils.bbox import xywh2xyxy
-from utils.check import check_between_0_1, check_version
-from utils.typeslib import tuple_or_None, int_or_Tensor
+from .log import LOGGER
+from .bbox import xywh2xyxy
+from .check import check_between_0_1, check_version
+from .typeslib import tuple_or_None, int_or_Tensor
 
 __all__ = ['parse_bbox_yolov5', 'parse_outputs_yolov5', 'filter_outputs2predictions',
            'non_max_suppression']

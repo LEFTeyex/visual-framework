@@ -16,9 +16,9 @@ import pandas as pd
 from copy import deepcopy
 from functools import wraps
 
-from utils.log import LOGGER
-from utils.check import check_only_one_set
-from utils.typeslib import int_or_None, strpath
+from .log import LOGGER
+from .check import check_only_one_set
+from .typeslib import int_or_None, strpath
 
 __all__ = ['HiddenPrints', 'timer', 'time_sync', 'hasattr_not_none', 'make_divisible_up', 'to_tuplex',
            'delete_list_indices', 'update_attr',

@@ -5,7 +5,7 @@ Consist of the special util only for units.
 
 import torch.nn as nn
 
-from utils.check import check_odd
+from ..utils.check import check_odd
 
 __all__ = ['auto_pad', 'select_act']
 

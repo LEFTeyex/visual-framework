@@ -7,7 +7,7 @@ import logging
 
 from functools import wraps
 
-from utils.typeslib import str_or_None
+from .typeslib import str_or_None
 
 __all__ = ['LOGGER', 'add_log_file', 'log_fps_time', 'log_results',
            'logging_initialize', 'logging_start_finish']
